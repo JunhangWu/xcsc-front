@@ -187,7 +187,7 @@
       </div>
     </div>
     <!-- 创作结果预览弹窗 -->
-    <!-- <el-dialog
+    <el-dialog
       v-model="resultVisible"
       title="创作结果预览"
       width="90%"
@@ -250,13 +250,13 @@
           </div>
         </div>
         
-        <template #footer>
+        <!-- <template #footer> -->
           <span class="dialog-footer">
             <el-button @click="handleClose">关闭</el-button>
           </span>
-        </template>
+        <!-- </template> -->
       </div>
-    </el-dialog> -->
+    </el-dialog>
   </div>
 </template>
 

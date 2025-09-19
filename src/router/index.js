@@ -112,7 +112,7 @@ export const dynamicRoutes = [
         path: 'archive',
         component: () => import('@/views/material/archive/index'),
         name: 'MaterialArchive',
-        meta: { title: '素材归档', icon: 'archive' }
+        meta: { title: '素材上传', icon: 'archive' }
       },
       {
         path: 'annotation',

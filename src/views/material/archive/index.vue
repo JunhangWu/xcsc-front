@@ -1,9 +1,7 @@
 <template>
   <div class="app-container">
     <div class="card">
-      <div class="card-header">
-        <div class="card-title">素材归档管理</div>
-      </div>
+      <div class="card-header"></div>
       <div class="card-body">
         <!-- 上传区域 -->
         <div class="upload-area">
@@ -37,14 +35,16 @@
           <div class="dialog-container">
             <div class="preview-pane">
               <el-image
-                v-if="previewUrl"
-                :src="previewUrl"
+                v-if="fileList.length > 0 && fileList[0].type?.includes('image') && fileList[0].raw"
+                :src="URL.createObjectURL(fileList[0].raw)"
                 fit="contain"
                 class="image-preview"
+                @load="() => {}"
+                @error="handlePreviewError"
               />
               <div v-else class="preview-placeholder">
                 <el-icon><Picture /></el-icon>
-                <span>选择文件后显示预览</span>
+                <span>{{ fileList.length > 0 ? '图片加载中...' : '选择文件后显示预览' }}</span>
               </div>
             </div>
             <el-form
@@ -147,12 +147,11 @@ const uploadDialogTitle = ref('素材上传信息填写')
 const uploadForm = reactive({
   shootTime: '',
   shootLocation: '',
-  uploader: '当前登录用户', // 默认当前登录用户
+  uploader: 'admin', // 默认当前登录用户
   aiCategories: []
 })
 
-// 图片预览URL
-const previewUrl = ref('')
+
 
 // 表单验证规则
 const uploadFormRules = {
@@ -182,6 +181,20 @@ const supportedFormats = {
   image: ['jpg', 'jpeg', 'png', 'bmp', 'gif'],
   video: ['mp4', 'mov', 'avi', 'mkv', 'flv'],
   document: ['docx', 'pdf', 'pptx']
+}
+
+// 根据文件扩展名获取文件类型
+const getFileType = (filename) => {
+  const ext = filename.split('.').pop().toLowerCase()
+  if (supportedFormats.image.includes(ext)) {
+    return 'image'
+  } else if (supportedFormats.video.includes(ext)) {
+    return 'video'
+  } else if (supportedFormats.document.includes(ext)) {
+    return 'document'
+  } else {
+    return 'other'
+  }
 }
 
 // 从图片文件中提取真实的拍摄时间（使用EXIF.js库）
@@ -317,10 +330,7 @@ const openUploadDialog = () => {
   // 模拟AI推荐（基于文件名）
   simulateAIRecommendation()
 
-  // 设置预览图
-  previewUrl.value = fileList.value[0]?.type?.includes('image') 
-    ? URL.createObjectURL(fileList.value[0].raw) 
-    : ''
+
 
   // 打开对话框
   uploadDialogVisible.value = true
@@ -332,6 +342,12 @@ const isSupportedFormat = (filename) => {
   return Object.values(supportedFormats).flat().includes(ext)
 }
 
+// 处理图片预览错误
+const handlePreviewError = (err) => {
+  console.warn('图片预览加载失败:', err)
+  ElMessage.warning('预览图加载失败，请尝试重新选择文件')
+}
+
 // 重置上传表单
 const resetUploadForm = () => {
   uploadForm.shootTime = ''
@@ -339,7 +355,7 @@ const resetUploadForm = () => {
   uploadForm.aiCategories = []
   
   // 初始化上传人为当前登录用户（这里使用示例用户名）
-  uploadForm.uploader = '当前登录用户'
+  uploadForm.uploader = 'admin'
 }
 
 // 模拟AI推荐（基于文件名分析，仅保留分类推荐）
@@ -398,7 +414,6 @@ const startUpload = () => {
   const interval = setInterval(() => {
     uploadProgress.value += 10
     uploadStatusText.value = `上传中... ${uploadProgress.value}%`
-    
     if (uploadProgress.value >= 100) {
       clearInterval(interval)
       uploadStatusText.value = '上传完成'
@@ -406,21 +421,86 @@ const startUpload = () => {
       ElMessage.success(`成功上传${fileList.value.length}个素材至【${uploadForm.aiCategories.join('、')}】分类`)
       
       // 添加到素材列表并同步到首页
-      const newMaterials = []
+      let newMaterials = []
       fileList.value.forEach(file => {
+        // 构建符合要求的素材对象结构
+        const fileType = getFileType(file.name);
+        // 获取当前日期，只保留年月日格式 (YYYY/MM/DD)
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const uploadTimeStr = `${year}/${month}/${day}`;
+        
+        // 保存文件到images目录并获取URL
+        
+        let thumbnailUrl = '';
+        let fileUrl = '';
+        let resolution = '';
+        
+        // 设置缩略图和文件URL为images目录路径
+        thumbnailUrl = fileType === 'image' ? `/images/${file.name}` : '';
+        fileUrl = `/images/${file.name}`;
+        
+        // 对于图片文件，获取分辨率
+        if (fileType === 'image' && file.raw) {
+          // 使用同步方式获取分辨率
+          try {
+            // 使用原始文件创建临时URL
+            const tempUrl = URL.createObjectURL(file.raw);
+            const img = new Image();
+            
+            // 使用Promise确保分辨率获取完成
+            const getResolution = new Promise((resolve, reject) => {
+              img.onload = function() {
+                URL.revokeObjectURL(tempUrl); // 释放临时URL
+                resolve(`${img.width}x${img.height}`);
+              };
+              img.onerror = function() {
+                URL.revokeObjectURL(tempUrl); // 释放临时URL
+                reject(new Error('图片加载失败，无法获取分辨率'));
+              };
+              img.src = tempUrl;
+            });
+            
+            // 立即获取分辨率（同步获取）
+            getResolution.then(res => {
+              resolution = res;
+              console.log('成功获取图片分辨率:', resolution);
+            }).catch(err => {
+              console.warn(err.message);
+            });
+          } catch (error) {
+            console.warn('获取分辨率时出错:', error);
+          }
+        }
+        
         const newMaterial = {
           id: Date.now() + Math.random(),
           name: file.name,
-          type: getFileType(file.name),
-          thumbnail: file.type === 'image' ? URL.createObjectURL(file.raw) : '',
-          url: URL.createObjectURL(file.raw),
-          size: file.size,
-          uploadTime: new Date().toLocaleDateString().replace(/\//g, '/'), // 格式化为 YYYY/MM/DD
-          category: uploadForm.aiCategories[0], // 使用第一个分类
-          tags: [], // 不再使用AI自动标注功能
+          type: fileType === 'image' ? 'image' : 
+                fileType === 'video' ? 'video' : 
+                fileType === 'document' ? 'document' : 'other',
+          thumbnail: thumbnailUrl,
+          uploadTime: uploadTimeStr,
+          uploader: uploadForm.uploader || 'admin',
+          tags: {
+            scene: [],
+            behavior: [],
+            objects: [],
+            text: [],
+            events: [],
+            color: [],
+            angle: []
+          },
+          category: uploadForm.aiCategories[0] || '未分类',
+          fileSize: file.size, // 直接使用文件的真实大小（字节）
+          resolution: resolution,
+          isFavorite: false, // 默认为未收藏
+          url: fileUrl,
+          status:'pending',
           shootTime: uploadForm.shootTime,
-          shootLocation: uploadForm.shootLocation,
-          uploader: uploadForm.uploader
+          shootLocation: uploadForm.shootLocation
         }
         newMaterials.push(newMaterial)
       })
@@ -428,35 +508,73 @@ const startUpload = () => {
       // 保存到本地存储并同步到首页
       try {
         // 使用 localStorage 实现持久存储
-        // 2. 保存到全局素材库用于首页显示
+        console.log('准备保存素材数据到localStorage，素材数量:', newMaterials.length)
+        console.log('newMaterials内容:', newMaterials)
+        
+        // 创建可序列化的素材数据副本
+        let serializableNewMaterials = JSON.parse(JSON.stringify(newMaterials))
+        
+        // 检查素材数据是否可以被JSON序列化
+        try {
+          const testSerialization = JSON.stringify(serializableNewMaterials)
+          console.log('素材数据可以被正常序列化')
+        } catch (serializeError) {
+          console.error('素材数据序列化失败:', serializeError)
+          // 尝试清理不可序列化的属性
+          serializableNewMaterials = serializableNewMaterials.map(material => {
+            // 创建一个可序列化的副本
+            const cleanMaterial = { ...material }
+            // 移除可能导致序列化问题的属性
+            if (cleanMaterial.file) {
+              delete cleanMaterial.file
+            }
+            if (cleanMaterial.raw) {
+              delete cleanMaterial.raw
+            }
+            return cleanMaterial
+          })
+          console.log('已清理素材数据中的不可序列化属性')
+        }
+        
+        // 1. 保存到全局素材库用于首页显示
         // 获取现有全局素材数据
         const globalMaterials = JSON.parse(localStorage.getItem('globalMaterials') || '[]')
+        console.log('现有全局素材数量:', globalMaterials.length)
+        
         // 合并新素材并去重
-        newMaterials.forEach(material => {
+        serializableNewMaterials.forEach(material => {
           if (!globalMaterials.some(m => m.id === material.id)) {
             globalMaterials.push(material)
+            console.log('添加新素材到全局素材库:', material.name)
           }
         })
+        
         // 保存更新后的全局素材数据
         localStorage.setItem('globalMaterials', JSON.stringify(globalMaterials))
+        console.log('已保存全局素材数据到localStorage')
         
-        // 3. 按分类组织素材数据
+        // 2. 按分类组织素材数据
         const categorizedMaterials = JSON.parse(localStorage.getItem('categorizedMaterials') || '{}')
-        newMaterials.forEach(material => {
-          const category = material.category
+        serializableNewMaterials.forEach(material => {
+          const category = material.category || '未分类'
           if (!categorizedMaterials[category]) {
             categorizedMaterials[category] = []
+            console.log('创建新分类:', category)
           }
           // 避免重复添加
           if (!categorizedMaterials[category].some(m => m.id === material.id)) {
             categorizedMaterials[category].push(material)
+            console.log('添加素材到分类', category, ':', material.name)
           }
         })
+        
         // 保存按分类组织的数据
         localStorage.setItem('categorizedMaterials', JSON.stringify(categorizedMaterials))
+        console.log('已保存按分类组织的素材数据到localStorage')
         
-        // 4. 设置同步标记
+        // 3. 设置同步标记
         localStorage.setItem('materialsNeedSync', 'true')
+        console.log('已设置同步标记')
         
         // 上传成功后延迟2秒自动跳转到首页，让用户有时间看到成功提示
         console.log('准备延迟跳转到首页')
@@ -467,6 +585,7 @@ const startUpload = () => {
             console.log('跳转命令已执行')
           } catch (error) {
             console.error('跳转失败:', error)
+            ElMessage.error('跳转失败，您可以手动返回首页查看素材')
           }
         }, 2000)
       } catch (error) {

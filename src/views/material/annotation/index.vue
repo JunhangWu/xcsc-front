@@ -498,7 +498,7 @@ const fetchMaterialList = () => {
             url: material.thumbnail,
             size: sizeInKB,
             type: mimeType,
-            uploadTime: material.uploadTime.replace(/\//g, '-') + ' 00:00', // 格式化为时间戳
+            uploadTime: material.uploadTime, // 保持YYYY/MM/DD格式
             status: material.status,
             tags: material.tags,
             category: material.category,

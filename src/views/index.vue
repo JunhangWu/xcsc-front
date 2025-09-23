@@ -58,7 +58,7 @@
         <!-- 筛选搜索栏 -->
         <div class="filter-bar">
           <el-form :model="filterForm" inline>
-            <el-form-item label="所有类型：">
+            <el-form-item label="素材类型：">
               <el-select v-model="filterForm.type" placeholder="请选择" clearable>
                 <el-option label="图片" value="image" />
                 <el-option label="视频" value="video" />
@@ -90,7 +90,6 @@
             <el-form-item>
               <el-button type="primary" @click="handleQuery">查询</el-button>
               <el-button @click="handleReset">重置</el-button>
-              <el-button type="success" @click="handleAISearch">AI搜索</el-button>
             </el-form-item>
           </el-form>
         </div>
@@ -195,7 +194,8 @@ import {
   Collection,
   Folder,
   Star,
-  Download
+  Download,
+  Search
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
@@ -220,6 +220,12 @@ const topModules = ref([
     title: 'AI创作',
     path: '/material/ai-creation',
     icon: MagicStick
+  },
+  {
+    name: 'ai-search',
+    title: 'AI搜索',
+    path: '/material/search',
+    icon: Search
   }
 ])
 

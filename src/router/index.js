@@ -124,7 +124,7 @@ export const dynamicRoutes = [
         path: 'search',
         component: () => import('@/views/material/search/index'),
         name: 'MaterialSearch',
-        meta: { title: '素材检索', icon: 'search' }
+        meta: { title: 'AI检索', icon: 'search' }
       },
       {
         path: 'ai-creation',
@@ -207,7 +207,7 @@ export const dynamicRoutes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory("high-inspection"),
   routes: [...constantRoutes, ...dynamicRoutes],
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {

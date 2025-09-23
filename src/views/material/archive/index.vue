@@ -54,6 +54,15 @@
               label-width="100px"
               class="form-pane"
             >
+            <el-form-item label="文件名" prop="fileName">
+              <el-input
+                v-model="uploadForm.fileName"
+                placeholder="请输入文件名（不填写则使用原文件名）"
+                maxlength="100"
+                show-word-limit
+              />
+            </el-form-item>
+            
             <el-form-item label="拍摄时间" prop="shootTime">
               <el-date-picker
                 v-model="uploadForm.shootTime"
@@ -145,6 +154,7 @@ const uploadDialogTitle = ref('素材上传信息填写')
 
 // 上传表单数据
 const uploadForm = reactive({
+  fileName: '',
   shootTime: '',
   shootLocation: '',
   uploader: 'admin', // 默认当前登录用户
@@ -155,6 +165,10 @@ const uploadForm = reactive({
 
 // 表单验证规则
 const uploadFormRules = {
+  fileName: [
+    { required: false, message: '请输入文件名', trigger: 'blur' },
+    { max: 100, message: '文件名长度不能超过100个字符', trigger: 'blur' }
+  ],
   shootTime: [
     { required: false, message: '请选择拍摄时间', trigger: ['blur', 'change'] }
   ],
@@ -439,8 +453,8 @@ const startUpload = () => {
         let resolution = '';
         
         // 设置缩略图和文件URL为images目录路径
-        thumbnailUrl = fileType === 'image' ? `/images/${file.name}` : '';
-        fileUrl = `/images/${file.name}`;
+        thumbnailUrl = fileType === 'image' ? `/${file.name}` : '';
+        fileUrl = `/${file.name}`;
         
         // 对于图片文件，获取分辨率
         if (fileType === 'image' && file.raw) {
@@ -477,7 +491,7 @@ const startUpload = () => {
         
         const newMaterial = {
           id: Date.now() + Math.random(),
-          name: file.name,
+          name: uploadForm.fileName || file.name,
           type: fileType === 'image' ? 'image' : 
                 fileType === 'video' ? 'video' : 
                 fileType === 'document' ? 'document' : 'other',

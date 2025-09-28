@@ -206,25 +206,25 @@ const topModules = ref([
   {    
     name: 'archive',
     title: '素材上传',
-    path: '/material/archive',
+    path: '/archive',
     icon: UploadFilled
   },
   {
     name: 'annotation',
     title: '素材标注',
-    path: '/material/annotation',
+    path: '/annotation',
     icon: Tools
   },
   {
     name: 'ai-creation',
     title: 'AI创作',
-    path: '/material/ai-creation',
+    path: '/ai-creation',
     icon: MagicStick
   },
   {
     name: 'ai-search',
     title: 'AI搜索',
-    path: '/material/search',
+    path: '/search',
     icon: Search
   }
 ])

@@ -71,7 +71,7 @@ export const constantRoutes = [
     ]
   },
   {
-    path: '/material',
+    path: '/',
     component: Layout,
     hidden: true,
     children: [
@@ -83,6 +83,59 @@ export const constantRoutes = [
       }
     ]
   },
+  // {
+  //   path: '/',
+  //   component: Layout,
+  //   hidden: true,
+  //   children: [
+  //     {
+  //       path: 'archive',
+  //       component: () => import('@/views/material/archive/index'),
+  //       name: 'MaterialArchive',
+  //       meta: { title: '素材上传', icon: 'upload' }
+  //     }
+  //   ]
+  // },
+  // {
+  //   path: '/',
+  //   component: Layout,
+  //   hidden: true,
+  //   children: [
+  //     {
+  //       path: 'annotation',
+  //       component: () => import('@/views/material/annotation/index'),
+  //       name: 'MaterialAnnotation',
+  //       meta: { title: '素材标注', icon: 'edit' }
+  //     }
+  //   ]
+  // },
+  // {
+  //   path: '/',
+  //   component: Layout,
+  //   hidden: true,
+  //   children: [
+  //     {
+  //       path: 'search',
+  //       component: () => import('@/views/material/search/index'),
+  //       name: 'MaterialSearch',
+  //       meta: { title: 'AI检索', icon: 'search' }
+  //     }
+  //   ]
+  // },
+  // {
+  //   path: '/',
+  //   component: Layout,
+  //   hidden: true,
+  //   children: [
+  //     {
+  //       path: 'ai-creation',
+  //       component: () => import('@/views/material/ai-creation/index'),
+  //       name: 'AICreation',
+  //       meta: { title: 'AI创作', icon: 'color' }
+  //     }
+  //   ]
+  // },
+
   {
     path: '/user',
     component: Layout,
@@ -101,39 +154,39 @@ export const constantRoutes = [
 
 // 动态路由，基于用户权限动态去加载
 export const dynamicRoutes = [
-  { 
-    path: '/material',
-    component: Layout,
-    redirect: '/material/archive',
-    name: 'Material',
-    meta: { title: '素材管理', icon: 'material' },
-    children: [
-      {
-        path: 'archive',
-        component: () => import('@/views/material/archive/index'),
-        name: 'MaterialArchive',
-        meta: { title: '素材上传', icon: 'archive' }
-      },
-      {
-        path: 'annotation',
-        component: () => import('@/views/material/annotation/index'),
-        name: 'MaterialAnnotation',
-        meta: { title: '素材标注', icon: 'tag' }
-      },
-      {
-        path: 'search',
-        component: () => import('@/views/material/search/index'),
-        name: 'MaterialSearch',
-        meta: { title: 'AI检索', icon: 'search' }
-      },
-      {
-        path: 'ai-creation',
-        component: () => import('@/views/material/ai-creation/index'),
-        name: 'AICreation',
-        meta: { title: 'AI创作', icon: 'magic-stick' }
-      }
-    ]
-  },
+  // { 
+  //   path: '/',
+  //   component: Layout,
+  //   redirect: '/',
+  //   name: 'Material',
+  //   meta: { title: '素材管理', icon: 'material' },
+  //   children: [
+  //     // {
+  //     //   path: 'archive',
+  //     //   component: () => import('@/views/material/archive/index'),
+  //     //   name: 'MaterialArchive',
+  //     //   meta: { title: '素材上传', icon: 'archive' }
+  //     // },
+  //     // {
+  //     //   path: 'annotation',
+  //     //   component: () => import('@/views/material/annotation/index'),
+  //     //   name: 'MaterialAnnotation',
+  //     //   meta: { title: '素材标注', icon: 'tag' }
+  //     // },
+  //     // {
+  //     //   path: 'search',
+  //     //   component: () => import('@/views/material/search/index'),
+  //     //   name: 'MaterialSearch',
+  //     //   meta: { title: 'AI检索', icon: 'search' }
+  //     // },
+  //     // {
+  //     //   path: 'ai-creation',
+  //     //   component: () => import('@/views/material/ai-creation/index'),
+  //     //   name: 'AICreation',
+  //     //   meta: { title: 'AI创作', icon: 'magic-stick' }
+  //     // }
+  //   ]
+  // },
   {
     path: '/system/user-auth',
     component: Layout,

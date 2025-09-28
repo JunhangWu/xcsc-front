@@ -3,20 +3,29 @@
     <div class="card">
       <div class="card-header"></div>
       <div class="card-body">
+        <!-- 上传类型选择 -->
+        <div class="upload-type-section">
+          <el-radio-group v-model="uploadType" @change="handleUploadTypeChange">
+            <el-radio label="file">上传文件</el-radio>
+            <el-radio label="folder">上传文件夹</el-radio>
+          </el-radio-group>
+        </div>
+        
         <!-- 上传区域 -->
         <div class="upload-area">
           <el-upload
             v-model:file-list="fileList"
             class="upload-demo"
             drag
-            multiple
+            :multiple="uploadType === 'file'"
+            :directory="uploadType === 'folder'"
             action=""
             :on-change="handleFileChange"
             :before-upload="handleBeforeUpload"
             :auto-upload="false"
           >
             <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-            <div class="el-upload__text">点击或拖拽文件到此处上传</div>
+            <div class="el-upload__text">{{ uploadType === 'file' ? '点击或拖拽文件到此处上传' : '点击或拖拽文件夹到此处上传' }}</div>
             <div class="el-upload__tip" slot="tip">
               支持图片：JPEG/JPG/PNG/BMP/GIF；视频：MP4/MOV/AVI/MKV/FLV；文档：DOCX/PDF/PPTX
             </div>
@@ -140,6 +149,8 @@ import EXIF from 'exif-js'
 const router = useRouter()
 console.log('Router instance created:', router)
 
+// 上传类型
+const uploadType = ref('file')
 // 文件列表
 const fileList = ref([])
 // 上传进度
@@ -284,17 +295,19 @@ const handleFileChange = (file, fileList) => {
   // 更新文件列表
   fileList.value = fileList
   
-  // 如果是图片文件，尝试自动提取拍摄时间
-  if (fileList.value.length > 0 && fileList.value[0].type?.includes('image')) {
-    try {
-      // 由于extractExifDateTime现在是异步函数，需要使用await
-      extractExifDateTime(fileList.value[0]).then(dateTime => {
-        uploadForm.shootTime = dateTime;
-      }).catch(error => {
+  // 如果是图片文件，尝试自动提取拍摄时间（仅对第一个图片文件）
+  if (fileList.value.length > 0) {
+    const firstImageFile = fileList.value.find(f => f.type?.includes('image'))
+    if (firstImageFile) {
+      try {
+        extractExifDateTime(firstImageFile).then(dateTime => {
+          uploadForm.shootTime = dateTime;
+        }).catch(error => {
+          console.warn('提取拍摄时间失败:', error);
+        });
+      } catch (error) {
         console.warn('提取拍摄时间失败:', error);
-      });
-    } catch (error) {
-      console.warn('提取拍摄时间失败:', error);
+      }
     }
   }
 }
@@ -360,6 +373,12 @@ const isSupportedFormat = (filename) => {
 const handlePreviewError = (err) => {
   console.warn('图片预览加载失败:', err)
   ElMessage.warning('预览图加载失败，请尝试重新选择文件')
+}
+
+// 处理上传类型变化
+const handleUploadTypeChange = () => {
+  // 当切换上传类型时，清空文件列表
+  fileList.value = []
 }
 
 // 重置上传表单
@@ -628,6 +647,13 @@ const startUpload = () => {
 </script>
 
 <style scoped lang="scss">
+.upload-type-section {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+
 .upload-area {
   display: flex;
   flex-direction: column;

@@ -204,9 +204,9 @@ const router = useRouter()
 // 顶部功能模块
 const topModules = ref([
   {    
-    name: 'archive',
+    name: 'upload',
     title: '素材上传',
-    path: '/archive',
+    path: '/upload',
     icon: UploadFilled
   },
   {

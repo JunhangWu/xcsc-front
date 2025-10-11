@@ -4,12 +4,12 @@
       <div class="card-header"></div>
       <div class="card-body">
         <!-- 上传类型选择 -->
-        <div class="upload-type-section">
+        <!-- <div class="upload-type-section">
           <el-radio-group v-model="uploadType" @change="handleUploadTypeChange">
             <el-radio label="file">上传文件</el-radio>
             <el-radio label="folder">上传文件夹</el-radio>
           </el-radio-group>
-        </div>
+        </div> -->
 
         <!-- 上传区域 -->
         <div class="upload-area">
@@ -362,11 +362,11 @@ const handlePreviewError = (err) => {
   ElMessage.warning('预览图加载失败，请尝试重新选择文件')
 }
 
-// 处理上传类型变化
-const handleUploadTypeChange = () => {
-  // 当切换上传类型时，清空文件列表
-  fileList.value = []
-}
+// // 处理上传类型变化
+// const handleUploadTypeChange = () => {
+//   // 当切换上传类型时，清空文件列表
+//   fileList.value = []
+// }
 
 // 重置上传表单
 const resetUploadForm = () => {

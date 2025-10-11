@@ -44,6 +44,20 @@
             <el-empty description="暂无素材" />
           </div>
           <div v-else class="material-grid">
+
+            <div class="subFolder">
+              <el-icon>
+                <FolderOpened />
+              </el-icon>
+              <div class="subFolderName">文件夹名称1</div>
+            </div>
+            <div class="subFolder">
+              <el-icon>
+                <FolderOpened />
+              </el-icon>
+              <div class="subFolderName">文件夹名称1</div>
+            </div>
+
             <div v-for="material in materialList" :key="material.id" class="material-item"
               @click="showMaterialDetail(material)">
               <div class="material-thumb">
@@ -964,53 +978,127 @@ onMounted(() => {
 
 // 网格视图样式
 .material-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
+  display: flex;
   margin-bottom: 20px;
 }
 
+.subFolder {
+  margin: 10px;
+  aspect-ratio: 1 / 1; // 保证正方形
+  width: 10vw;
+  height: 10vw;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+
+  :deep(.el-icon) {
+    font-size: 8vw;
+    font-weight: 600;
+    color: #ffd45e;
+  }
+
+  &:hover {
+    scale: 1.05;
+  }
+}
+
+
+
 .material-item {
+  margin: 10px;
+  position: relative;
+  aspect-ratio: 1 / 1; // 保证正方形
+  width: 10vw;
+  height: 10vw;
   border: 1px solid #e4e7ed;
   border-radius: 8px;
   overflow: hidden;
+  background: #fff;
   transition: all 0.2s;
   cursor: pointer;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
+  display: block;
+}
+
+.material-thumb {
+  width: 100%;
   height: 100%;
-}
-
-.material-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-color: #409eff;
-}
-
-/* 弹窗样式优化 */
-.annotation-dialog {
-  padding: 6px;
-}
-
-.material-preview-container {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 15px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #e4e7ed;
-}
-
-.material-preview {
-  flex: 4;
-  min-height: 500px;
-  background: #f8f9fa;
-  border-radius: 8px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  background: #f5f7fa;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
+}
+
+.material-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+
+.material-thumb .file-icon {
+  font-size: 48px;
+  color: #909399;
+}
+
+.material-info {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  background: rgba(44, 62, 80, 0.55); // 半透明深色
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 18px 14px 14px 14px;
+  opacity: 0;
+  transition: opacity 0.25s;
+  pointer-events: none;
+}
+
+.material-item:hover .material-info {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.material-name {
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.material-meta {
+  font-size: 13px;
+  color: #e0e0e0;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.material-status {
+  margin-bottom: 8px;
+}
+
+.material-actions {
+  margin-top: 6px;
+}
+
+.material-item:hover .material-thumb img {
+  transform: scale(1.05);
 }
 
 .preview-image {

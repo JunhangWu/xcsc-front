@@ -10,116 +10,104 @@
             <el-radio label="folder">上传文件夹</el-radio>
           </el-radio-group>
         </div>
-        
+
         <!-- 上传区域 -->
         <div class="upload-area">
-          <el-upload
-            v-model:file-list="fileList"
-            class="upload-demo"
-            drag
-            :multiple="uploadType === 'file'"
-            :directory="uploadType === 'folder'"
-            action=""
-            :on-change="handleFileChange"
-            :before-upload="handleBeforeUpload"
-            :auto-upload="false"
-          >
+          <el-upload v-model:file-list="fileList" class="upload-demo" drag :multiple="uploadType === 'file'"
+            :directory="uploadType === 'folder'" action="" :on-change="handleFileChange"
+            :before-upload="handleBeforeUpload" :auto-upload="false">
             <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-            <div class="el-upload__text">{{ uploadType === 'file' ? '点击或拖拽文件到此处上传' : '点击或拖拽文件夹到此处上传' }}</div>
-            <div class="el-upload__tip" slot="tip">
-              支持图片：JPEG/JPG/PNG/BMP/GIF；视频：MP4/MOV/AVI/MKV/FLV；文档：DOCX/PDF/PPTX
-            </div>
-          </el-upload>
-          
-          <el-button type="primary" @click="openUploadDialog" class="upload-btn" :disabled="uploadProgress > 0">{{ uploadProgress > 0 ? '上传中...' : '开始上传' }}</el-button>
-        </div>
-        
-        <!-- 上传表单对话框 -->
-        <el-dialog
-          v-model="uploadDialogVisible"
-          :title="uploadDialogTitle"
-          width="800px"
-          :before-close="handleDialogClose"
-        >
-          <div class="dialog-container">
-            <div class="preview-pane">
-              <el-image
-                v-if="fileList.length > 0 && fileList[0].type?.includes('image') && fileList[0].raw"
-                :src="URL.createObjectURL(fileList[0].raw)"
-                fit="contain"
-                class="image-preview"
-                @load="() => {}"
-                @error="handlePreviewError"
-              />
-              <div v-else class="preview-placeholder">
-                <el-icon><Picture /></el-icon>
-                <span>{{ fileList.length > 0 ? '图片加载中...' : '选择文件后显示预览' }}</span>
+            <div class="el-upload__text">
+              {{ uploadType === 'file' ? '点击或拖拽文件到此处上传' : '点击或拖拽文件夹到此处上传' }}
+              <div class="el-upload__tip"> 支持图片：JPEG/JPG/PNG/BMP/GIF；视频：MP4/MOV/AVI/MKV/FLV；文档：DOCX/PDF/PPTX
               </div>
             </div>
-            <el-form
-              ref="uploadFormRef"
-              :model="uploadForm"
-              :rules="uploadFormRules"
-              label-width="100px"
-              class="form-pane"
-            >
-            <el-form-item label="文件名" prop="fileName">
-              <el-input
-                v-model="uploadForm.fileName"
-                placeholder="请输入文件名（不填写则使用原文件名）"
-                maxlength="100"
-                show-word-limit
-              />
+          </el-upload>
+
+          <!-- <el-form :model="form" label-width="auto" style="max-width: 600px">
+            <el-form-item label="Activity name">
+              <el-input v-model="form.name" />
             </el-form-item>
-            
-            <el-form-item label="拍摄时间" prop="shootTime">
-              <el-date-picker
-                v-model="uploadForm.shootTime"
-                type="datetime"
-                placeholder="请选择拍摄时间"
-                value-format="YYYY-MM-DD HH:mm:ss"
-                style="width: 100%"
-              />
-            </el-form-item>
-            
-            <el-form-item label="拍摄地点" prop="shootLocation">
-              <el-input
-                v-model="uploadForm.shootLocation"
-                placeholder="请输入拍摄地点或来源"
-                maxlength="100"
-                show-word-limit
-              />
-            </el-form-item>
-            
-            <el-form-item label="上传人" prop="uploader">
-              <el-input
-                v-model="uploadForm.uploader"
-                placeholder="当前登录用户"
-                disabled
-              />
-            </el-form-item>
-            
-            <el-form-item label="AI分类推荐" prop="aiCategories">
-              <el-select
-                v-model="uploadForm.aiCategories"
-                multiple
-                placeholder="AI自动推荐分类"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="category in aiRecommendedCategories"
-                  :key="category"
-                  :label="category"
-                  :value="category"
-                />
+            <el-form-item label="Activity zone">
+              <el-select v-model="form.region" placeholder="please select your zone">
+                <el-option label="Zone one" value="shanghai" />
+                <el-option label="Zone two" value="beijing" />
               </el-select>
-              <div class="form-tip">AI基于素材内容推荐1-3个匹配分类</div>
             </el-form-item>
-            
-            <!-- AI自动标注功能已移除 -->
+          </el-form> -->
+
+          <el-form ref="uploadFormRef" :model="uploadForm" :rules="uploadFormRules" label-width="auto"
+            style="max-width: 600px">
+            <el-form-item label="AI分类推荐" prop="aiCategories">
+              <el-select v-model="uploadForm.aiCategories" placeholder="AI自动推荐分类">
+                <el-option v-for="category in aiRecommendedCategories" :key="category" :label="category"
+                  :value="category" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="文件路径" prop="filePath">
+              <el-input v-model="uploadForm.filePath" placeholder="请输入文件路径" maxlength="100" show-word-limit />
+            </el-form-item>
+            <el-form-item label="上传人" prop="uploader">
+              <el-input v-model="uploadForm.uploader" placeholder="当前登录用户" disabled />
+            </el-form-item>
           </el-form>
+          <!-- 
+          <el-button type="primary" @click="openUploadDialog" class="upload-btn" :disabled="uploadProgress > 0">{{
+            uploadProgress > 0 ? '上传中...' : '开始上传' }}</el-button> -->
+
+          <el-button type="primary" @click="submitUploadForm" class="upload-btn" :disabled="uploadProgress > 0">{{
+            uploadProgress > 0 ? '上传中...' : '开始上传' }}</el-button>
         </div>
-          
+
+        <!-- 上传表单对话框 -->
+        <el-dialog v-model="uploadDialogVisible" :title="uploadDialogTitle" width="800px"
+          :before-close="handleDialogClose">
+          <div class="dialog-container">
+            <!-- <div class="preview-pane">
+              <el-image v-if="fileList.length > 0 && fileList[0].type?.includes('image') && fileList[0].raw"
+                :src="URL.createObjectURL(fileList[0].raw)" fit="contain" class="image-preview" @load="() => { }"
+                @error="handlePreviewError" />
+              <div v-else class="preview-placeholder">
+                <el-icon>
+                  <Picture />
+                </el-icon>
+                <span>{{ fileList.length > 0 ? '图片加载中...' : '选择文件后显示预览' }}</span>
+              </div>
+            </div> -->
+            <el-form ref="uploadFormRef" :model="uploadForm" :rules="uploadFormRules" label-width="100px"
+              class="form-pane">
+              <el-form-item label="文件名" prop="fileName">
+                <el-input v-model="uploadForm.fileName" placeholder="请输入文件名（不填写则使用原文件名）" maxlength="100"
+                  show-word-limit />
+              </el-form-item>
+              <el-form-item label="文件路径" prop="filePath">
+                <el-input v-model="uploadForm.filePath" placeholder="请输入文件路径" maxlength="100" show-word-limit />
+              </el-form-item>
+
+              <el-form-item label="拍摄时间" prop="shootTime">
+                <el-date-picker v-model="uploadForm.shootTime" type="datetime" placeholder="请选择拍摄时间"
+                  value-format="YYYY-MM-DD HH:mm:ss" style="width: 100%" />
+              </el-form-item>
+
+              <el-form-item label="拍摄地点" prop="shootLocation">
+                <el-input v-model="uploadForm.shootLocation" placeholder="请输入拍摄地点或来源" maxlength="100" show-word-limit />
+              </el-form-item>
+
+              <el-form-item label="上传人" prop="uploader">
+                <el-input v-model="uploadForm.uploader" placeholder="当前登录用户" disabled />
+              </el-form-item>
+
+              <el-form-item label="AI分类推荐" prop="aiCategories">
+                <el-select v-model="uploadForm.aiCategories" placeholder="AI自动推荐分类" style="width: 100%">
+                  <el-option v-for="category in aiRecommendedCategories" :key="category" :label="category"
+                    :value="category" />
+                </el-select>
+                <!-- <div class="form-tip">AI基于素材内容推荐1-3个匹配分类</div> -->
+              </el-form-item>
+
+            </el-form>
+          </div>
+
           <template #footer>
             <div class="dialog-footer">
               <el-button @click="handleDialogClose">取消</el-button>
@@ -144,7 +132,6 @@ import { UploadFilled, VideoCamera, Document } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import EXIF from 'exif-js'
-
 // 创建router实例
 const router = useRouter()
 console.log('Router instance created:', router)
@@ -192,7 +179,7 @@ const uploadFormRules = {
 }
 
 // AI推荐分类（与首页板块分类保持一致）
-const aiRecommendedCategories =[
+const aiRecommendedCategories = [
   '高速公路建设', '高速公路营运', '设计咨询', '地产酒店', '建筑施工',
   '广告传媒', '服务区', '加油站', '金融资本', '物流运输', '资源板块',
   '深化改革', '党的建设', '群团工作', '企业文化', '科技创新', '其他'
@@ -227,38 +214,38 @@ const extractExifDateTime = (file) => {
   return new Promise((resolve, reject) => {
     try {
       // 1. 首先尝试使用EXIF.js读取图片的真实拍摄时间
-      EXIF.getData(file, function() {
+      EXIF.getData(file, function () {
         // 获取原始EXIF日期字符串
-        const exifDateStr = EXIF.getTag(this, 'DateTimeOriginal') || 
-                           EXIF.getTag(this, 'DateTime') || 
-                           EXIF.getTag(this, 'DateTimeDigitized');
-        
+        const exifDateStr = EXIF.getTag(this, 'DateTimeOriginal') ||
+          EXIF.getTag(this, 'DateTime') ||
+          EXIF.getTag(this, 'DateTimeDigitized');
+
         if (exifDateStr) {
           // EXIF日期格式通常为："YYYY:MM:DD HH:mm:ss"
           // 将格式转换为我们需要的："YYYY-MM-DD HH:mm:ss"
           const formattedDate = exifDateStr.replace(/:/g, '-').replace(' ', 'T');
           const date = new Date(formattedDate);
-          
+
           if (!isNaN(date.getTime())) {
             // 日期有效，返回格式化后的字符串
             return resolve(date.toISOString().replace('T', ' ').substring(0, 19));
           }
         }
-        
+
         // 2. 如果没有EXIF数据或日期无效，尝试从文件名中提取日期信息
         const dateFromName = /(\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})/.exec(file.name);
         if (dateFromName) {
           const [, year, month, day, hour, minute] = dateFromName;
           return resolve(`${year}-${month}-${day} ${hour}:${minute}:00`);
         }
-        
+
         // 3. 检查文件名是否包含其他日期格式
         const altDateFromName = /(\d{4})[-/](\d{2})[-/](\d{2})\s+(\d{2})[:](\d{2})/.exec(file.name);
         if (altDateFromName) {
           const [, year, month, day, hour, minute] = altDateFromName;
           return resolve(`${year}-${month}-${day} ${hour}:${minute}:00`);
         }
-        
+
         // 4. 如果都没有识别到拍摄时间，返回空字符串
         resolve('');
       });
@@ -291,10 +278,10 @@ const handleFileChange = (file, fileList) => {
     fileList.value = fileList.filter(f => isSupportedFormat(f.name))
     return
   }
-  
+
   // 更新文件列表
   fileList.value = fileList
-  
+
   // 如果是图片文件，尝试自动提取拍摄时间（仅对第一个图片文件）
   if (fileList.value.length > 0) {
     const firstImageFile = fileList.value.find(f => f.type?.includes('image'))
@@ -310,6 +297,8 @@ const handleFileChange = (file, fileList) => {
       }
     }
   }
+  // 模拟AI推荐（基于文件名）
+  simulateAIRecommendation()
 }
 
 // 上传前检查
@@ -326,14 +315,14 @@ const handleBeforeUpload = (file) => {
     ElMessage.error(`文件 ${file.name} 格式不符合要求，请上传支持的文件格式`)
     return false
   }
-  
+
   // 检查文件大小（可选，可根据需要添加）
   const maxSize = 100 * 1024 * 1024 // 100MB
   if (file.size > maxSize) {
     ElMessage.error(`文件 ${file.name} 大小超过限制（100MB）`)
     return false
   }
-  
+
   return true
 }
 
@@ -356,8 +345,6 @@ const openUploadDialog = () => {
 
   // 模拟AI推荐（基于文件名）
   simulateAIRecommendation()
-
-
 
   // 打开对话框
   uploadDialogVisible.value = true
@@ -386,7 +373,7 @@ const resetUploadForm = () => {
   uploadForm.shootTime = ''
   uploadForm.shootLocation = ''
   uploadForm.aiCategories = []
-  
+
   // 初始化上传人为当前登录用户（这里使用示例用户名）
   uploadForm.uploader = 'admin'
 }
@@ -394,7 +381,7 @@ const resetUploadForm = () => {
 // 模拟AI推荐（基于文件名分析，仅保留分类推荐）
 const simulateAIRecommendation = () => {
   const filename = fileList.value[0]?.name || ''
-  
+
   // 基于文件名推荐分类
   if (filename.includes('广场') || filename.includes('地产')) {
     uploadForm.aiCategories = ['地产酒店']
@@ -418,13 +405,26 @@ const handleDialogClose = (done) => {
   }).then(() => {
     uploadDialogVisible.value = false
     if (done) done()
-  }).catch(() => {})
+  }).catch(() => { })
 }
 
 // 提交上传表单
 const submitUploadForm = () => {
+  if (fileList.value.length === 0) {
+    ElMessage.warning('请先选择要上传的文件')
+    return
+  }
+
+  // 检查文件格式
+  const invalidFiles = fileList.value.filter(file => !isSupportedFormat(file.name))
+  if (invalidFiles.length > 0) {
+    ElMessage.error(`素材格式不符合，请上传支持的文件格式`)
+    return
+  }
+
+
   if (!uploadFormRef.value) return
-  
+
   uploadFormRef.value.validate((valid) => {
     if (valid) {
       // 表单验证通过，开始上传
@@ -443,7 +443,7 @@ const startUpload = () => {
   // 模拟上传进度
   uploadProgress.value = 0
   uploadStatusText.value = '准备上传...'
-  
+
   const interval = setInterval(() => {
     uploadProgress.value += 10
     uploadStatusText.value = `上传中... ${uploadProgress.value}%`
@@ -452,7 +452,7 @@ const startUpload = () => {
       uploadStatusText.value = '上传完成'
       uploadDialogVisible.value = false
       ElMessage.success(`成功上传${fileList.value.length}个素材至【${uploadForm.aiCategories.join('、')}】分类`)
-      
+
       // 添加到素材列表并同步到首页
       let newMaterials = []
       fileList.value.forEach(file => {
@@ -464,17 +464,17 @@ const startUpload = () => {
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
         const uploadTimeStr = `${year}/${month}/${day}`;
-        
+
         // 保存文件到images目录并获取URL
-        
+
         let thumbnailUrl = '';
         let fileUrl = '';
         let resolution = '';
-        
+
         // 设置缩略图和文件URL为images目录路径
         thumbnailUrl = fileType === 'image' ? `/${file.name}` : '';
         fileUrl = `/${file.name}`;
-        
+
         // 对于图片文件，获取分辨率
         if (fileType === 'image' && file.raw) {
           // 使用同步方式获取分辨率
@@ -482,20 +482,20 @@ const startUpload = () => {
             // 使用原始文件创建临时URL
             const tempUrl = URL.createObjectURL(file.raw);
             const img = new Image();
-            
+
             // 使用Promise确保分辨率获取完成
             const getResolution = new Promise((resolve, reject) => {
-              img.onload = function() {
+              img.onload = function () {
                 URL.revokeObjectURL(tempUrl); // 释放临时URL
                 resolve(`${img.width}x${img.height}`);
               };
-              img.onerror = function() {
+              img.onerror = function () {
                 URL.revokeObjectURL(tempUrl); // 释放临时URL
                 reject(new Error('图片加载失败，无法获取分辨率'));
               };
               img.src = tempUrl;
             });
-            
+
             // 立即获取分辨率（同步获取）
             getResolution.then(res => {
               resolution = res;
@@ -507,13 +507,13 @@ const startUpload = () => {
             console.warn('获取分辨率时出错:', error);
           }
         }
-        
+
         const newMaterial = {
           id: Date.now() + Math.random(),
           name: uploadForm.fileName || file.name,
-          type: fileType === 'image' ? 'image' : 
-                fileType === 'video' ? 'video' : 
-                fileType === 'document' ? 'document' : 'other',
+          type: fileType === 'image' ? 'image' :
+            fileType === 'video' ? 'video' :
+              fileType === 'document' ? 'document' : 'other',
           thumbnail: thumbnailUrl,
           uploadTime: uploadTimeStr,
           uploader: uploadForm.uploader || 'admin',
@@ -531,22 +531,22 @@ const startUpload = () => {
           resolution: resolution,
           isFavorite: false, // 默认为未收藏
           url: fileUrl,
-          status:'pending',
+          status: 'pending',
           shootTime: uploadForm.shootTime,
           shootLocation: uploadForm.shootLocation
         }
         newMaterials.push(newMaterial)
       })
-      
+
       // 保存到本地存储并同步到首页
       try {
         // 使用 localStorage 实现持久存储
         console.log('准备保存素材数据到localStorage，素材数量:', newMaterials.length)
         console.log('newMaterials内容:', newMaterials)
-        
+
         // 创建可序列化的素材数据副本
         let serializableNewMaterials = JSON.parse(JSON.stringify(newMaterials))
-        
+
         // 检查素材数据是否可以被JSON序列化
         try {
           const testSerialization = JSON.stringify(serializableNewMaterials)
@@ -568,12 +568,12 @@ const startUpload = () => {
           })
           console.log('已清理素材数据中的不可序列化属性')
         }
-        
+
         // 1. 保存到全局素材库用于首页显示
         // 获取现有全局素材数据
         const globalMaterials = JSON.parse(localStorage.getItem('globalMaterials') || '[]')
         console.log('现有全局素材数量:', globalMaterials.length)
-        
+
         // 合并新素材并去重
         serializableNewMaterials.forEach(material => {
           if (!globalMaterials.some(m => m.id === material.id)) {
@@ -581,11 +581,11 @@ const startUpload = () => {
             console.log('添加新素材到全局素材库:', material.name)
           }
         })
-        
+
         // 保存更新后的全局素材数据
         localStorage.setItem('globalMaterials', JSON.stringify(globalMaterials))
         console.log('已保存全局素材数据到localStorage')
-        
+
         // 2. 按分类组织素材数据
         const categorizedMaterials = JSON.parse(localStorage.getItem('categorizedMaterials') || '{}')
         serializableNewMaterials.forEach(material => {
@@ -600,15 +600,15 @@ const startUpload = () => {
             console.log('添加素材到分类', category, ':', material.name)
           }
         })
-        
+
         // 保存按分类组织的数据
         localStorage.setItem('categorizedMaterials', JSON.stringify(categorizedMaterials))
         console.log('已保存按分类组织的素材数据到localStorage')
-        
+
         // 3. 设置同步标记
         localStorage.setItem('materialsNeedSync', 'true')
         console.log('已设置同步标记')
-        
+
         // 上传成功后延迟2秒自动跳转到首页，让用户有时间看到成功提示
         console.log('准备延迟跳转到首页')
         setTimeout(() => {
@@ -624,16 +624,16 @@ const startUpload = () => {
       } catch (error) {
         console.error('保存素材数据失败:', error)
       }
-      
+
       // 关闭对话框并重置状态
       uploadDialogVisible.value = false
       uploadStatusText.value = ''
       fileList.value = []
-      
+
       // 清空文件列表并重置表单
       fileList.value = []
       uploadFormRef.value?.resetFields()
-      
+
       setTimeout(() => {
         uploadProgress.value = 0
         uploadStatusText.value = ''
@@ -658,6 +658,7 @@ const startUpload = () => {
   display: flex;
   flex-direction: column;
   margin-bottom: 30px;
+
   .upload-btn {
     align-self: flex-start;
     margin-top: 20px;
@@ -666,6 +667,7 @@ const startUpload = () => {
 
 .upload-progress {
   margin-bottom: 30px;
+
   .progress-text {
     display: block;
     margin-top: 10px;

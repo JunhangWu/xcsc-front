@@ -2,14 +2,8 @@
   <div class="app-container home">
     <!-- 顶部功能入口 -->
     <div class="top-nav">
-      <el-button 
-        v-for="module in topModules" 
-        :key="module.name"
-        type="primary" 
-        link
-        @click="navigateToModule(module.path)"
-        class="nav-btn"
-      >
+      <el-button v-for="module in topModules" :key="module.name" type="primary" link
+        @click="navigateToModule(module.path)" class="nav-btn">
         <el-icon class="nav-icon">
           <component :is="module.icon" />
         </el-icon>
@@ -25,13 +19,11 @@
         <div class="sidebar-section">
           <h3 class="section-title">个人空间</h3>
           <div class="space-list">
-            <div 
-              v-for="item in personalSpace" 
-              :key="item.id"
-              :class="['space-item', { active: activeSpace === item.id }]"
-              @click="handleSpaceClick(item.id)"
-            >
-              <el-icon><component :is="item.icon" /></el-icon>
+            <div v-for="item in personalSpace" :key="item.id"
+              :class="['space-item', { active: activeSpace === item.id }]" @click="handleSpaceClick(item.id)">
+              <el-icon>
+                <component :is="item.icon" />
+              </el-icon>
               <span>{{ item.name }}</span>
             </div>
           </div>
@@ -41,12 +33,9 @@
         <div class="sidebar-section">
           <h3 class="section-title">板块分类</h3>
           <div class="category-list">
-            <div 
-              v-for="category in categories" 
-              :key="category"
+            <div v-for="category in categories" :key="category"
               :class="['category-item', { active: activeCategory === category }]"
-              @click="handleCategoryClick(category)"
-            >
+              @click="handleCategoryClick(category)">
               {{ category }}
             </div>
           </div>
@@ -66,27 +55,20 @@
                 <el-option label="PPT" value="ppt" />
               </el-select>
             </el-form-item>
-            
+
             <el-form-item label="日期范围：">
-              <el-date-picker
-                v-model="filterForm.dateRange"
-                type="daterange"
-                format="YYYY/MM/DD"
-                value-format="YYYY/MM/DD"
-                range-separator="至"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
-              />
+              <el-date-picker v-model="filterForm.dateRange" type="daterange" format="YYYY/MM/DD"
+                value-format="YYYY/MM/DD" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" />
             </el-form-item>
-            
+
             <el-form-item label="上传者：">
               <el-input v-model="filterForm.uploader" placeholder="请输入上传者" clearable />
             </el-form-item>
-            
+
             <el-form-item label="素材标签：">
               <el-input v-model="filterForm.tags" placeholder="请输入素材标签" clearable />
             </el-form-item>
-            
+
             <el-form-item>
               <el-button type="primary" @click="handleQuery">查询</el-button>
               <el-button @click="handleReset">重置</el-button>
@@ -106,12 +88,8 @@
             <div v-for="(group, date) in groupedMaterials" :key="date" class="date-group">
               <h4 class="group-title">{{ date }}</h4>
               <div class="material-grid">
-                <div 
-                  v-for="material in group" 
-                  :key="material.id"
-                  class="material-item"
-                  @click="handleMaterialClick(material)"
-                >
+                <div v-for="material in group" :key="material.id" class="material-item"
+                  @click="handleMaterialClick(material)">
                   <div class="material-thumb">
                     <img v-if="material.type === 'image'" :src="material.thumbnail" :alt="material.name" />
                     <el-icon v-else class="file-icon">
@@ -121,40 +99,25 @@
                     </el-icon>
                   </div>
                   <div class="material-name">{{ material.name }}</div>
-          <div class="material-tags">
-            <template v-for="(tagArray, tagType) in material.tags" :key="tagType">
-              <el-tag 
-                v-for="tag in tagArray"
-                :key="tag"
-                size="small"
-                type="primary"
-                effect="plain"
-              >
-                {{ tag }}
-              </el-tag>
-            </template>
-          </div>
-          <div class="material-actions">
-            <el-button 
-              :type="material.isFavorite ? 'warning' : 'default'"
-              size="small"
-              @click="toggleFavorite($event, material)"
-              :icon="material.isFavorite ? 'StarFilled' : 'Star'"
-              class="favorite-btn"
-            >
-              {{ material.isFavorite ? '取消收藏' : '收藏' }}
-            </el-button>
-            <el-button 
-              type="primary"
-              size="small"
-              @click="handleDownload($event, material)"
-              icon="Download"
-              class="download-btn"
-            >
-              下载
-            </el-button>
-          </div>
-            </div>
+                  <div class="material-tags">
+                    <template v-for="(tagArray, tagType) in material.tags" :key="tagType">
+                      <el-tag v-for="tag in tagArray" :key="tag" size="small" type="primary" effect="plain">
+                        {{ tag }}
+                      </el-tag>
+                    </template>
+                  </div>
+                  <div class="material-actions">
+                    <el-button :type="material.isFavorite ? 'warning' : 'default'" size="small"
+                      @click="toggleFavorite($event, material)" :icon="material.isFavorite ? 'StarFilled' : 'Star'"
+                      class="favorite-btn">
+                      {{ material.isFavorite ? '取消收藏' : '收藏' }}
+                    </el-button>
+                    <el-button type="primary" size="small" @click="handleDownload($event, material)" icon="Download"
+                      class="download-btn">
+                      下载
+                    </el-button>
+                  </div>
+                </div>
               </div>
             </div>
           </template>
@@ -166,16 +129,11 @@
 
         <!-- 分页栏 -->
         <div class="pagination">
-          <span class="pagination-info">显示 {{ pagination.start }} - {{ pagination.end }} 共 {{ filteredFiles }} 个文件</span>
-          <el-pagination
-            v-model:current-page="pagination.current"
-            v-model:page-size="pagination.size"
-            :page-sizes="[10, 20, 50, 100]"
-            :total="filteredFiles"
-            layout="prev, pager, next, jumper"
-            @size-change="handleSizeChange"
-            @current-change="handleCurrentChange"
-          />
+          <span class="pagination-info">显示 {{ pagination.start }} - {{ pagination.end }} 共 {{ filteredFiles }}
+            个文件</span>
+          <el-pagination v-model:current-page="pagination.current" v-model:page-size="pagination.size"
+            :page-sizes="[10, 20, 50, 100]" :total="filteredFiles" layout="prev, pager, next, jumper"
+            @size-change="handleSizeChange" @current-change="handleCurrentChange" />
         </div>
       </div>
     </div>
@@ -185,12 +143,12 @@
 <script setup name="Index">
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, onBeforeRouteUpdate } from 'vue-router'
-import { 
-  UploadFilled, 
-  Tools, 
-  MagicStick, 
-  VideoPlay, 
-  Document, 
+import {
+  UploadFilled,
+  Tools,
+  MagicStick,
+  VideoPlay,
+  Document,
   Collection,
   Folder,
   Star,
@@ -203,10 +161,10 @@ const router = useRouter()
 
 // 顶部功能模块
 const topModules = ref([
-  {    
-    name: 'archive',
+  {
+    name: 'upload',
     title: '素材上传',
-    path: '/archive',
+    path: '/upload',
     icon: UploadFilled
   },
   {
@@ -266,7 +224,7 @@ const fetchCompletedMaterials = () => {
   try {
     // 从localStorage获取素材标注界面的数据
     const annotationMaterials = JSON.parse(localStorage.getItem('annotationMaterials') || '[]')
-    
+
     // 只获取状态为completed(已标注)的素材
     materials.value = annotationMaterials
       .filter(material => material.status === 'completed')
@@ -275,9 +233,9 @@ const fetchCompletedMaterials = () => {
         return {
           id: material.id,
           name: material.name,
-          type: material.type.includes('image') ? 'image' : 
-                material.type.includes('video') ? 'video' : 
-                material.type.includes('word') ? 'document' : 'other',
+          type: material.type.includes('image') ? 'image' :
+            material.type.includes('video') ? 'video' :
+              material.type.includes('word') ? 'document' : 'other',
           thumbnail: material.url || '',
           uploadTime: material.uploadTime.split(' ')[0].replace(/-/g, '/'),
           uploader: material.uploader || 'admin',
@@ -296,7 +254,7 @@ const fetchCompletedMaterials = () => {
           isFavorite: false // 默认为未收藏
         }
       })
-    
+
     // 同时获取收藏状态
     try {
       const storedFavorites = JSON.parse(localStorage.getItem('globalMaterials') || '[]')
@@ -355,12 +313,12 @@ const totalFiles = computed(() => materials.value.length)
 // 收藏操作
 const toggleFavorite = (event, material) => {
   event.stopPropagation() // 阻止事件冒泡，避免触发素材点击事件
-  
+
   // 切换收藏状态
   const materialIndex = materials.value.findIndex(m => m.id === material.id)
   if (materialIndex !== -1) {
     materials.value[materialIndex].isFavorite = !materials.value[materialIndex].isFavorite
-    
+
     // 保存到localStorage
     try {
       localStorage.setItem('globalMaterials', JSON.stringify(materials.value))
@@ -373,13 +331,13 @@ const toggleFavorite = (event, material) => {
 // 下载素材
 const handleDownload = (event, material) => {
   event.stopPropagation() // 阻止事件冒泡，避免触发素材点击事件
-  
+
   try {
     // 检查素材是否有thumbnail属性作为下载路径
     if (material.thumbnail) {
       // 创建下载链接
       const link = document.createElement('a')
-      
+
       // 对于本地开发环境，直接使用素材路径
       if (material.thumbnail.startsWith('/')) {
         // 对于以/开头的路径，我们需要考虑实际部署的情况
@@ -388,17 +346,17 @@ const handleDownload = (event, material) => {
       } else {
         link.href = material.thumbnail
       }
-      
+
       // 设置下载属性
       link.download = material.name
-      
+
       // 添加到文档并触发点击
       document.body.appendChild(link)
       link.click()
-      
+
       // 清理
       document.body.removeChild(link)
-      
+
       // 显示下载成功提示
       ElMessage.success(`开始下载: ${material.name}`)
       console.log('下载素材:', material.name, '路径:', material.thumbnail)
@@ -415,7 +373,7 @@ const handleDownload = (event, material) => {
 // 获取过滤后的素材列表
 const getFilteredMaterials = () => {
   let filtered = [...materials.value]
-  
+
   // 1. 应用个人空间和分类筛选
   if (activeSpace.value === 'favorite') {
     // 只显示收藏的素材
@@ -424,12 +382,12 @@ const getFilteredMaterials = () => {
     // 应用分类筛选
     filtered = filtered.filter(m => m.category === activeCategory.value)
   }
-  
+
   // 2. 应用搜索表单筛选条件
   if (filterForm.type) {
     filtered = filtered.filter(m => m.type === filterForm.type)
   }
-  
+
   if (filterForm.dateRange && filterForm.dateRange.length === 2) {
     const startDate = new Date(filterForm.dateRange[0])
     const endDate = new Date(filterForm.dateRange[1])
@@ -438,14 +396,14 @@ const getFilteredMaterials = () => {
       return materialDate >= startDate && materialDate <= endDate
     })
   }
-  
+
   if (filterForm.uploader) {
     const uploaderLower = filterForm.uploader.toLowerCase()
-    filtered = filtered.filter(m => 
+    filtered = filtered.filter(m =>
       m.uploader.toLowerCase().includes(uploaderLower)
     )
   }
-  
+
   if (filterForm.tags) {
     const tagsLower = filterForm.tags.toLowerCase()
     filtered = filtered.filter(m => {
@@ -458,7 +416,7 @@ const getFilteredMaterials = () => {
       return false
     })
   }
-  
+
   return filtered
 }
 
@@ -469,20 +427,20 @@ const filteredFiles = computed(() => {
 
 // 按日期分组的素材
 const groupedMaterials = computed(() => {
-  const groups = {}  
-  
+  const groups = {}
+
   // 使用统一的过滤方法获取过滤后的素材列表
   const filteredMaterials = getFilteredMaterials()
-  
+
   filteredMaterials.forEach(material => {
     if (!groups[material.uploadTime]) {
       groups[material.uploadTime] = []
     }
     groups[material.uploadTime].push(material)
   })
-  
+
   // 按日期由近到远排序
-  const sortedGroups = {}  
+  const sortedGroups = {}
   const dates = Object.keys(groups)
   // 日期排序（由近到远）
   dates.sort((a, b) => {
@@ -492,12 +450,12 @@ const groupedMaterials = computed(() => {
     // 降序排序（新日期在前）
     return dateB - dateA
   })
-  
+
   // 根据排序后的日期重新构建groups对象
   dates.forEach(date => {
     sortedGroups[date] = groups[date]
   })
-  
+
   return sortedGroups
 })
 
@@ -555,7 +513,7 @@ const navigateToModule = (path) => {
 const handleMaterialClick = (material) => {
   // 跳转到预览界面
   router.push({ name: 'MaterialPreview', params: { id: material.id } })
-  
+
   // 将素材数据存储到localStorage，供预览页面使用
   try {
     const globalMaterials = JSON.parse(localStorage.getItem('globalMaterials') || '[]')
@@ -575,18 +533,18 @@ const handleMaterialClick = (material) => {
 const syncMaterials = () => {
   try {
     console.log('执行素材同步...')
-    
+
     // 检查是否有待同步的素材
     const needSync = localStorage.getItem('materialsNeedSync') === 'true'
     console.log('是否需要同步:', needSync)
-    
+
     // 双向同步: 从localStorage获取数据并更新到本地，同时将本地数据保存到localStorage
     // 1. 从localStorage获取数据更新到本地
     if (needSync || true) { // 暂时强制同步，便于调试
       // 从本地存储获取全局素材数据
       const globalMaterials = JSON.parse(localStorage.getItem('globalMaterials') || '[]')
       console.log('从localStorage获取的素材数量:', globalMaterials.length)
-      
+
       if (globalMaterials && globalMaterials.length > 0) {
         // 更新现有素材的状态并添加新素材
         globalMaterials.forEach(material => {
@@ -606,11 +564,11 @@ const syncMaterials = () => {
         console.log('从localStorage同步完成，当前素材总数:', materials.value.length)
       }
     }
-    
+
     // 2. 将本地数据保存到localStorage
     // localStorage.setItem('globalMaterials', JSON.stringify(materials.value))
     // console.log('本地素材数据已同步到localStorage')
-    
+
   } catch (error) {
     console.error('同步素材数据失败:', error)
   }
@@ -621,15 +579,15 @@ let syncInterval = null
 
 onMounted(() => {
   console.log('首页加载完成')
-  
-  
-  
+
+
+
   // 从localStorage获取已标注的素材
   fetchCompletedMaterials()
-  
+
   // 初始同步
   syncMaterials()
-  
+
   // 设置定时同步（每2秒一次）
   syncInterval = setInterval(syncMaterials, 2000000)
 })
@@ -662,17 +620,17 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid #e4e7ed;
   display: flex;
   gap: 20px;
-  
+
   .nav-btn {
     font-size: 16px;
     font-weight: 500;
     padding: 8px 16px;
-    
+
     .nav-icon {
       margin-right: 8px;
       font-size: 18px;
     }
-    
+
     &:hover {
       color: #409eff;
       background: #ecf5ff;
@@ -695,10 +653,10 @@ onBeforeUnmount(() => {
   border-right: 1px solid #e4e7ed;
   padding: 20px;
   overflow-y: auto;
-  
+
   .sidebar-section {
     margin-bottom: 24px;
-    
+
     .section-title {
       font-size: 14px;
       font-weight: 600;
@@ -708,7 +666,7 @@ onBeforeUnmount(() => {
       border-bottom: 1px solid #e4e7ed;
     }
   }
-  
+
   .space-list {
     .space-item {
       display: flex;
@@ -718,32 +676,32 @@ onBeforeUnmount(() => {
       border-radius: 4px;
       cursor: pointer;
       transition: all 0.2s;
-      
+
       .el-icon {
         margin-right: 8px;
         font-size: 16px;
         color: #909399;
       }
-      
+
       span {
         font-size: 14px;
         color: #606266;
       }
-      
+
       &:hover {
         background: #ecf5ff;
         color: #409eff;
-        
+
         .el-icon,
         span {
           color: #409eff;
         }
       }
-      
+
       &.active {
         background: #409eff;
         color: #fff;
-        
+
         .el-icon,
         span {
           color: #fff;
@@ -751,11 +709,11 @@ onBeforeUnmount(() => {
       }
     }
   }
-  
+
   .category-list {
     max-height: 500px;
     overflow-y: auto;
-    
+
     .category-item {
       display: flex;
       align-items: center;
@@ -767,17 +725,17 @@ onBeforeUnmount(() => {
       font-size: 14px;
       color: #606266;
       background: transparent;
-      
+
       &:hover {
         background: #ecf5ff;
         color: #409eff;
       }
-      
+
       // 确保分类项垂直排列，不换行
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      
+
       // 选中状态样式
       &.active {
         background: #409eff;
@@ -793,33 +751,33 @@ onBeforeUnmount(() => {
   padding: 24px;
   overflow-y: auto;
   background: #fff;
-  
+
   .filter-bar {
     margin-bottom: 20px;
     padding: 20px;
     background: #f8f9fa;
     border-radius: 8px;
-    
+
     .el-form-item {
       margin-bottom: 16px;
       margin-right: 20px;
-      
+
       &:last-child {
         margin-right: 0;
       }
     }
   }
-  
+
   .file-info {
     margin-bottom: 20px;
     font-size: 14px;
     color: #606266;
   }
-  
+
   .material-list {
     .date-group {
       margin-bottom: 32px;
-      
+
       .group-title {
         font-size: 16px;
         font-weight: 600;
@@ -829,45 +787,45 @@ onBeforeUnmount(() => {
         border-bottom: 1px solid #e4e7ed;
       }
     }
-    
+
     .material-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
       gap: 20px;
     }
-    
+
     .material-item {
       border: 1px solid #e4e7ed;
       border-radius: 8px;
       overflow: hidden;
       transition: all 0.2s;
       cursor: pointer;
-      
+
       &:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         border-color: #409eff;
       }
-      
+
       .material-thumb {
         height: 180px;
         background: #f5f7fa;
         display: flex;
         align-items: center;
         justify-content: center;
-        
+
         img {
           width: 100%;
           height: 100%;
           object-fit: cover;
         }
-        
+
         .file-icon {
           font-size: 32px;
           color: #909399;
         }
       }
-      
+
       .material-name {
         padding: 12px;
         font-size: 13px;
@@ -879,44 +837,43 @@ onBeforeUnmount(() => {
       }
     }
   }
-  
+
   .pagination {
-  margin-top: 32px;
-  padding-top: 20px;
-  border-top: 1px solid #e4e7ed;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  
-  .pagination-info {
-    font-size: 14px;
-    color: #606266;
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid #e4e7ed;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    .pagination-info {
+      font-size: 14px;
+      color: #606266;
+    }
+  }
+
+  /* 素材标签样式 */
+  .material-tags {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 12px 12px;
+  }
+
+  /* 素材操作区样式 */
+  .material-actions {
+    padding: 0 12px 12px;
+    display: flex;
+    gap: 10px;
+  }
+
+  .favorite-btn,
+  .download-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
-
-/* 素材标签样式 */
-.material-tags {
-  margin-top: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 0 12px 12px;
-}
-
-/* 素材操作区样式 */
-.material-actions {
-  padding: 0 12px 12px;
-  display: flex;
-  gap: 10px;
-}
-
-.favorite-btn,
-.download-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-}
 </style>
-

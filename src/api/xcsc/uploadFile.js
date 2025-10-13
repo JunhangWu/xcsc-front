@@ -18,3 +18,10 @@ export function addFolder(data) {
     })
 }
 
+// 删除文件夹
+export function delFolder(id) {
+    return request({
+        url: '/folder/' + id,
+        method: 'delete'
+    })
+}

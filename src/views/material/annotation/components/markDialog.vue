@@ -194,6 +194,27 @@ const newSupplementTag = ref('')
 // AI标注状态
 const isAIAutoTagging = ref(false)
 
+// 标注信息 - 标签信息（7个维度）
+const autoTagForm = reactive({
+    sceneCategory: [], // 场景分类
+    coreObjects: '', // 核心物体
+    activityEvent: '', // 活动事件
+    textInfo: '', // 文本信息
+    colorTone: [], // 颜色色调
+    shootingAngle: '', // 拍摄角度
+    materialDescription: '' // 素材描述
+})
+
+// 标注信息 - 基本信息（6个维度）
+const manualTagForm = reactive({
+    timeInfo: '', // 时间信息
+    locationInfo: '', // 地点信息
+    personNames: '', // 人物姓名
+    buildingNames: '', // 建筑名称
+    relatedThemes: '', // 相关主题
+    properNouns: '' // 专有名词
+})
+
 // 重置标签表单
 const resetTagForms = () => {
     // 重置标签信息

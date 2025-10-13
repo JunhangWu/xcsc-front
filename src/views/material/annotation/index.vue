@@ -15,33 +15,41 @@
         <el-option label="待审核" value="manual_review" />
         <el-option label="已标注" value="completed" />
       </el-select>
-      <el-button type="primary" @click="getMaterialList" icon="Search">搜索</el-button>
+      <el-button type="primary" @click="getFolderData" icon="Search">搜索</el-button>
     </div>
 
     <div class="folderBox" v-if="showFolder">
-      <div class="folderItem" v-for="(item, index) in classify" :key="index" @click="selectFolder(item)">
+      <div class="folderItem" v-for="(item, index) in folderData" :key="index"
+        @click="selectFolder(item, 'isRootFolder')">
         <el-icon>
           <FolderOpened />
         </el-icon>
         <div class="folderName">
-          {{ item.name }}
+          {{ item.filePath }}
         </div>
       </div>
-
     </div>
 
     <div class="card" v-else>
       <div class="pageTop">
         <div class="breadcrumbBox">
+          <!-- 返回到上一级 -->
           <el-icon @click="backFolder" class="backBtn">
             <Back />
           </el-icon>
           <div class="breadcrumb">
-            {{ breadcrumb }}
+            <div class="breadcrumbItem" v-for="(item, index) in breadcrumbData" :key="index">
+              <div class="breadcrumbName" @click="clickBreadcrumb(item, index)"> {{ item.filePath }}</div>
+              <div class="breadcrumbArrow" v-if="index < breadcrumbData.length - 1">
+                <el-icon>
+                  <ArrowRight />
+                </el-icon>
+              </div>
+            </div>
           </div>
         </div>
         <div class="btnList">
-          <el-button type="primary" plain @click="addFolder">
+          <el-button type="primary" plain @click="handleAddFolder">
             <el-icon style="font-size: 18px;margin:0 6px 0 0 ;">
               <FolderAdd />
             </el-icon>新建文件夹
@@ -60,23 +68,18 @@
           <div v-if="loading" class="loading-container">
             <el-loading-text>正在加载素材...</el-loading-text>
           </div>
-          <div v-else-if="materialList.length == 0" class="empty-state">
+          <div v-else-if="folderData.length == 0 && materialList.length == 0" class="empty-state">
             <el-empty description="暂无内容" />
           </div>
           <div v-else class="material-grid">
-            <div class="subFolder" @click="subFolderClick(item)">
+            <!-- 文件夹列表 -->
+            <div class="subFolder" v-for="(item, index) in folderData" :key="index" @click="selectFolder(item)">
               <el-icon>
                 <FolderOpened />
               </el-icon>
-              <div class="subFolderName">文件夹名称1</div>
+              <div class="subFolderName"> {{ item.filePath }}</div>
             </div>
-            <div class="subFolder">
-              <el-icon>
-                <FolderOpened />
-              </el-icon>
-              <div class="subFolderName">文件夹名称2</div>
-            </div>
-
+            <!-- 文件列表 -->
             <div v-for="material in materialList" :key="material.id" class="material-item"
               @click="showMaterialDetail(material)">
               <div class="material-thumb">
@@ -155,75 +158,81 @@
 import { ref, reactive, onMounted } from 'vue'
 import { Search, VideoCamera, Document, Check, Edit, VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getFolderList } from "@/api/xcsc/uploadFile"
+import { getFolderList, addFolder, delFolder, } from "@/api/xcsc/uploadFile"
 // 搜索和筛选
 const searchKeyword = ref('')
 const statusFilter = ref('')
-
 
 // 素材列表
 const loading = ref(false)
 const materialList = ref([])
 const showFolder = ref(true)
 const curFolderName = ref('')
-const breadcrumb = ref('')
+const curFolderBizId = ref('')
+const breadcrumbData = ref([])
 
-//   '高速公路建设', '高速公路营运', '设计咨询', '地产酒店', '建筑施工','广告传媒', '服务区', '加油站', '金融资本', '物流运输', '资源板块',  '深化改革', '党的建设', '群团工作', '企业文化', '科技创新', '其他'
-const classify = [
-  { name: '高速公路建设', value: 'gsgljs' },
-  { name: '高速公路营运', value: 'gsglyy' },
-  { name: '设计咨询', value: 'sjzx' },
-  { name: '地产酒店', value: 'dcjd' },
-  { name: '建筑施工', value: 'jzsj' },
-  { name: '广告传媒', value: 'ggcm' },
-  { name: '服务区', value: 'fwq' },
-  { name: '加油站', value: 'jyz' },
-  { name: '金融资本', value: 'jrzb' },
-  { name: '物流运输', value: 'wlys' },
-  { name: '资源板块', value: 'zybk' },
-  { name: '深化改革', value: 'shgg' },
-  { name: '党的建设', value: 'djdj' },
-  { name: '群团工作', value: 'qtgz' },
-  { name: '企业文化', value: 'qywh' },
-  { name: '科技创新', value: 'kjcj' },
-  { name: '其他', value: 'qita' }
-]
-
-// 标注信息 - 标签信息（7个维度）
-const autoTagForm = reactive({
-  sceneCategory: [], // 场景分类
-  coreObjects: '', // 核心物体
-  activityEvent: '', // 活动事件
-  textInfo: '', // 文本信息
-  colorTone: [], // 颜色色调
-  shootingAngle: '', // 拍摄角度
-  materialDescription: '' // 素材描述
-})
-
-// 标注信息 - 基本信息（6个维度）
-const manualTagForm = reactive({
-  timeInfo: '', // 时间信息
-  locationInfo: '', // 地点信息
-  personNames: '', // 人物姓名
-  buildingNames: '', // 建筑名称
-  relatedThemes: '', // 相关主题
-  properNouns: '' // 专有名词
-})
-
-
-
-
-const selectFolder = (item) => {
+//点击子文件展示相关文件夹及文件
+function selectFolder(item, type) {
   console.log('====item==', item);
-  breadcrumb.value = item.name
-  curFolderName.value = item.name
-  showFolder.value = false
+  curFolderName.value = item.filePath
+  curFolderBizId.value = item.bizId
+  if (type == 'isRootFolder') {
+    //根文件夹
+    showFolder.value = false
+    breadcrumbData.value = [{
+      filePath: item.filePath,
+      bizId: item.bizId,
+    }]
+  } else {
+    breadcrumbData.value.push({
+      filePath: item.filePath,
+      bizId: item.bizId,
+    })
+  }
+  getFolderData(item.bizId)
+  console.log('=== breadcrumbData.value===', breadcrumbData.value);
+
 }
+//点击面包屑
+function clickBreadcrumb(item, index) {
+  getFolderData(item.bizId)
+  if (index == 0) {
+    breadcrumbData.value = [{
+      filePath: item.filePath,
+      bizId: item.bizId,
+    }]
+  }
+
+
+}
+//返回按钮
 const backFolder = () => {
-  showFolder.value = true
-  breadcrumb.value = ''
-  curFolderName.value = ''
+  if (breadcrumbData.value.length == 1) {
+    showFolder.value = true
+    getFolderData(0)
+    return
+  } else {
+    getFolderData(breadcrumbData.value[breadcrumbData.value.length - 2].bizId) //获取上一级文件夹的bizId
+    breadcrumbData.value.pop()
+  }
+  console.log('===breadcrumbData.value===', breadcrumbData.value);
+  // breadcrumbData.value = []
+  // curFolderName.value = ''
+  // curFolderBizId.value = ''
 }
+
+// 获取文件夹列表数据
+const folderData = ref([]) //文件夹列表
+function getFolderData(pid) {
+  let params = {
+    pid: pid,
+  }
+  getFolderList(params).then(res => {
+    console.log('res========', res)
+    folderData.value = res.data
+  })
+}
+getFolderData(0)
 
 //新建文件夹
 const addFolderDialogVisible = ref(false)
@@ -232,16 +241,18 @@ function handleAddFolderClose() {
   folderName.value = ''
   addFolderDialogVisible.value = false
 }
-function addFolder() {
+function handleAddFolder() {
   addFolderDialogVisible.value = true
 }
 function handleAddFolderConfirm() {
   addFolderDialogVisible.value = false
   let params = {
-    folderName: folderName.value,
+    filePath: folderName.value,
+    pid: curFolderBizId.value,
   }
-  aaa(params).then(res => {
-    console.log('res========', res)
+  addFolder(params).then(res => {
+    ElMessage.success('文件夹新增成功')
+    getFolderData(curFolderBizId.value)
   })
 }
 // 支持的文件格式
@@ -328,10 +339,6 @@ const isSupportedFormat = (filename) => {
 
 
 
-//点击子文件展示相关文件夹及文件
-function subFolderClick(item) {
-  console.log('==item====', item);
-}
 
 // 获取文件类型文本
 const getFileTypeText = (fileType) => {
@@ -382,16 +389,6 @@ const getStatusText = (status) => {
 
 
 
-// 获取素材
-function getMaterialList() {
-  let params = {
-    pid: 0,
-  }
-  getFolderList(params).then(res => {
-    console.log('res========', res)
-  })
-}
-getMaterialList()
 
 
 
@@ -530,15 +527,32 @@ const showMaterialDetail = (material) => {
     }
 
     .breadcrumb {
-      line-height: 40px;
+      display: flex;
       margin: 0 0 0 20px;
-      font-size: 20px;
-      font-weight: 600;
-      cursor: pointer;
 
-      &:hover {
-        scale: 1.05;
-        color: #409eff;
+      .breadcrumbItem {
+        display: flex;
+        font-size: 20px;
+        align-items: center;
+
+        .breadcrumbName {
+          line-height: 40px;
+          padding: 0 8px;
+          font-weight: 600;
+          border-radius: 5px;
+          cursor: pointer;
+
+          &:hover {
+            // scale: 1.05;
+            color: #409eff;
+            background-color: #ebf5ff;
+          }
+        }
+
+        .breadcrumbArrow {
+          position: relative;
+          top: 2px;
+        }
       }
     }
   }

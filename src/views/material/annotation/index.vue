@@ -202,8 +202,11 @@ function clickBreadcrumb(item, index) {
       bizId: item.bizId,
     }]
   }
-
-
+  // 判断item的filePath在breadcrumbData的哪一个对象中，删除breadcrumbData的后面部分
+  const idx = breadcrumbData.value.findIndex(b => b.filePath === item.filePath)
+  if (idx !== -1) {
+    breadcrumbData.value = breadcrumbData.value.slice(0, idx + 1)
+  }
 }
 //返回按钮
 const backFolder = () => {
@@ -252,6 +255,7 @@ function handleAddFolderConfirm() {
   }
   addFolder(params).then(res => {
     ElMessage.success('文件夹新增成功')
+    folderName.value = ''
     getFolderData(curFolderBizId.value)
   })
 }

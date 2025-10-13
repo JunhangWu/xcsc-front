@@ -38,6 +38,7 @@
             <Back />
           </el-icon>
           <div class="breadcrumb">
+            <!-- 文件夹面包屑 -->
             <div class="breadcrumbItem" v-for="(item, index) in breadcrumbData" :key="index">
               <div class="breadcrumbName" @click="clickBreadcrumb(item, index)"> {{ item.filePath }}</div>
               <div class="breadcrumbArrow" v-if="index < breadcrumbData.length - 1">
@@ -73,8 +74,19 @@
           </div>
           <div v-else class="material-grid">
             <!-- 文件夹列表 -->
-            <div class="subFolder" v-for="(item, index) in folderData" :key="index" @click="selectFolder(item)">
-              <el-icon>
+            <div class="subFolder" v-for="(item, index) in folderData" :key="index"
+              @mouseenter="onSubFolderMouseEnter(item)" @mouseleave="onSubFolderMouseLeave(item)">
+              <span class="subFolder-actions">
+                <el-icon class="action-icon" @click.stop="editFolder(item)" v-show="item._hover"
+                  style="color: #409eff;">
+                  <Edit />
+                </el-icon>
+                <el-icon class="action-icon" @click.stop="deleteFolder(item)" v-show="item._hover"
+                  style="color: #f56c6c;">
+                  <Delete />
+                </el-icon>
+              </span>
+              <el-icon @click="selectFolder(item)">
                 <FolderOpened />
               </el-icon>
               <div class="subFolderName"> {{ item.filePath }}</div>
@@ -155,10 +167,11 @@
 </template>
 
 <script setup name="MaterialAnnotation">
+const { proxy } = getCurrentInstance();
 import { ref, reactive, onMounted } from 'vue'
 import { Search, VideoCamera, Document, Check, Edit, VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getFolderList, addFolder, delFolder, } from "@/api/xcsc/uploadFile"
+import { getFolderList, addFolder, updateFolder, delFolder, } from "@/api/xcsc/uploadFile"
 // 搜索和筛选
 const searchKeyword = ref('')
 const statusFilter = ref('')
@@ -167,15 +180,17 @@ const statusFilter = ref('')
 const loading = ref(false)
 const materialList = ref([])
 const showFolder = ref(true)
-const curFolderName = ref('')
-const curFolderBizId = ref('')
+const curFolderObj = reactive({
+  filePath: '',
+  bizId: '',
+  id: '',
+})
 const breadcrumbData = ref([])
 
 //点击子文件展示相关文件夹及文件
 function selectFolder(item, type) {
   console.log('====item==', item);
-  curFolderName.value = item.filePath
-  curFolderBizId.value = item.bizId
+  Object.assign(curFolderObj, item)
   if (type == 'isRootFolder') {
     //根文件夹
     showFolder.value = false
@@ -219,9 +234,6 @@ const backFolder = () => {
     breadcrumbData.value.pop()
   }
   console.log('===breadcrumbData.value===', breadcrumbData.value);
-  // breadcrumbData.value = []
-  // curFolderName.value = ''
-  // curFolderBizId.value = ''
 }
 
 // 获取文件夹列表数据
@@ -238,6 +250,7 @@ function getFolderData(pid) {
 getFolderData(0)
 
 //新建文件夹
+const handleFolderType = ref('add') // add edit
 const addFolderDialogVisible = ref(false)
 const folderName = ref('')
 function handleAddFolderClose() {
@@ -246,18 +259,52 @@ function handleAddFolderClose() {
 }
 function handleAddFolder() {
   addFolderDialogVisible.value = true
+  handleFolderType.value = 'add'
 }
 function handleAddFolderConfirm() {
   addFolderDialogVisible.value = false
   let params = {
     filePath: folderName.value,
-    pid: curFolderBizId.value,
   }
-  addFolder(params).then(res => {
-    ElMessage.success('文件夹新增成功')
-    folderName.value = ''
-    getFolderData(curFolderBizId.value)
-  })
+  if (handleFolderType.value == 'add') {
+    params.pid = curFolderObj.bizId
+    addFolder(params).then(res => {
+      ElMessage.success('新增成功')
+      folderName.value = ''
+      getFolderData(curFolderObj.bizId)
+    })
+  } else {
+    params.id = editOrDeleteFolderObj.id
+    updateFolder(params).then(res => {
+      ElMessage.success('修改成功')
+      folderName.value = ''
+      getFolderData(curFolderObj.bizId)
+    })
+  }
+}
+const editOrDeleteFolderObj = reactive({})  //编辑、删除的文件夹
+// 编辑文件夹
+function editFolder(item) {
+  addFolderDialogVisible.value = true
+  handleFolderType.value = 'edit'
+  editOrDeleteFolderObj.id = item.id
+  folderName.value = item.filePath
+}
+//  删除文件夹
+function deleteFolder(item) {
+  proxy.$modal.confirm('是否确认删除文件夹名称为"' + item.filePath + '"的数据项?').then(function () {
+    return delFolder(item.id);
+  }).then(() => {
+    getFolderData(curFolderObj.bizId)
+    proxy.$modal.msgSuccess("删除成功");
+  }).catch(() => { });
+}
+// 文件夹悬浮控制
+function onSubFolderMouseEnter(item) {
+  item._hover = true
+}
+function onSubFolderMouseLeave(item) {
+  item._hover = false
 }
 // 支持的文件格式
 const supportedFormats = {
@@ -503,10 +550,9 @@ const showMaterialDetail = (material) => {
     }
 
     &:hover {
-      // background-color: #e5f3ff;
-      // scale: 1.01;
-      // transform: translateX(10px);
-      scale: 1.05;
+      // scale: 1.05;
+      background-color: #e5f3ff;
+      border-radius: 6px;
     }
   }
 }
@@ -600,11 +646,11 @@ const showMaterialDetail = (material) => {
 }
 
 .subFolder {
+  position: relative;
   margin: 10px;
   aspect-ratio: 1 / 1; // 保证正方形
   width: 10vw;
   height: 10vw;
-  cursor: pointer;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -614,10 +660,42 @@ const showMaterialDetail = (material) => {
     font-size: 8vw;
     font-weight: 600;
     color: #ffd45e;
+    cursor: pointer;
   }
 
   &:hover {
-    scale: 1.05;
+    // scale: 1.05;
+    background-color: #e5f3ff;
+    border-radius: 6px;
+  }
+
+  .subFolder-actions {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  &:hover .subFolder-actions {
+    opacity: 1;
+  }
+
+  .action-icon {
+    font-size: 22px;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 50%;
+    padding: 2px;
+    cursor: pointer;
+    transition: color 0.2s;
+    font-weight: 600;
+
+    &:hover {
+      scale: 1.1;
+    }
   }
 }
 

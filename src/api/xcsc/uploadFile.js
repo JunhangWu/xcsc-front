@@ -17,6 +17,14 @@ export function addFolder(data) {
         data: data
     })
 }
+// 修改文件夹名称
+export function updateFolder(data) {
+    return request({
+        url: '/folder',
+        method: 'put',
+        data: data
+    })
+}
 
 // 删除文件夹
 export function delFolder(id) {

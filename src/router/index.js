@@ -57,12 +57,12 @@ export const constantRoutes = [
     component: () => import('@/views/error/401'),
     hidden: true
   },
-  {    
+  {
     path: '',
     component: Layout,
     redirect: '/index',
     children: [
-      {        
+      {
         path: '/index',
         component: () => import('@/views/index'),
         name: 'Index',
@@ -260,7 +260,7 @@ export const dynamicRoutes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory("high-inspection"),
+  history: createWebHistory("xcsc-front"),
   routes: [...constantRoutes, ...dynamicRoutes],
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {

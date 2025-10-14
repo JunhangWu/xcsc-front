@@ -93,17 +93,6 @@
             </div>
             <!-- 文件列表 -->
             <div v-for="material in fileListData" :key="material.id" class="material-item">
-              <div class="material-thumb">
-                <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
-                  @click="previewImg(material)" />
-                <el-icon v-else-if="isVideo(material.minioPath)" class="file-icon">
-                  <VideoPlay />
-                </el-icon>
-                <el-icon v-else class="file-icon">
-                  <Document />
-                </el-icon>
-                <div class="fileName">{{ getFileName(material.minioPath) }}</div>
-              </div>
               <div class="material-info">
                 <div class="material-status">
                   <!-- 待标注:0  AI标注:1  人工修改:2-->
@@ -116,6 +105,17 @@
                     标注
                   </el-button>
                 </div>
+              </div>
+              <div class="material-thumb">
+                <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
+                  @click="previewImg(material)" />
+                <el-icon v-else-if="isVideo(material.minioPath)" class="file-icon">
+                  <VideoPlay />
+                </el-icon>
+                <el-icon v-else class="file-icon">
+                  <Document />
+                </el-icon>
+                <div class="fileName">{{ getFileName(material.minioPath) }}</div>
               </div>
             </div>
           </div>
@@ -139,9 +139,8 @@
     <!-- 上传文件 -->
     <el-dialog v-model="uploadDialogVisible" title="上传文件" width="50vw" :before-close="cancelUpload"
       :close-on-click-modal="false" style="margin-top: 20vh;">
-      <el-upload v-model:file-list="fileList" class="upload-demo" drag :multiple="uploadType === 'file'"
-        :directory="uploadType === 'folder'" action="" :on-change="handleFileChange" :before-upload="handleBeforeUpload"
-        :auto-upload="false">
+      <el-upload v-model:file-list="fileList" class="upload-demo" drag :multiple="uploadType === 'file'" action=""
+        :on-change="handleFileChange" :auto-upload="false">
         <el-icon class="el-icon--upload"><upload-filled /></el-icon>
         <div class="el-upload__text">
           {{ uploadType === 'file' ? '点击或拖拽文件到此处上传' : '点击或拖拽文件夹到此处上传' }}
@@ -320,9 +319,11 @@ const uploadDialogVisible = ref(false)
 const uploadType = ref('file')// 上传类型
 const fileList = ref([])// 文件列表
 function uploadFile() {
+  fileList.value = []
   uploadDialogVisible.value = true
 }
 function cancelUpload() {
+  fileList.value = []
   uploadDialogVisible.value = false
 }
 function confirmUpload() {
@@ -348,6 +349,7 @@ function confirmUpload() {
     getFolderData(curFolderObj.bizId)
   })
   uploadDialogVisible.value = false
+  fileList.value = []
 }
 // 支持的文件格式
 const supportedFormats = {
@@ -390,16 +392,32 @@ const handleBeforeUpload = (file) => {
     ElMessage.error(`文件 ${file.name} 大小超过限制（100MB）`)
     return false
   }
+  // 校验同名
+  const fileName = file.name;
+  const existNames = fileListData.value.map(item => {
+    const path = item.minioPath || '';
+    const idx = path.lastIndexOf('/');
+    return idx !== -1 ? path.substring(idx + 1) : path;
+  });
+  if (existNames.includes(fileName)) {
+    ElMessage.error(`已存在同名文件：${fileName}，请勿重复上传！`);
+    return false;
+  }
   return true
 }
 // 文件变化处理
 const handleFileChange = (file, fileList) => {
   console.log('==file====', file);
-
   // 实时显示文件校验状态
   fileList.forEach(f => {
     f.status = isSupportedFormat(f.name) ? 'success' : 'error'
   })
+  // 检查文件大小（可选，可根据需要添加）
+  const maxSize = 100 * 1024 * 1024 // 100MB
+  if (file.size > maxSize) {
+    ElMessage.error(`文件 ${file.name} 大小超过限制（100MB）`)
+    return false
+  }
   // 检查文件格式
   const invalidFiles = fileList.filter(f => !isSupportedFormat(f.name))
   if (invalidFiles.length > 0) {
@@ -408,14 +426,22 @@ const handleFileChange = (file, fileList) => {
     fileList.value = fileList.filter(f => isSupportedFormat(f.name))
     return
   }
+  // 校验同名
+  const fileName = file.name;
+  const existNames = fileListData.value.map(item => {
+    const path = item.minioPath || '';
+    const idx = path.lastIndexOf('/');
+    return idx !== -1 ? path.substring(idx + 1) : path;
+  });
 
-  // 更新文件列表
-  fileList.value = fileList
-  console.log('===fileList.value===', fileList.value);
+  // 删除 fileList.value 中同名的文件，并提示
+  const duplicateFiles = fileList.filter(f => existNames.includes(f.name));
+  if (duplicateFiles.length > 0) {
+    ElMessage.error(`已存在同名文件：${duplicateFiles.map(f => f.name).join('、')}，请勿重复上传！`);
+    fileList.value = fileList.filter(f => !existNames.includes(f.name));
+  }
+
 }
-
-
-
 
 
 // 获取状态标签类型
@@ -647,20 +673,22 @@ function showMaterialDetail(material) {
   width: 10vw;
   height: 10vw;
   border-radius: 3px;
-  overflow: hidden;
-  background: #fff;
+  // overflow: hidden;
   transition: all 0.2s;
   display: block;
 
   .material-thumb {
     width: 100%;
-    height: 100%;
+    // height: 100%;
+    height: calc(100% - 30px);
+    margin: 30px 0 0 0;
     z-index: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    background: #f3f4f6;
 
     img {
       width: 100%;
@@ -687,11 +715,11 @@ function showMaterialDetail(material) {
 .material-info {
   position: absolute;
   left: 0;
-  top: 0px;
+  top: -5px;
   width: 100%;
   height: 30px;
   z-index: 2;
-  background: rgba(177, 200, 224, 0.55); // 半透明深色
+  background: #ecf0f8; // 半透明深色
   color: #fff;
   display: flex;
   justify-content: space-around;

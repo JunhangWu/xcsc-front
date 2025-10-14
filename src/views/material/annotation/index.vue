@@ -159,8 +159,7 @@
     </el-dialog>
 
     <!-- 素材标注弹框 -->
-    <MarkDialog ref="markDialogRef"></MarkDialog>
-
+    <MarkDialog ref="markDialogRef" @updateFileList="getFolderData(curFolderObj.bizId)"></MarkDialog>
 
   </div>
 </template>
@@ -168,6 +167,7 @@
 <script setup name="MaterialAnnotation">
 const { proxy } = getCurrentInstance();
 import { ref, reactive, onMounted } from 'vue'
+import { api as viewerApi } from "v-viewer";
 import { Search, VideoCamera, Document, Check, Edit, VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList } from "@/api/xcsc/uploadFile"
@@ -440,7 +440,13 @@ const getStatusText = (status) => {
 
 //预览图片
 function previewImg(material) {
-
+  const $viewer = viewerApi({
+    options: {
+      toolbar: true,
+      initialViewIndex: 0,
+    },
+    images: [material.minioPath],
+  });
 }
 
 // 显示素材详情
@@ -576,6 +582,7 @@ function showMaterialDetail(material) {
 // 网格视图样式
 .material-grid {
   display: flex;
+  flex-wrap: wrap;
   margin-bottom: 20px;
 }
 
@@ -633,8 +640,6 @@ function showMaterialDetail(material) {
   }
 }
 
-
-
 .material-item {
   margin: 10px;
   position: relative;
@@ -645,7 +650,6 @@ function showMaterialDetail(material) {
   overflow: hidden;
   background: #fff;
   transition: all 0.2s;
-  cursor: pointer;
   display: block;
 
   .material-thumb {
@@ -663,6 +667,7 @@ function showMaterialDetail(material) {
       height: 80%;
       object-fit: contain;
       transition: transform 0.3s;
+      cursor: pointer;
     }
 
     .file-icon {
@@ -860,5 +865,11 @@ function showMaterialDetail(material) {
   justify-content: center;
   align-items: center;
   padding: 60px 0;
+}
+</style>
+<style>
+/* 图片预览防止被弹框遮盖 */
+.viewer-container {
+  z-index: 9999 !important;
 }
 </style>

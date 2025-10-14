@@ -188,7 +188,8 @@
 
 <script setup>
 import { ref } from 'vue'
-import { gAIMark } from "@/api/xcsc/uploadFile"
+import { ElMessage } from 'element-plus'
+import { AIMark } from "@/api/xcsc/uploadFile"
 
 const dialogVisible = ref(false)
 const currentMaterial = reactive({})
@@ -279,12 +280,10 @@ const removeSupplementTag = (tag) => {
 
 
 // AI自动标注处理函数
+const emit = defineEmits(["updateFileList"]);
 const handleAIAutoTagging = () => {
     // 设置标注状态为进行中
     isAIAutoTagging.value = true
-
-    // 模拟AI根据素材内容自动生成标注信息
-    ElMessage({ message: '正在进行AI自动标注...', type: 'info' })
 
     // 清空现有数据，准备填充新的AI生成数据
     autoTagForm.sceneCategory = ''
@@ -299,8 +298,12 @@ const handleAIAutoTagging = () => {
     let params = {
         id: currentMaterial.id,
     }
-    gAIMark(params).then(res => {
+    AIMark(params).then(res => {
         console.log('res========', res)
+        isAIAutoTagging.value = false
+        ElMessage.success('AI自动标注成功！')
+        emit("updateFileList"); //状态改变，更新文件列表
+        Object.assign(autoTagForm, JSON.parse(res.data[0].annotationContent))
     })
 
 }

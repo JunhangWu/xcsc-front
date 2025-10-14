@@ -8,6 +8,8 @@ import locale from 'element-plus/es/locale/lang/zh-cn'
 
 import '@/assets/styles/index.scss' // global css
 
+import 'viewerjs/dist/viewer.css'
+
 import App from './App'
 import store from './store'
 import router from './router'

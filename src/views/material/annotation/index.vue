@@ -69,7 +69,7 @@
           <div v-if="loading" class="loading-container">
             <el-loading-text>正在加载素材...</el-loading-text>
           </div>
-          <div v-else-if="folderData.length == 0 && materialList.length == 0" class="empty-state">
+          <div v-else-if="folderData.length == 0 && fileListData.length == 0" class="empty-state">
             <el-empty description="暂无内容" />
           </div>
           <div v-else class="material-grid">
@@ -92,27 +92,28 @@
               <div class="subFolderName"> {{ item.filePath }}</div>
             </div>
             <!-- 文件列表 -->
-            <div v-for="material in materialList" :key="material.id" class="material-item"
+            <div v-for="material in fileListData" :key="material.id" class="material-item"
               @click="showMaterialDetail(material)">
               <div class="material-thumb">
-                <img v-if="material.type.includes('image')" :src="material.url" :alt="material.name" />
-                <el-icon v-else-if="material.type.includes('video')" class="file-icon">
+                <img v-if="isImage(material.minioPath)" :src="material.minioPath"
+                  :alt="getFileName(material.minioPath)" />
+                <el-icon v-else-if="isVideo(material.minioPath)" class="file-icon">
                   <VideoPlay />
                 </el-icon>
                 <el-icon v-else class="file-icon">
                   <Document />
                 </el-icon>
+                <div class="fileName">{{ getFileName(material.minioPath) }}</div>
               </div>
               <div class="material-info">
-                <div class="material-name">{{ material.name }}</div>
-                <div class="material-meta">
-                  <span class="meta-item">大小: {{ material.size }} KB</span>
-                  <span class="meta-item">类型: {{ getFileTypeText(material.type) }}</span>
-                  <span class="meta-item">上传时间: {{ material.uploadTime }}</span>
-                </div>
+                <!-- <div class="material-meta">
+                  <span class="meta-item">类型: {{ getFileTypeText(material.minioPath) }}</span>
+                  <span class="meta-item">上传时间: {{ parseTime(material.createTime) }}</span>
+                </div> -->
                 <div class="material-status">
-                  <el-tag :type="getStatusTagType(material.status)" size="small">
-                    {{ getStatusText(material.status) }}
+                  <!-- 待标注:0  AI标注:1  人工修改:2-->
+                  <el-tag :type="getStatusTagType(material.annotationStatus)">
+                    {{ getStatusText(material.annotationStatus) }}
                   </el-tag>
                 </div>
                 <div class="material-actions">
@@ -162,6 +163,9 @@
       </template>
     </el-dialog>
 
+    <!-- 素材标注弹框 -->
+    <MarkDialog ref="MarkDialog"></MarkDialog>
+
 
   </div>
 </template>
@@ -171,14 +175,14 @@ const { proxy } = getCurrentInstance();
 import { ref, reactive, onMounted } from 'vue'
 import { Search, VideoCamera, Document, Check, Edit, VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getFolderList, addFolder, updateFolder, delFolder, } from "@/api/xcsc/uploadFile"
+import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList } from "@/api/xcsc/uploadFile"
+import MarkDialog from './components/markDialog.vue'
 // 搜索和筛选
 const searchKeyword = ref('')
 const statusFilter = ref('')
 
 // 素材列表
 const loading = ref(false)
-const materialList = ref([])
 const showFolder = ref(true)
 const curFolderObj = reactive({
   filePath: '',
@@ -211,6 +215,7 @@ function selectFolder(item, type) {
 //点击面包屑
 function clickBreadcrumb(item, index) {
   getFolderData(item.bizId)
+  Object.assign(curFolderObj, item)
   if (index == 0) {
     breadcrumbData.value = [{
       filePath: item.filePath,
@@ -236,16 +241,24 @@ const backFolder = () => {
   console.log('===breadcrumbData.value===', breadcrumbData.value);
 }
 
-// 获取文件夹列表数据
+// 获取文件夹及文件列表数据
 const folderData = ref([]) //文件夹列表
+const fileListData = ref([])//文件列表
 function getFolderData(pid) {
   let params = {
     pid: pid,
   }
   getFolderList(params).then(res => {
-    console.log('res========', res)
     folderData.value = res.data
   })
+  if (pid !== 0) {
+    let param = {
+      folderId: pid,
+    }
+    getFileList(param).then(res => {
+      fileListData.value = res.data
+    })
+  }
 }
 getFolderData(0)
 
@@ -306,12 +319,6 @@ function onSubFolderMouseEnter(item) {
 function onSubFolderMouseLeave(item) {
   item._hover = false
 }
-// 支持的文件格式
-const supportedFormats = {
-  image: ['jpg', 'jpeg', 'png', 'bmp', 'gif'],
-  video: ['mp4', 'mov', 'avi', 'mkv', 'flv'],
-  document: ['docx', 'pdf', 'pptx']
-}
 
 // 上传文件
 const uploadDialogVisible = ref(false)
@@ -324,7 +331,50 @@ function cancelUpload() {
   uploadDialogVisible.value = false
 }
 function confirmUpload() {
+  let formData = new FormData();
+  // files 是多个文件的数组集合，用于上传的文件流
+  let files = fileList.value.map(item => item.raw || item.originFileObj || item); // 兼容不同上传组件的文件对象
+  files.forEach(file => {
+    formData.append("files", file);
+  });
+  let folderPath = ''
+  formData.append("folderId ", curFolderObj.bizId);
+  breadcrumbData.value.forEach((item, idx) => {
+    folderPath += item.filePath
+    if (idx !== breadcrumbData.value.length - 1) {
+      folderPath += '/'
+    }
+    console.log('===folderPath===', folderPath);
+
+  })
+  formData.append("folderPath ", folderPath);
+  uploadFiles(formData).then(res => {
+    ElMessage.success(`上传成功！`)
+    getFolderData(curFolderObj.bizId)
+  })
   uploadDialogVisible.value = false
+}
+// 支持的文件格式
+const supportedFormats = {
+  image: ['jpg', 'jpeg', 'png', 'bmp', 'gif'],
+  video: ['mp4', 'mov', 'avi', 'mkv', 'flv'],
+  document: ['docx', 'pdf', 'pptx']
+}
+function isImage(path) {
+  return ['jpg', 'jpeg', 'png', 'bmp', 'gif'].some(ext => path.toLowerCase().includes(ext));
+}
+function isVideo(path) {
+  return ['mp4', 'mov', 'avi', 'mkv', 'flv'].some(ext => path.toLowerCase().includes(ext));
+}
+function getFileName(path) {
+  if (!path) return '';
+  const idx = path.lastIndexOf('/');
+  return idx !== -1 ? path.substring(idx + 1) : path;
+}
+// 检查文件格式是否支持
+const isSupportedFormat = (filename) => {
+  const ext = filename.split('.').pop().toLowerCase()
+  return Object.values(supportedFormats).flat().includes(ext)
 }
 const handleBeforeUpload = (file) => {
   // 格式验证（图片/视频/文档）
@@ -339,18 +389,18 @@ const handleBeforeUpload = (file) => {
     ElMessage.error(`文件 ${file.name} 格式不符合要求，请上传支持的文件格式`)
     return false
   }
-
   // 检查文件大小（可选，可根据需要添加）
   const maxSize = 100 * 1024 * 1024 // 100MB
   if (file.size > maxSize) {
     ElMessage.error(`文件 ${file.name} 大小超过限制（100MB）`)
     return false
   }
-
   return true
 }
 // 文件变化处理
 const handleFileChange = (file, fileList) => {
+  console.log('==file====', file);
+
   // 实时显示文件校验状态
   fileList.forEach(f => {
     f.status = isSupportedFormat(f.name) ? 'success' : 'error'
@@ -366,29 +416,8 @@ const handleFileChange = (file, fileList) => {
 
   // 更新文件列表
   fileList.value = fileList
-
-  // 如果是图片文件，尝试自动提取拍摄时间（仅对第一个图片文件）
-  if (fileList.value.length > 0) {
-    const firstImageFile = fileList.value.find(f => f.type?.includes('image'))
-    if (firstImageFile) {
-      try {
-        extractExifDateTime(firstImageFile).then(dateTime => {
-        }).catch(error => {
-          console.warn('提取拍摄时间失败:', error);
-        });
-      } catch (error) {
-        console.warn('提取拍摄时间失败:', error);
-      }
-    }
-  }
+  console.log('===fileList.value===', fileList.value);
 }
-// 检查文件格式是否支持
-const isSupportedFormat = (filename) => {
-  const ext = filename.split('.').pop().toLowerCase()
-  return Object.values(supportedFormats).flat().includes(ext)
-}
-
-
 
 
 // 获取文件类型文本
@@ -420,10 +449,9 @@ const getFileTypeText = (fileType) => {
 // 获取状态标签类型
 const getStatusTagType = (status) => {
   const typeMap = {
-    'pending': 'warning',
-    'auto_annotating': 'info',
-    'manual_review': 'primary',
-    'completed': 'success'
+    '0': 'warning',
+    '1': 'primary',
+    '2': 'success'
   }
   return typeMap[status] || ''
 }
@@ -431,86 +459,17 @@ const getStatusTagType = (status) => {
 // 获取状态文本
 const getStatusText = (status) => {
   const textMap = {
-    'pending': '待标注',
-    'manual_review': '待审核',
-    'completed': '已标注'
+    '0': '待标注',
+    '1': 'AI已标注',
+    '2': '人工已修改'
   }
   return textMap[status] || status
 }
 
 
-
-
-
-
 // 显示素材详情
-const showMaterialDetail = (material) => {
-  // // 确保当前素材对象包含所有必要的字段
-  // currentMaterial.value = {
-  //   ...material,
-  //   // 从全局素材数据中获取分辨率信息
-  //   resolution: material.resolution || (() => {
-  //     try {
-  //       const globalMaterials = JSON.parse(localStorage.getItem('globalMaterials') || '[]')
-  //       const originalMaterial = globalMaterials.find(m => m.id === material.id)
-  //       return originalMaterial ? originalMaterial.resolution : '不适用'
-  //     } catch (error) {
-  //       return '不适用'
-  //     }
-  //   })()
-  // }
+function showMaterialDetail(material) {
 
-
-
-  // // 检查素材是否已有存储的标注数据，如果有则加载
-  // if (material.tags && material.tags.annotationData) {
-  //   const annotationData = material.tags.annotationData
-
-  //   // 加载标签信息
-  //   if (annotationData.autoTags) {
-  //     Object.assign(autoTagForm, annotationData.autoTags)
-  //   }
-
-  //   // 加载基本信息
-  //   if (annotationData.manualTags) {
-  //     Object.assign(manualTagForm, annotationData.manualTags)
-  //   }
-
-  //   // 加载补充标签
-  //   if (annotationData.supplementTags) {
-  //     supplementTags.value = [...annotationData.supplementTags]
-  //   }
-  // } else if (material.status === 'manual_review') {
-  //   // 自动标注待审核状态
-  //   autoTagForm.sceneCategory = ['meeting', 'office']
-  //   autoTagForm.coreObjects = '椅子, 屏幕, 桌子, 投影仪'
-  //   autoTagForm.activityEvent = '商务会议'
-  //   autoTagForm.textInfo = '第三季度工作报告'
-  //   autoTagForm.colorTone = ['white', 'blue', 'gray']
-  //   autoTagForm.shootingAngle = 'front'
-  //   autoTagForm.materialDescription = '会议室场景，多人正在进行会议讨论'
-  // } else if (material.status === 'completed') {
-  //   // 已完成标注状态
-  //   autoTagForm.sceneCategory = ['office']
-  //   autoTagForm.coreObjects = '文档, 图表'
-  //   autoTagForm.activityEvent = '文档编辑'
-  //   autoTagForm.textInfo = '财务数据汇总'
-  //   autoTagForm.colorTone = ['white', 'gray']
-  //   autoTagForm.shootingAngle = 'top'
-  //   autoTagForm.materialDescription = '财务报告文档截图'
-
-  //   manualTagForm.timeInfo = '2023-09-30 15:30:00'
-  //   manualTagForm.locationInfo = '总部办公楼3楼财务室'
-  //   manualTagForm.personNames = '张三, 李四'
-  //   manualTagForm.buildingNames = '总部办公楼'
-  //   manualTagForm.relatedThemes = '财务分析, 季度报告'
-  //   manualTagForm.properNouns = '财务报表, 第三季度'
-
-  //   supplementTags.value = ['重要文档', '季度汇总']
-  // } else {
-  //   // 其他状态重置表单
-  //   resetTagForms()
-  // }
 
   dialogVisible.value = true
 }
@@ -707,94 +666,84 @@ const showMaterialDetail = (material) => {
   aspect-ratio: 1 / 1; // 保证正方形
   width: 10vw;
   height: 10vw;
-  border: 1px solid #e4e7ed;
   border-radius: 8px;
   overflow: hidden;
   background: #fff;
   transition: all 0.2s;
   cursor: pointer;
   display: block;
+
+  .material-thumb {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+
+    img {
+      width: 100%;
+      height: 80%;
+      object-fit: contain;
+      transition: transform 0.3s;
+    }
+
+    .file-icon {
+      font-size: 48px;
+      color: #909399;
+    }
+
+    .fileName {
+      text-align: center;
+      margin: 5px 0 0 0;
+    }
+  }
 }
 
-.material-thumb {
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  left: 0;
-  top: 0;
-  z-index: 1;
-  background: #f5f7fa;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.material-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s;
-}
-
-.material-thumb .file-icon {
-  font-size: 48px;
-  color: #909399;
-}
 
 .material-info {
   position: absolute;
   left: 0;
-  top: 0;
+  bottom: 27px;
   width: 100%;
-  height: 100%;
+  height: 30px;
   z-index: 2;
   background: rgba(44, 62, 80, 0.55); // 半透明深色
   color: #fff;
   display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 18px 14px 14px 14px;
-  opacity: 0;
-  transition: opacity 0.25s;
-  pointer-events: none;
+  justify-content: space-around;
+  align-items: center;
+
+  .material-meta {
+    font-size: 13px;
+    color: #000;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    .meta-item {
+      display: block;
+      line-height: 1.6;
+    }
+
+  }
+
+  .material-status {
+    margin: 0 5px;
+  }
+
+  .material-actions {
+    margin: 0 5px;
+  }
+
 }
 
-.material-item:hover .material-info {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.material-name {
-  font-size: 16px;
-  font-weight: 500;
-  color: #fff;
-  margin-bottom: 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.material-meta {
-  font-size: 13px;
-  color: #e0e0e0;
-  margin-bottom: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.material-status {
-  margin-bottom: 8px;
-}
-
-.material-actions {
-  margin-top: 6px;
-}
-
-.material-item:hover .material-thumb img {
-  transform: scale(1.05);
-}
 
 .preview-image {
   max-width: 100%;
@@ -938,70 +887,7 @@ const showMaterialDetail = (material) => {
   border-top: 1px solid #e4e7ed;
 }
 
-.material-thumb {
-  height: 180px;
-  background: #f5f7fa;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  position: relative;
-}
 
-.material-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s;
-}
-
-.material-item:hover .material-thumb img {
-  transform: scale(1.05);
-}
-
-.material-thumb .file-icon {
-  font-size: 48px;
-  color: #909399;
-}
-
-.material-info {
-  padding: 16px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.material-name {
-  font-size: 16px;
-  font-weight: 500;
-  color: #303133;
-  margin-bottom: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.material-meta {
-  font-size: 13px;
-  color: #606266;
-  margin-bottom: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.meta-item {
-  display: block;
-  line-height: 1.6;
-}
-
-.material-status {
-  margin-bottom: 16px;
-}
-
-.material-actions {
-  margin-top: auto;
-}
 
 .loading-container {
   display: flex;

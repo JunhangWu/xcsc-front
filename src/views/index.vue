@@ -1,7 +1,7 @@
 <template>
   <div class="app-container home">
     <!-- 顶部功能入口 -->
-    <div class="top-nav">
+    <!-- <div class="top-nav">
       <el-button v-for="module in topModules" :key="module.name" type="primary" link
         @click="navigateToModule(module.path)" class="nav-btn">
         <el-icon class="nav-icon">
@@ -9,7 +9,7 @@
         </el-icon>
         {{ module.title }}
       </el-button>
-    </div>
+    </div> -->
 
     <!-- 主内容区 -->
     <div class="main-content">
@@ -46,7 +46,7 @@
       <div class="content-area">
         <!-- 筛选搜索栏 -->
         <div class="filter-bar">
-          <el-form :model="filterForm" inline>
+          <el-form :model="filterForm" inline label-width="120px">
             <el-form-item label="素材类型：">
               <el-select v-model="filterForm.type" placeholder="请选择" clearable>
                 <el-option label="图片" value="image" />
@@ -62,11 +62,11 @@
             </el-form-item>
 
             <el-form-item label="上传者：">
-              <el-input v-model="filterForm.uploader" placeholder="请输入上传者" clearable />
+              <el-input v-model="filterForm.uploader" placeholder="请输入上传者" clearable style="width: 214px;" />
             </el-form-item>
 
             <el-form-item label="素材标签：">
-              <el-input v-model="filterForm.tags" placeholder="请输入素材标签" clearable />
+              <el-input v-model="filterForm.tags" placeholder="请输入素材标签" clearable style="width: 214px;" />
             </el-form-item>
 
             <el-form-item>
@@ -160,32 +160,32 @@ import { ElMessage } from 'element-plus'
 const router = useRouter()
 
 // 顶部功能模块
-const topModules = ref([
-  {
-    name: 'upload',
-    title: '素材上传',
-    path: '/upload',
-    icon: UploadFilled
-  },
-  {
-    name: 'annotation',
-    title: '素材标注',
-    path: '/annotation',
-    icon: Tools
-  },
-  {
-    name: 'ai-creation',
-    title: 'AI创作',
-    path: '/ai-creation',
-    icon: MagicStick
-  },
-  {
-    name: 'ai-search',
-    title: 'AI搜索',
-    path: '/search',
-    icon: Search
-  }
-])
+// const topModules = ref([
+//   {
+//     name: 'upload',
+//     title: '素材上传',
+//     path: '/upload',
+//     icon: UploadFilled
+//   },
+//   {
+//     name: 'annotation',
+//     title: '素材标注',
+//     path: '/annotation',
+//     icon: Tools
+//   },
+//   {
+//     name: 'ai-creation',
+//     title: 'AI创作',
+//     path: '/ai-creation',
+//     icon: MagicStick
+//   },
+//   {
+//     name: 'ai-search',
+//     title: 'AI搜索',
+//     path: '/search',
+//     icon: Search
+//   }
+// ])
 
 // 个人空间
 const personalSpace = ref([
@@ -608,7 +608,7 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .home {
   padding: 0;
-  height: 100vh;
+  // height: 100vh;
   display: flex;
   flex-direction: column;
 }

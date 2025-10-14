@@ -33,3 +33,21 @@ export function delFolder(id) {
         method: 'delete'
     })
 }
+
+// 上传文件
+export function uploadFiles(data) {
+    return request({
+        url: '/file/uploads',
+        method: 'post',
+        data: data
+    })
+}
+// 文件列表
+export function getFileList(query) {
+    return request({
+        url: '/file/list',
+        method: 'get',
+        params: query
+    })
+}
+

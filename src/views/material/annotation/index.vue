@@ -50,13 +50,13 @@
           </div>
         </div>
         <div class="btnList">
-          <el-button type="primary" plain @click="handleAddFolder">
-            <el-icon style="font-size: 18px;margin:0 6px 0 0 ;">
+          <el-button type="primary" plain @click="handleAddFolder" size="default">
+            <el-icon style="margin-right: 6px;">
               <FolderAdd />
             </el-icon>新建文件夹
           </el-button>
-          <el-button type="primary" plain @click="uploadFile">
-            <el-icon style="font-size: 18px;margin:0 6px 0 0 ;">
+          <el-button type="primary" plain @click="uploadFile" size="default">
+            <el-icon style="margin-right: 6px;">
               <Upload />
             </el-icon>上传文件
           </el-button>
@@ -89,14 +89,14 @@
               <el-icon @click="selectFolder(item)">
                 <FolderOpened />
               </el-icon>
-              <div class="subFolderName"> {{ item.filePath }}</div>
+              <div class="subFolderName">{{ item.filePath }}</div>
             </div>
             <!-- 文件列表 -->
             <div v-for="material in fileListData" :key="material.id" class="material-item">
               <div class="material-info">
                 <div class="material-status">
                   <!-- 待标注:0  AI标注:1  人工修改:2-->
-                  <el-tag :type="getStatusTagType(material.annotationStatus)">
+                  <el-tag :type="getStatusTagType(material.annotationStatus)" size="small">
                     {{ getStatusText(material.annotationStatus) }}
                   </el-tag>
                 </div>
@@ -120,7 +120,6 @@
             </div>
           </div>
         </div>
-
       </div>
     </div>
 
@@ -159,7 +158,6 @@
 
     <!-- 素材标注弹框 -->
     <MarkDialog ref="markDialogRef" @updateFileList="getFolderData(curFolderObj.bizId)"></MarkDialog>
-
   </div>
 </template>
 
@@ -499,35 +497,49 @@ function showMaterialDetail(material) {
   flex-wrap: wrap;
   max-height: calc(100vh - 180px);
   overflow-y: auto;
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  margin-top: 16px;
 
   .folderItem {
-    margin: 10px;
-    aspect-ratio: 1 / 1; // 保证正方形
-    width: 10vw;
-    height: 10vw;
+    margin: 8px;
+    aspect-ratio: 1 / 1;
+    width: 160px;
+    height: 160px;
     cursor: pointer;
     display: flex;
-    // justify-content: flex-start;
-    // align-items: center;
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
 
     :deep(.el-icon) {
-      // font-size: 30px;
-      font-size: 8vw;
-      font-weight: 600;
+      font-size: 80px;
+      font-weight: 500;
       color: #ffd45e;
+      margin-bottom: 8px;
     }
 
     .folderName {
       text-align: center;
+      font-size: 14px;
+      color: #303133;
+      padding: 0 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
     }
 
     &:hover {
-      // scale: 1.05;
-      background-color: #e5f3ff;
-      border-radius: 6px;
+      background-color: #ecf5ff;
+      border-color: #c6e2ff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     }
   }
 }
@@ -535,121 +547,133 @@ function showMaterialDetail(material) {
 .pageTop {
   display: flex;
   justify-content: space-between;
-  border-bottom: 1px solid #d3d3d3;
+  align-items: center;
+  padding: 16px 20px;
+  background: #ffffff;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid #e4e7ed;
+  margin-top: 16px;
 
   .breadcrumbBox {
     display: flex;
-
+    align-items: center;
 
     .backBtn {
-      font-size: 40px;
+      font-size: 36px;
       cursor: pointer;
+      color: #606266;
+      padding: 4px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
 
       &:hover {
-        scale: 1.05;
         color: #409eff;
+        background-color: #ecf5ff;
       }
     }
 
     .breadcrumb {
       display: flex;
-      margin: 0 0 0 20px;
+      margin-left: 16px;
+      align-items: center;
 
       .breadcrumbItem {
         display: flex;
-        font-size: 20px;
         align-items: center;
 
         .breadcrumbName {
-          line-height: 40px;
+          line-height: 28px;
           padding: 0 8px;
-          font-weight: 600;
-          border-radius: 5px;
+          border-radius: 4px;
           cursor: pointer;
+          font-size: 16px;
+          color: #606266;
+          transition: all 0.2s ease;
 
           &:hover {
-            // scale: 1.05;
             color: #409eff;
-            background-color: #ebf5ff;
+            background-color: #ecf5ff;
           }
         }
 
         .breadcrumbArrow {
-          position: relative;
-          top: 2px;
+          margin: 0 4px;
+          color: #c0c4cc;
         }
       }
     }
   }
 
   .btnList {
-    margin: 0 5px;
+    display: flex;
+    gap: 12px;
   }
 }
 
-
 .search-filter {
   display: flex;
-  margin-bottom: 20px;
   align-items: center;
+  padding: 16px 20px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+
+  :deep(.el-input__wrapper),
+  :deep(.el-select__wrapper) {
+    border-radius: 6px;
+    transition: all 0.3s ease;
+  }
 }
 
-.thumbnail {
-  width: 60px;
-  height: 40px;
-  object-fit: cover;
-  border-radius: 4px;
+.card-body {
+  background: #ffffff;
+  border-radius: 0 0 8px 8px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  min-height: 400px;
 }
 
-.video-icon,
-.file-icon {
-  width: 60px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  color: #909399;
-}
-
-
-// 网格视图样式
 .material-grid {
   display: flex;
   flex-wrap: wrap;
-  margin-bottom: 20px;
+  gap: 16px;
 }
 
 .subFolder {
   position: relative;
-  margin: 10px;
-  aspect-ratio: 1 / 1; // 保证正方形
-  width: 10vw;
-  height: 10vw;
+  aspect-ratio: 1 / 1;
+  width: 160px;
+  height: 160px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+  background: #fafafa;
 
   :deep(.el-icon) {
-    font-size: 8vw;
-    font-weight: 600;
+    font-size: 80px;
+    font-weight: 500;
     color: #ffd45e;
+    margin-bottom: 8px;
     cursor: pointer;
   }
 
   &:hover {
-    // scale: 1.05;
-    background-color: #e5f3ff;
-    border-radius: 6px;
+    background-color: #ecf5ff;
+    border-color: #c6e2ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
 
   .subFolder-actions {
     position: absolute;
     top: 8px;
-    right: 10px;
+    right: 8px;
     display: flex;
-    gap: 8px;
+    gap: 4px;
     z-index: 10;
     opacity: 0;
     transition: opacity 0.2s;
@@ -660,239 +684,126 @@ function showMaterialDetail(material) {
   }
 
   .action-icon {
-    font-size: 22px;
-    background: rgba(255, 255, 255, 0.85);
+    font-size: 18px;
+    background: rgba(255, 255, 255, 0.9);
     border-radius: 50%;
     padding: 2px;
     cursor: pointer;
-    transition: color 0.2s;
-    font-weight: 600;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 
     &:hover {
-      scale: 1.1;
+      transform: scale(1.1);
     }
+  }
+
+  .subFolderName {
+    text-align: center;
+    font-size: 14px;
+    color: #303133;
+    padding: 0 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
   }
 }
 
 .material-item {
-  margin: 10px;
+  margin: 0;
   position: relative;
-  aspect-ratio: 1 / 1; // 保证正方形
-  width: 10vw;
-  height: 10vw;
-  border-radius: 3px;
-  // overflow: hidden;
-  transition: all 0.2s;
+  aspect-ratio: 1 / 1;
+  width: 160px;
+  height: 160px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
   display: block;
+  background: #ffffff;
+  border: 1px solid #ebeef5;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+
+  &:hover {
+    border-color: #409eff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
 
   .material-thumb {
     width: 100%;
-    // height: 100%;
-    height: calc(100% - 30px);
-    margin: 30px 0 0 0;
+    height: calc(100% - 36px);
+    margin-top: 36px;
     z-index: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    background: #f3f4f6;
 
     img {
-      width: 100%;
-      height: 80%;
+      width: 90%;
+      height: 70%;
       object-fit: contain;
       transition: transform 0.3s;
       cursor: pointer;
+      margin-bottom: 8px;
     }
 
     .file-icon {
-      font-size: 48px;
+      font-size: 36px;
       color: #909399;
-      margin: 50px 0 10px 0;
+      margin-bottom: 8px;
     }
 
     .fileName {
       text-align: center;
-      margin: 5px 0 0 0;
+      font-size: 12px;
+      color: #606266;
+      padding: 0 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
     }
   }
 }
-
 
 .material-info {
   position: absolute;
   left: 0;
-  top: -5px;
+  top: 0;
   width: 100%;
-  height: 30px;
+  height: 36px;
   z-index: 2;
-  background: #ecf0f8; // 半透明深色
-  color: #fff;
+  background: #f8f9fa;
   display: flex;
-  justify-content: space-around;
+  justify-content: space-between;
   align-items: center;
+  padding: 0 8px;
+  border-bottom: 1px solid #ebeef5;
+  border-radius: 8px 8px 0 0;
 
   .material-status {
-    margin: 0 5px;
+    display: flex;
+    align-items: center;
   }
 
   .material-actions {
-    margin: 0 5px;
-  }
-
-}
-
-
-.preview-image {
-  max-width: 100%;
-  max-height: 650px;
-  object-fit: contain;
-  border-radius: 4px;
-  transition: transform 0.3s ease;
-}
-
-.preview-image:hover {
-  transform: scale(1.02);
-}
-
-.preview-video,
-.preview-file {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  color: #606266;
-}
-
-.preview-video .el-icon,
-.preview-file .el-icon {
-  font-size: 64px;
-  margin-bottom: 16px;
-  color: #909399;
-}
-
-.material-basic-info {
-  flex: 0.8;
-  background: #fafafa;
-  padding: 10px;
-  border-radius: 8px;
-  min-width: 180px;
-}
-
-.material-basic-info h4 {
-  margin-bottom: 12px;
-  color: #303133;
-  font-weight: 700;
-  font-size: 18px;
-}
-
-.info-row {
-  margin-bottom: 8px;
-  line-height: 1.6;
-  font-size: 13px;
-}
-
-.info-label {
-  color: #606266;
-  font-weight: 500;
-  display: inline-block;
-  width: 80px;
-}
-
-/* 元数据信息样式 */
-.metadata-section {
-  margin-bottom: 12px;
-}
-
-.section-title {
-  font-weight: 600;
-  color: #303133;
-  margin: 0 0 12px 0;
-  font-size: 16px;
-}
-
-.metadata-grid {
-  display: flex;
-
-  .metadata-item {
     display: flex;
-    justify-content: center;
     align-items: center;
-    margin: 10px;
-
-    .metadata-label {
-      font-size: 13px;
-      color: #909399;
-    }
-
-    .metadata-value {
-      font-size: 13px;
-      color: #303133;
-      font-weight: 500;
-    }
-
   }
 
+  :deep(.el-button) {
+    padding: 4px 10px;
+    font-size: 12px;
+    height: 24px;
+  }
 }
-
-
-
-.annotation-info {
-  margin-bottom: 15px;
-}
-
-.annotation-info h3 {
-  margin-bottom: 12px;
-  color: #303133;
-  font-weight: 500;
-  font-size: 16px;
-}
-
-.annotation-section {
-  margin-bottom: 15px;
-  padding: 12px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.annotation-section h4 {
-  margin-bottom: 12px;
-  color: #303133;
-  font-weight: 500;
-  padding-bottom: 6px;
-  border-bottom: 2px solid #409eff;
-  display: inline-block;
-  font-size: 14px;
-}
-
-.tag-input-section {
-  margin-bottom: 10px;
-}
-
-.tag-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  padding: 12px 0;
-  margin-top: 15px;
-  border-top: 1px solid #e4e7ed;
-}
-
-
 
 .loading-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 60px 0;
+  padding: 80px 0;
   color: #909399;
 }
 
@@ -900,7 +811,70 @@ function showMaterialDetail(material) {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 60px 0;
+  padding: 80px 0;
+}
+
+/* 对话框样式优化 */
+.dialogFoot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* 统一按钮样式 */
+:deep(.el-button) {
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+/* 统一标签样式 */
+:deep(.el-tag) {
+  border-radius: 4px;
+}
+
+/* 适配不同屏幕尺寸 */
+@media screen and (max-width: 1200px) {
+
+  .folderItem,
+  .subFolder,
+  .material-item {
+    width: 120px;
+    height: 120px;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .search-filter {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .search-filter>* {
+    width: 100% !important;
+    margin-right: 0 !important;
+  }
+
+  .pageTop {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .btnList {
+    justify-content: center;
+  }
+
+  .folderItem,
+  .subFolder,
+  .material-item {
+    width: 100px;
+    height: 100px;
+  }
+
+  :deep(.el-icon) {
+    font-size: 32px !important;
+  }
 }
 </style>
 <style>

@@ -92,11 +92,10 @@
               <div class="subFolderName"> {{ item.filePath }}</div>
             </div>
             <!-- 文件列表 -->
-            <div v-for="material in fileListData" :key="material.id" class="material-item"
-              @click="showMaterialDetail(material)">
+            <div v-for="material in fileListData" :key="material.id" class="material-item">
               <div class="material-thumb">
-                <img v-if="isImage(material.minioPath)" :src="material.minioPath"
-                  :alt="getFileName(material.minioPath)" />
+                <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
+                  @click="previewImg(material)" />
                 <el-icon v-else-if="isVideo(material.minioPath)" class="file-icon">
                   <VideoPlay />
                 </el-icon>
@@ -106,10 +105,6 @@
                 <div class="fileName">{{ getFileName(material.minioPath) }}</div>
               </div>
               <div class="material-info">
-                <!-- <div class="material-meta">
-                  <span class="meta-item">类型: {{ getFileTypeText(material.minioPath) }}</span>
-                  <span class="meta-item">上传时间: {{ parseTime(material.createTime) }}</span>
-                </div> -->
                 <div class="material-status">
                   <!-- 待标注:0  AI标注:1  人工修改:2-->
                   <el-tag :type="getStatusTagType(material.annotationStatus)">
@@ -118,7 +113,7 @@
                 </div>
                 <div class="material-actions">
                   <el-button type="primary" size="small" @click.stop="showMaterialDetail(material)" icon="Edit">
-                    {{ material.status === 'completed' ? '修改标注' : '标注' }}
+                    标注
                   </el-button>
                 </div>
               </div>
@@ -164,7 +159,7 @@
     </el-dialog>
 
     <!-- 素材标注弹框 -->
-    <MarkDialog ref="MarkDialog"></MarkDialog>
+    <MarkDialog ref="markDialogRef"></MarkDialog>
 
 
   </div>
@@ -420,29 +415,6 @@ const handleFileChange = (file, fileList) => {
 }
 
 
-// 获取文件类型文本
-const getFileTypeText = (fileType) => {
-  if (!fileType) return '未知类型';
-
-  const typeMap = {
-    'image': '图片',
-    'video': '视频',
-    'document': '文档',
-    'audio': '音频',
-    'pdf': 'PDF文档',
-    'word': 'Word文档',
-    'excel': 'Excel文档',
-    'powerpoint': 'PPT文档'
-  };
-
-  for (const [type, text] of Object.entries(typeMap)) {
-    if (fileType.includes(type)) {
-      return text;
-    }
-  }
-
-  return '其他';
-};
 
 
 
@@ -461,17 +433,21 @@ const getStatusText = (status) => {
   const textMap = {
     '0': '待标注',
     '1': 'AI已标注',
-    '2': '人工已修改'
+    '2': '人工已标注'
   }
   return textMap[status] || status
 }
 
+//预览图片
+function previewImg(material) {
+
+}
 
 // 显示素材详情
+const markDialogRef = ref(null)
 function showMaterialDetail(material) {
-
-
-  dialogVisible.value = true
+  // 打开 MarkDialog 弹框
+  markDialogRef.value.open(material)
 }
 
 
@@ -592,7 +568,6 @@ function showMaterialDetail(material) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f5f7fa;
   border-radius: 4px;
   color: #909399;
 }
@@ -666,7 +641,7 @@ function showMaterialDetail(material) {
   aspect-ratio: 1 / 1; // 保证正方形
   width: 10vw;
   height: 10vw;
-  border-radius: 8px;
+  border-radius: 3px;
   overflow: hidden;
   background: #fff;
   transition: all 0.2s;
@@ -676,9 +651,6 @@ function showMaterialDetail(material) {
   .material-thumb {
     width: 100%;
     height: 100%;
-    position: absolute;
-    left: 0;
-    top: 0;
     z-index: 1;
     display: flex;
     flex-direction: column;
@@ -696,6 +668,7 @@ function showMaterialDetail(material) {
     .file-icon {
       font-size: 48px;
       color: #909399;
+      margin: 50px 0 10px 0;
     }
 
     .fileName {
@@ -709,30 +682,15 @@ function showMaterialDetail(material) {
 .material-info {
   position: absolute;
   left: 0;
-  bottom: 27px;
+  top: 0px;
   width: 100%;
   height: 30px;
   z-index: 2;
-  background: rgba(44, 62, 80, 0.55); // 半透明深色
+  background: rgba(177, 200, 224, 0.55); // 半透明深色
   color: #fff;
   display: flex;
   justify-content: space-around;
   align-items: center;
-
-  .material-meta {
-    font-size: 13px;
-    color: #000;
-    margin-bottom: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-
-    .meta-item {
-      display: block;
-      line-height: 1.6;
-    }
-
-  }
 
   .material-status {
     margin: 0 5px;

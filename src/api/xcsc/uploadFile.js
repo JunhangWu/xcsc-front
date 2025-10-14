@@ -50,4 +50,12 @@ export function getFileList(query) {
         params: query
     })
 }
+// AI标注标签
+export function AIMark(query) {
+    return request({
+        url: '/file/handle',
+        method: 'get',
+        params: query
+    })
+}
 

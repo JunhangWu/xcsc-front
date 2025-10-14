@@ -112,7 +112,7 @@
                 <el-icon v-else-if="isVideo(material.minioPath)" class="file-icon">
                   <VideoPlay />
                 </el-icon>
-                <el-icon v-else class="file-icon">
+                <el-icon v-else class="file-icon" @click="downloadFile(material)" style="cursor:pointer;">
                   <Document />
                 </el-icon>
                 <div class="fileName">{{ getFileName(material.minioPath) }}</div>
@@ -171,6 +171,7 @@ import { Search, VideoCamera, Document, Check, Edit, VideoPlay } from '@element-
 import { ElMessage } from 'element-plus'
 import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList } from "@/api/xcsc/uploadFile"
 import MarkDialog from './components/markDialog.vue'
+import download from '../../../plugins/download';
 // 搜索和筛选
 const searchKeyword = ref('')
 const statusFilter = ref('')
@@ -473,6 +474,13 @@ function previewImg(material) {
     },
     images: [material.minioPath],
   });
+}
+
+//下载文件
+function downloadFile(material) {
+  if (material && material.minioPath) {
+    window.open(material.minioPath, '_blank');
+  }
 }
 
 // 显示素材详情

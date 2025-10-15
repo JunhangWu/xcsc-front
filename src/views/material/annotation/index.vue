@@ -2,7 +2,7 @@
   <div class="app-container">
     <!-- 搜索和筛选 -->
     <div class="search-filter">
-      <el-input v-model="searchKeyword" placeholder="请输入素材名称或标签" style="width: 300px; margin-right: 10px;">
+      <el-input v-model="searchKeyword" placeholder="请输入素材名称" style="width: 300px; margin-right: 10px;">
         <template #prefix>
           <el-icon>
             <Search />
@@ -11,11 +11,11 @@
       </el-input>
       <el-select v-model="statusFilter" placeholder="标注状态" style="width: 150px; margin-right: 10px;">
         <el-option label="全部" value="" />
-        <el-option label="待标注" value="pending" />
-        <el-option label="待审核" value="manual_review" />
-        <el-option label="已标注" value="completed" />
+        <el-option label="待标注" value="0" />
+        <el-option label="AI已标注" value="1" />
+        <el-option label="人工已标注" value="2" />
       </el-select>
-      <el-button type="primary" @click="getFolderData" icon="Search">搜索</el-button>
+      <el-button type="primary" @click="getQueryData" icon="Search">搜索</el-button>
     </div>
 
     <div class="folderBox" v-if="showFolder">
@@ -30,7 +30,63 @@
       </div>
     </div>
 
-    <div class="card" v-else>
+    <!-- 搜索结果展示区域 -->
+    <div class="card" v-else-if="showSearchResults">
+      <div class="pageTop">
+        <div class="breadcrumbBox">
+          <el-button type="primary" plain @click="resetSearch" size="default" style="margin-right: 20px;">
+            <el-icon style="margin-right: 6px;">
+              <Back />
+            </el-icon>返回文件夹视图
+          </el-button>
+          <div class="search-result-info">
+            搜索结果：共 {{ queryfileListData.length }} 个文件
+          </div>
+        </div>
+      </div>
+      
+      <div class="card-body">
+        <!-- 搜索结果 - 网格视图 -->
+        <div class="material-list">
+          <div v-if="loading" class="loading-container">
+            <el-loading-text>正在加载搜索结果...</el-loading-text>
+          </div>
+          <div v-else-if="queryfileListData.length == 0" class="empty-state">
+            <el-empty description="未找到匹配的文件" />
+          </div>
+          <div v-else class="material-grid">
+            <!-- 搜索结果文件列表 -->
+            <div v-for="material in queryfileListData" :key="material.id" class="material-item">
+              <div class="material-info">
+                <div class="material-status">
+                  <el-tag :type="getStatusTagType(material.annotationStatus)" size="small">
+                    {{ getStatusText(material.annotationStatus) }}
+                  </el-tag>
+                </div>
+                <div class="material-actions">
+                  <el-button type="primary" size="small" @click.stop="showMaterialDetail(material)" icon="Edit">
+                    标注
+                  </el-button>
+                </div>
+              </div>
+              <div class="material-thumb">
+                <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
+                  @click="previewImg(material)" />
+                <el-icon v-else-if="isVideo(material.minioPath)" class="file-icon">
+                  <VideoPlay />
+                </el-icon>
+                <el-icon v-else class="file-icon" @click="downloadFile(material)" style="cursor:pointer;">
+                  <Document />
+                </el-icon>
+                <div class="fileName">{{ getFileName(material.minioPath) }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" v-else-if="!showSearchResults">
       <div class="pageTop">
         <div class="breadcrumbBox">
           <!-- 返回到上一级 -->
@@ -151,7 +207,7 @@
       <template #footer>
         <div class="dialogFoot">
           <el-button @click="cancelUpload">取消</el-button>
-          <el-button type="primary" @click="confirmUpload">确认</el-button>
+          <el-button type="primary" @click="confirmUpload" :disabled="isConfirmDisabled">确认</el-button>
         </div>
       </template>
     </el-dialog>
@@ -165,7 +221,7 @@
 const { proxy } = getCurrentInstance();
 import { ref, reactive, onMounted } from 'vue'
 import { api as viewerApi } from "v-viewer";
-import { Search, VideoCamera, Document, Check, Edit, VideoPlay } from '@element-plus/icons-vue'
+import { Search, VideoCamera, Document, Check, Edit, VideoPlay, Back, ArrowRight, FolderAdd, FolderOpened, Upload, UploadFilled, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList } from "@/api/xcsc/uploadFile"
 import MarkDialog from './components/markDialog.vue'
@@ -173,6 +229,7 @@ import download from '../../../plugins/download';
 // 搜索和筛选
 const searchKeyword = ref('')
 const statusFilter = ref('')
+const showSearchResults = ref(false) // 控制是否显示搜索结果
 
 // 素材列表
 const loading = ref(false)
@@ -208,6 +265,7 @@ function selectFolder(item, type) {
 //点击面包屑
 function clickBreadcrumb(item, index) {
   getFolderData(item.bizId)
+  console.log('===item===', item);
   Object.assign(curFolderObj, item)
   if (index == 0) {
     breadcrumbData.value = [{
@@ -223,11 +281,20 @@ function clickBreadcrumb(item, index) {
 }
 //返回按钮
 const backFolder = () => {
+
   if (breadcrumbData.value.length == 1) {
     showFolder.value = true
     getFolderData(0)
     return
   } else {
+    Object.assign(curFolderObj, {
+    filePath: breadcrumbData.value[breadcrumbData.value.length - 2].filePath,
+    bizId: breadcrumbData.value[breadcrumbData.value.length - 2].bizId,
+    id: breadcrumbData.value[breadcrumbData.value.length - 2].id
+  });
+    // curFolderObj.filePath = breadcrumbData.value[breadcrumbData.value.length - 2].filePath
+    // curFolderObj.bizId = breadcrumbData.value[breadcrumbData.value.length - 2].bizId
+    // curFolderObj.id = breadcrumbData.value[breadcrumbData.value.length - 2].id
     getFolderData(breadcrumbData.value[breadcrumbData.value.length - 2].bizId) //获取上一级文件夹的bizId
     breadcrumbData.value.pop()
   }
@@ -241,6 +308,8 @@ function getFolderData(pid) {
   let params = {
     pid: pid,
   }
+  console.log('===pid===', pid);
+  console.log('===params===', params);
   getFolderList(params).then(res => {
     folderData.value = res.data
   })
@@ -248,12 +317,31 @@ function getFolderData(pid) {
     let param = {
       folderId: pid,
     }
+    console.log('===params===', params);
     getFileList(param).then(res => {
       fileListData.value = res.data
     })
   }
 }
 getFolderData(0)
+
+// 获取文件列表数据
+const queryfileListData = ref([])//文件列表
+function getQueryData() {
+  loading.value = true
+  let params = {
+    fileName: searchKeyword.value,
+    annotationStatus: statusFilter.value,
+  }
+  getFileList(params).then(res => {
+      queryfileListData.value = res.data
+      showSearchResults.value = true // 显示搜索结果
+      showFolder.value = false // 隐藏文件夹模式
+    }).finally(() => {
+      loading.value = false
+    })
+}
+
 
 //新建文件夹
 const handleFolderType = ref('add') // add edit
@@ -317,6 +405,7 @@ function onSubFolderMouseLeave(item) {
 const uploadDialogVisible = ref(false)
 const uploadType = ref('file')// 上传类型
 const fileList = ref([])// 文件列表
+const isConfirmDisabled = ref(false);// 确认按钮是否禁用
 function uploadFile() {
   fileList.value = []
   uploadDialogVisible.value = true
@@ -327,13 +416,15 @@ function cancelUpload() {
 }
 function confirmUpload() {
   let formData = new FormData();
+  // debugger
   // files 是多个文件的数组集合，用于上传的文件流
   let files = fileList.value.map(item => item.raw || item.originFileObj || item); // 兼容不同上传组件的文件对象
   files.forEach(file => {
     formData.append("files", file);
   });
   let folderPath = ''
-  formData.append("folderId ", curFolderObj.bizId);
+  console.log('===curFolderObj===', curFolderObj);
+  formData.append("folderId", curFolderObj.bizId);
   breadcrumbData.value.forEach((item, idx) => {
     folderPath += item.filePath
     if (idx !== breadcrumbData.value.length - 1) {
@@ -342,7 +433,8 @@ function confirmUpload() {
     console.log('===folderPath===', folderPath);
 
   })
-  formData.append("folderPath ", folderPath);
+  formData.append("folderPath", folderPath);
+  console.log('===formData===', formData);
   uploadFiles(formData).then(res => {
     ElMessage.success(`上传成功！`)
     getFolderData(curFolderObj.bizId)
@@ -407,6 +499,8 @@ const handleBeforeUpload = (file) => {
 // 文件变化处理
 const handleFileChange = (file, fileList) => {
   console.log('==file====', file);
+  isConfirmDisabled.value = true;
+  let hasUploadError = false; // 标记是否存在不可上传的错误
   // 实时显示文件校验状态
   fileList.forEach(f => {
     f.status = isSupportedFormat(f.name) ? 'success' : 'error'
@@ -415,12 +509,14 @@ const handleFileChange = (file, fileList) => {
   const maxSize = 100 * 1024 * 1024 // 100MB
   if (file.size > maxSize) {
     ElMessage.error(`文件 ${file.name} 大小超过限制（100MB）`)
+    hasUploadError = true;
     return false
   }
   // 检查文件格式
   const invalidFiles = fileList.filter(f => !isSupportedFormat(f.name))
   if (invalidFiles.length > 0) {
     ElMessage.error(`素材格式不符合，请上传支持的文件格式`)
+    hasUploadError = true;
     // 移除不支持格式的文件
     fileList.value = fileList.filter(f => isSupportedFormat(f.name))
     return
@@ -437,8 +533,10 @@ const handleFileChange = (file, fileList) => {
   const duplicateFiles = fileList.filter(f => existNames.includes(f.name));
   if (duplicateFiles.length > 0) {
     ElMessage.error(`已存在同名文件：${duplicateFiles.map(f => f.name).join('、')}，请勿重复上传！`);
+    hasUploadError = true;
     fileList.value = fileList.filter(f => !existNames.includes(f.name));
   }
+  isConfirmDisabled.value = hasUploadError || fileList.length === 0;
 
 }
 
@@ -479,6 +577,22 @@ function downloadFile(material) {
   if (material && material.minioPath) {
     window.open(material.minioPath, '_blank');
   }
+}
+
+// 重置搜索，返回文件夹视图
+function resetSearch() {
+  showSearchResults.value = false
+  // showFolder.value = true // 确保显示文件夹视图
+  searchKeyword.value = ''
+  statusFilter.value = ''
+  // breadcrumbData.value = [] // 清空面包屑数据
+  // Object.assign(curFolderObj, {
+  //   filePath: '',
+  //   bizId: '',
+  //   id: ''
+  // }) // 重置当前文件夹对象
+  console.log(curFolderObj)
+  getFolderData(curFolderObj.bizId) // 获取根文件夹数据
 }
 
 // 显示素材详情
@@ -611,19 +725,26 @@ function showMaterialDetail(material) {
 }
 
 .search-filter {
-  display: flex;
-  align-items: center;
-  padding: 16px 20px;
-  background: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    display: flex;
+    align-items: center;
+    padding: 16px 20px;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 
-  :deep(.el-input__wrapper),
-  :deep(.el-select__wrapper) {
-    border-radius: 6px;
-    transition: all 0.3s ease;
+    :deep(.el-input__wrapper),
+    :deep(.el-select__wrapper) {
+      border-radius: 6px;
+      transition: all 0.3s ease;
+    }
   }
-}
+
+  .search-result-info {
+    margin-left: 20px;
+    font-size: 16px;
+    color: #606266;
+    font-weight: 500;
+  }
 
 .card-body {
   background: #ffffff;

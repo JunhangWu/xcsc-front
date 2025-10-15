@@ -161,7 +161,12 @@
                     标注
                   </el-button>
                 </div>
+                <div class="material-actions">
+                  <el-button type="danger" size="small" @click.stop="deleteFile(material)" icon="Delete">
+                  </el-button>
+                </div>
               </div>
+             
               <div class="material-thumb">
                 <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
                   @click="previewImg(material)" />
@@ -173,6 +178,7 @@
                 </el-icon>
                 <div class="fileName">{{ getFileName(material.minioPath) }}</div>
               </div>
+              
             </div>
           </div>
         </div>
@@ -223,7 +229,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { api as viewerApi } from "v-viewer";
 import { Search, VideoCamera, Document, Check, Edit, VideoPlay, Back, ArrowRight, FolderAdd, FolderOpened, Upload, UploadFilled, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList } from "@/api/xcsc/uploadFile"
+import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile } from "@/api/xcsc/uploadFile"
 import MarkDialog from './components/markDialog.vue'
 import download from '../../../plugins/download';
 // 搜索和筛选
@@ -539,7 +545,15 @@ const handleFileChange = (file, fileList) => {
   isConfirmDisabled.value = hasUploadError || fileList.length === 0;
 
 }
-
+//  删除文件
+function deleteFile(item) {
+  proxy.$modal.confirm('是否确认删除文件名为"' + item.fileName + '"的文件?').then(function () {
+    return delFile(item.id);
+  }).then(() => {
+    getFolderData(curFolderObj.bizId)
+    proxy.$modal.msgSuccess("删除成功");
+  }).catch(() => { });
+}
 
 // 获取状态标签类型
 const getStatusTagType = (status) => {
@@ -763,7 +777,7 @@ function showMaterialDetail(material) {
 .subFolder {
   position: relative;
   aspect-ratio: 1 / 1;
-  width: 160px;
+  width: 180px;
   height: 160px;
   display: flex;
   flex-direction: column;
@@ -834,7 +848,7 @@ function showMaterialDetail(material) {
   margin: 0;
   position: relative;
   aspect-ratio: 1 / 1;
-  width: 160px;
+  width: 180px;
   height: 160px;
   border-radius: 8px;
   transition: all 0.3s ease;
@@ -909,6 +923,11 @@ function showMaterialDetail(material) {
   }
 
   .material-actions {
+    display: flex;
+    align-items: center;
+  }
+
+  .material-del {
     display: flex;
     align-items: center;
   }

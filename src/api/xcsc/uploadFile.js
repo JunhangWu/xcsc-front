@@ -58,4 +58,11 @@ export function AIMark(query) {
         params: query
     })
 }
+// 删除文件
+export function delFile(id) {
+    return request({
+        url: '/file/' + id,
+        method: 'delete'
+    })
+}
 

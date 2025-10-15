@@ -65,4 +65,11 @@ export function delFile(id) {
         method: 'delete'
     })
 }
-
+// 修改文件
+export function updateFile(data) {
+    return request({
+        url: '/file',
+        method: 'put',
+        data: data
+    })
+}

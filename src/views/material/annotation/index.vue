@@ -12,8 +12,8 @@
       <el-select v-model="statusFilter" placeholder="标注状态" style="width: 150px; margin-right: 10px;">
         <el-option label="全部" value="" />
         <el-option label="待标注" value="0" />
-        <el-option label="AI已标注" value="1" />
-        <el-option label="人工已标注" value="2" />
+        <el-option label="待审核" value="1" />
+        <el-option label="已审核" value="2" />
       </el-select>
       <el-button type="primary" @click="getQueryData" icon="Search">搜索</el-button>
     </div>
@@ -201,7 +201,7 @@
     <el-dialog v-model="uploadDialogVisible" title="上传文件" width="50vw" :before-close="cancelUpload"
       :close-on-click-modal="false" style="margin-top: 20vh;">
       <el-upload v-model:file-list="fileList" class="upload-demo" drag :multiple="uploadType === 'file'" action=""
-        :on-change="handleFileChange" :auto-upload="false">
+        :on-change="handleFileChange" :on-remove="handleFileRemove" :auto-upload="false">
         <el-icon class="el-icon--upload"><upload-filled /></el-icon>
         <div class="el-upload__text">
           {{ uploadType === 'file' ? '点击或拖拽文件到此处上传' : '点击或拖拽文件夹到此处上传' }}
@@ -527,7 +527,27 @@ const handleFileChange = (file, fileList) => {
     fileList.value = fileList.filter(f => isSupportedFormat(f.name))
     return
   }
-  // 校验同名
+  // 检查上传列表中是否存在相同文件名的文件
+  const fileNames = fileList.map(f => f.name);
+  const duplicateNamesInList = fileNames.filter((name, index) => fileNames.indexOf(name) !== index);
+  const uniqueDuplicateNames = [...new Set(duplicateNamesInList)];
+  
+  if (uniqueDuplicateNames.length > 0) {
+    ElMessage.error(`上传列表中存在重复文件：${uniqueDuplicateNames.join('、')}，请移除重复文件！`);
+    hasUploadError = true;
+    // 移除重复文件，只保留每个文件名的第一个实例
+    const uniqueFiles = [];
+    const seenNames = new Set();
+    for (const f of fileList) {
+      if (!seenNames.has(f.name)) {
+        seenNames.add(f.name);
+        uniqueFiles.push(f);
+      }
+    }
+    fileList.value = uniqueFiles;
+  }
+  
+  // 校验同名（与已存在的文件）
   const fileName = file.name;
   const existNames = fileListData.value.map(item => {
     const path = item.minioPath || '';
@@ -535,17 +555,24 @@ const handleFileChange = (file, fileList) => {
     return idx !== -1 ? path.substring(idx + 1) : path;
   });
 
-  // 删除 fileList.value 中同名的文件，并提示
+  // 删除 fileList.value 中与已存在文件同名的文件，并提示
   const duplicateFiles = fileList.filter(f => existNames.includes(f.name));
   if (duplicateFiles.length > 0) {
     ElMessage.error(`已存在同名文件：${duplicateFiles.map(f => f.name).join('、')}，请勿重复上传！`);
     hasUploadError = true;
     fileList.value = fileList.filter(f => !existNames.includes(f.name));
   }
+  
   isConfirmDisabled.value = hasUploadError || fileList.length === 0;
 
 }
-//  删除文件
+// 处理文件移除
+function handleFileRemove(file, fileList) {
+  // 在文件被移除后调用handleFileChange逻辑进行验证
+  handleFileChange(file, fileList);
+}
+
+  // 删除文件
 function deleteFile(item) {
   proxy.$modal.confirm('是否确认删除文件名为"' + item.fileName + '"的文件?').then(function () {
     return delFile(item.id);
@@ -569,8 +596,8 @@ const getStatusTagType = (status) => {
 const getStatusText = (status) => {
   const textMap = {
     '0': '待标注',
-    '1': 'AI已标注',
-    '2': '人工已标注'
+    '1': '待审核',
+    '2': '已审核'
   }
   return textMap[status] || status
 }

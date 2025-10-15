@@ -187,9 +187,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, reactive } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { AIMark } from "@/api/xcsc/uploadFile"
+import { updateFile } from "@/api/xcsc/uploadFile"
 
 const dialogVisible = ref(false)
 const currentMaterial = reactive({})
@@ -244,13 +245,35 @@ const resetTagForms = () => {
 // 保存标注
 const saveAnnotation = () => {
     // 构建完整的标注数据
+    let params = {
+        id: currentMaterial.id,
+        annotationStatus: "2",
+    }
+    updateFile(params).then(res => {
+        console.log("标注状态更新成功", res)
+        ElMessage.success('标注保存成功！')
+        // 关闭窗口
+        dialogVisible.value = false
+        // 清空数据
+        Object.keys(currentMaterial).forEach(key => {
+            delete currentMaterial[key]
+        })
+        // 清空表单
+        Object.keys(autoTagForm).forEach(key => {
+            autoTagForm[key] = typeof autoTagForm[key] === 'string' ? '' : []
+        })
+        Object.keys(manualTagForm).forEach(key => {
+            manualTagForm[key] = ''
+        })
+        // 发送事件刷新文件列表
+        emit("updateFileList");
+    })
     const annotationData = {
         materialId: currentMaterial.id,
         autoTags: { ...autoTagForm },
         manualTags: { ...manualTagForm },
         // supplementTags: [...supplementTags.value]
     }
-
 }
 
 // 添加补充标签
@@ -355,18 +378,64 @@ function open(material) {
     }
     dialogVisible.value = true
 }
+// 检查是否有未保存的数据
+const hasUnsavedChanges = () => {
+    // 检查autoTagForm是否有数据
+    for (const key in autoTagForm) {
+        const value = autoTagForm[key];
+        if (Array.isArray(value) && value.length > 0) return true;
+        if (typeof value === 'string' && value.trim() !== '') return true;
+    }
+    
+    // 检查manualTagForm是否有数据
+    for (const key in manualTagForm) {
+        if (manualTagForm[key] && manualTagForm[key].toString().trim() !== '') return true;
+    }
+    
+    return false;
+}
+
 // 关闭弹窗
 const handleClose = () => {
-    dialogVisible.value = false
-    // 清空 currentMaterial 对象的所有属性
-    Object.keys(currentMaterial).forEach(key => {
-        delete currentMaterial[key]
-    })
-    // 清空 autoTagForm 的所有属性值
-    Object.keys(autoTagForm).forEach(key => {
-        delete autoTagForm[key]
-    })
-
+    // 如果有未保存的数据，显示确认对话框
+    if (hasUnsavedChanges()) {
+        ElMessageBox.confirm('您有未保存的标注数据，确定要关闭吗？', '提示', {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+        }).then(() => {
+            // 用户确认关闭
+            dialogVisible.value = false
+            // 清空 currentMaterial 对象的所有属性
+            Object.keys(currentMaterial).forEach(key => {
+                delete currentMaterial[key]
+            })
+            // 清空表单数据
+            Object.keys(autoTagForm).forEach(key => {
+                autoTagForm[key] = typeof autoTagForm[key] === 'string' ? '' : []
+            })
+            Object.keys(manualTagForm).forEach(key => {
+                manualTagForm[key] = ''
+            })
+        }).catch(() => {
+            // 用户取消关闭
+            ElMessage.info('已取消关闭')
+        })
+    } else {
+        // 没有未保存的数据，直接关闭
+        dialogVisible.value = false
+        // 清空 currentMaterial 对象的所有属性
+        Object.keys(currentMaterial).forEach(key => {
+            delete currentMaterial[key]
+        })
+        // 清空表单数据
+        Object.keys(autoTagForm).forEach(key => {
+            autoTagForm[key] = typeof autoTagForm[key] === 'string' ? '' : []
+        })
+        Object.keys(manualTagForm).forEach(key => {
+            manualTagForm[key] = ''
+        })
+    }
 }
 defineExpose({
     open

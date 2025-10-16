@@ -1,7 +1,7 @@
 <template>
     <!-- 素材详情和标注弹窗：核心修复区域 -->
     <el-dialog v-model="dialogVisible" title="素材标注" width="60%" :before-close="handleClose">
-        <div class="annotation-dialog">
+        <div class="annotation-dialog" v-loading="dialogLoading">
             <!-- 1. 素材预览区域（无错误，保留原结构） -->
             <div class="material-preview-container">
                 <div class="material-preview">
@@ -62,7 +62,6 @@
             <!-- 2. 标注信息区域 -->
             <div class="annotation-info">
                 <h3>标注信息</h3>
-
                 <el-tabs v-model="tabActiveName" class="demo-tabs">
                     <el-tab-pane label="标签信息" name="autoLabel">
                         <!-- 标签信息部分 -->
@@ -78,14 +77,6 @@
                             <el-form :model="autoTagForm" label-width="120px">
                                 <el-form-item label="场景分类">
                                     <el-input v-model="autoTagForm.sceneCategory" placeholder="请输入场景分类，多个用逗号分隔" />
-                                    <!-- <el-select v-model="autoTagForm.sceneCategory" placeholder="请选择场景分类" multiple>
-                                        <el-option label="会议场景" value="meeting" />
-                                        <el-option label="活动现场" value="event" />
-                                        <el-option label="办公场景" value="office" />
-                                        <el-option label="户外场景" value="outdoor" />
-                                        <el-option label="家庭场景" value="home" />
-                                        <el-option label="商业场景" value="business" />
-                                    </el-select> -->
                                 </el-form-item>
                                 <el-form-item label="人物行为">
                                     <el-input v-model="autoTagForm.characterBehavior" placeholder="请输入人物行为，多个用逗号分隔" />
@@ -101,28 +92,9 @@
                                 </el-form-item>
                                 <el-form-item label="颜色色调">
                                     <el-input v-model="autoTagForm.colorTone" placeholder="请输入颜色色调" />
-                                    <!-- <el-select v-model="autoTagForm.colorTone" placeholder="请选择主要颜色色调" multiple>
-                                        <el-option label="红色" value="red" />
-                                        <el-option label="蓝色" value="blue" />
-                                        <el-option label="绿色" value="green" />
-                                        <el-option label="黄色" value="yellow" />
-                                        <el-option label="橙色" value="orange" />
-                                        <el-option label="紫色" value="purple" />
-                                        <el-option label="黑色" value="black" />
-                                        <el-option label="白色" value="white" />
-                                        <el-option label="灰色" value="gray" />
-                                    </el-select> -->
                                 </el-form-item>
                                 <el-form-item label="拍摄角度">
                                     <el-input v-model="autoTagForm.shootingAngle" placeholder="请输入拍摄角度" />
-                                    <!-- <el-select v-model="autoTagForm.shootingAngle" placeholder="请选择拍摄角度">
-                                        <el-option label="正面" value="front" />
-                                        <el-option label="侧面" value="side" />
-                                        <el-option label="俯拍" value="top" />
-                                        <el-option label="仰拍" value="bottom" />
-                                        <el-option label="鸟瞰" value="birdseye" />
-                                        <el-option label="特写" value="closeup" />
-                                    </el-select> -->
                                 </el-form-item>
                                 <el-form-item label="素材描述">
                                     <el-input v-model="autoTagForm.materialDescription" type="textarea"
@@ -194,6 +166,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { AIMark } from "@/api/xcsc/uploadFile"
 import { updateFile } from "@/api/xcsc/uploadFile"
 
+const dialogLoading = ref(false)
 const dialogVisible = ref(false)
 const currentMaterial = reactive({})
 const tabActiveName = ref('autoLabel')
@@ -205,13 +178,14 @@ const newSupplementTag = ref('')
 // AI标注状态
 const isAIAutoTagging = ref(false)
 
-// 标注信息 - 标签信息（7个维度）
+// 标注信息 - 标签信息（8个维度）
 const autoTagForm = reactive({
-    sceneCategory: [], // 场景分类
+    sceneCategory: '', // 场景分类
+    characterBehavior: '', // 人物行为
     coreObjects: '', // 核心物体
     activityEvent: '', // 活动事件
     textInfo: '', // 文本信息
-    colorTone: [], // 颜色色调
+    colorTone: '', // 颜色色调
     shootingAngle: '', // 拍摄角度
     materialDescription: '' // 素材描述
 })
@@ -249,7 +223,9 @@ const saveAnnotation = () => {
     // 构建完整的标注数据
     let params = {
         id: currentMaterial.id,
-        annotationStatus: "2",
+        annotationStatus: "2", // 已审核
+        annotationContent: JSON.stringify(autoTagForm), //标签信息
+        ...manualTagForm, // 基本信息
     }
     updateFile(params).then(res => {
         console.log("标注状态更新成功", res)
@@ -273,7 +249,7 @@ const saveAnnotation = () => {
     const annotationData = {
         materialId: currentMaterial.id,
         autoTags: { ...autoTagForm },
-        manualTags: { ...manualTagForm },
+        manualTags: {},
         // supplementTags: [...supplementTags.value]
     }
 }
@@ -323,8 +299,9 @@ const handleAIAutoTagging = () => {
     let params = {
         id: currentMaterial.id,
     }
+    dialogLoading.value = true
     AIMark(params).then(res => {
-        console.log('res========', res)
+        dialogLoading.value = false
         isAIAutoTagging.value = false
         ElMessage.success('AI自动标注成功！')
         emit("updateFileList"); //状态改变，更新文件列表
@@ -390,13 +367,23 @@ const formatFileSize = (size) => {
     }
 };
 function open(material) {
-    console.log('===material===', material);
-    // currentMaterial = JSON.parse(JSON.stringify(material))
+    console.log('===material===', material)
     Object.assign(currentMaterial, material)
-    //AI已标注
-    if (material.annotationStatus == 1) {
-        Object.assign(autoTagForm, JSON.parse(material.annotationContent))
+
+    if (material && material.annotationContent) {
+        try {
+            Object.assign(autoTagForm, JSON.parse(material.annotationContent))
+        } catch (e) {
+            console.warn('解析 annotationContent 失败', e)
+        }
     }
+    Object.keys(manualTagForm).forEach(key => {
+        if (material && Object.prototype.hasOwnProperty.call(material, key) && material[key] != null) {
+            manualTagForm[key] = material[key]
+        } else {
+            manualTagForm[key] = ''
+        }
+    })
     dialogVisible.value = true
 }
 // 检查是否有未保存的数据

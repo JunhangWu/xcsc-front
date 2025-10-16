@@ -72,9 +72,13 @@
               <div class="material-thumb">
                 <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
                   @click="previewImg(material)" />
-                <video v-else-if="isVideo(material.minioPath)" :src="material.minioPath" playsinline muted
-                  preload="metadata" @click.stop="previewVideo(material)"
-                  style="max-width: 90%; max-height: 70%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="previewVideo(material)">
+                  <el-icon class="file-icon">
+                    <VideoPlay />
+                  </el-icon>
+                  <video :src="material.minioPath" playsinline muted preload="metadata"
+                    style="max-width: 90%; max-height: 70%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                </div>
                 <el-icon v-else class="file-icon" @click="downloadFile(material)" style="cursor:pointer;">
                   <Document />
                 </el-icon>
@@ -577,7 +581,36 @@ const handleFileChange = (file, fileList) => {
 
   isConfirmDisabled.value = hasUploadError || fileList.length === 0;
 
+  // 对于图片文件，获取分辨率
+  // if (file.raw && file.raw.type == "image/png") {
+  //   // 使用同步方式获取分辨率
+  //   try {
+  //     const tempUrl = URL.createObjectURL(file.raw);
+  //     const img = new Image();
+  //     const getResolution = new Promise((resolve, reject) => {
+  //       img.onload = function () {
+  //         URL.revokeObjectURL(tempUrl); // 释放临时URL
+  //         resolve(`${img.width}x${img.height}`);
+  //       };
+  //       img.onerror = function () {
+  //         URL.revokeObjectURL(tempUrl); // 释放临时URL
+  //         reject(new Error('图片加载失败，无法获取分辨率'));
+  //       };
+  //       img.src = tempUrl;
+  //     });
+  //     // 立即获取分辨率（同步获取）
+  //     getResolution.then(res => {
+  //       const resolution = res;
+  //       console.log('成功获取图片分辨率:', resolution);
+  //     }).catch(err => {
+  //       console.warn(err.message);
+  //     });
+  //   } catch (error) {
+  //     console.warn('获取分辨率时出错:', error);
+  //   }
+  // }
 }
+
 // 处理文件移除
 function handleFileRemove(file, fileList) {
   // 在文件被移除后调用handleFileChange逻辑进行验证
@@ -946,7 +979,7 @@ function showMaterialDetail(material) {
         transform: translate(-50%, -50%);
         z-index: 2;
         font-size: 36px;
-        color: #909399;
+        color: #ffffff;
         pointer-events: none;
       }
     }

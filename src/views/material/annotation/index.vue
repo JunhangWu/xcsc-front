@@ -460,6 +460,7 @@ function isImage(path) {
 function isVideo(path) {
   return ['mp4', 'mov', 'avi', 'mkv', 'flv'].some(ext => path.toLowerCase().includes(ext));
 }
+//获取文件名
 function getFileName(path) {
   if (!path) return '';
   const idx = path.lastIndexOf('/');

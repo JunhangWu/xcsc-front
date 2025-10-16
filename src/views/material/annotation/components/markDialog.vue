@@ -6,7 +6,7 @@
             <div class="material-preview-container">
                 <div class="material-preview">
                     <template v-if="currentMaterial.type && currentMaterial.type.includes('image')">
-                        <img :src="currentMaterial.url" class="preview-image" />
+                        <img :src="currentMaterial.minioPath" class="preview-image" />
                     </template>
                     <template v-else-if="currentMaterial.type && currentMaterial.type.includes('video')">
                         <div class="preview-video">
@@ -18,17 +18,22 @@
                     </template>
                     <template v-else>
                         <div class="preview-file">
-                            <el-icon>
-                                <Document />
-                            </el-icon>
-                            <span>文档预览区域</span>
+                            <div v-if="currentMaterial.minioPath">
+                                <img :src="currentMaterial.minioPath" :alt="currentMaterial.name" id="image" class="preview-image" />
+                            </div>
+                            <template v-else>
+                                <el-icon>
+                                    <Picture />
+                                </el-icon>
+                                <span>图片预览区域</span>
+                            </template>
                         </div>
                     </template>
                 </div>
 
                 <!-- 素材基本信息 -->
                 <div class="material-basic-info">
-                    <h4>{{ currentMaterial.name || '未命名素材' }}</h4>
+                    <h1 class="material-title">{{ currentMaterial.fileName || '未命名素材' }}</h1>
                     <div class="metadata-section">
                         <div class="metadata-grid">
                             <div class="metadata-item">
@@ -41,15 +46,19 @@
                             </div>
                             <div class="metadata-item">
                                 <span class="metadata-label">上传者：</span>
-                                <span class="metadata-value">{{ currentMaterial.uploader || '未知' }}</span>
+                                <span class="metadata-value">{{ currentMaterial.createBy || '未知' }}</span>
                             </div>
                             <div class="metadata-item">
-                                <span class="metadata-label">所属分类：</span>
-                                <span class="metadata-value">{{ currentMaterial.category || '未分类' }}</span>
+                                <span class="metadata-label">所属路径：</span>
+                                <span class="metadata-value">{{ getFilePath(currentMaterial.minioPath) || '未分类' }}</span>
                             </div>
                             <div class="metadata-item">
                                 <span class="metadata-label">文件大小：</span>
-                                <span class="metadata-value">{{ formatFileSize(currentMaterial.size) }}</span>
+                                <span class="metadata-value">{{ formatFileSize(currentMaterial.fileSize) }}</span>
+                            </div>
+                            <div class="metadata-item">
+                                <span class="metadata-label">分辨率：</span>
+                                <span class="metadata-value"></span>
                             </div>
 
                         </div>
@@ -354,6 +363,23 @@ const getFileTypeText = (fileType) => {
     return '其他';
 };
 
+// 获取文件名
+function getFileName(path) {
+  if (!path) return '';
+  const idx = path.lastIndexOf('/');
+  return idx !== -1 ? path.substring(idx + 1) : path;
+}
+
+//获取文件路径
+function getFilePath(path) {
+  if (!path) return '';
+  const prefix = 'xcsc/';
+  const startIndex = path.indexOf(prefix) + prefix.length;
+  const result = path.substring(startIndex);
+  return result.replace("/"+getFileName(path), "");
+}
+
+
 // 格式化文件大小
 const formatFileSize = (size) => {
     if (!size) return '未知';
@@ -442,70 +468,76 @@ defineExpose({
 })
 
 </script>
-
 <style scoped lang="scss">
 .annotation-dialog {
-    .annotation-content {
+  // 修复容器层级问题，匹配实际HTML结构
+  .material-preview-container {
+    display: flex;
+    gap: 20px;
+    max-height: 500px;
+    max-width: 100%;
+    overflow-y: auto;
+    margin-bottom: 20px; // 增加与标注区域的间距
+
+    .material-preview {
+      flex: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    //   background-color: #f5f7fa;
+      border-radius: 4px;
+      min-height: 300px;
+
+      .preview-image {
+        max-width: 100%;
+        max-height: 400px;
+        object-fit: contain;
+      }
+
+      .preview-video,
+      .preview-file {
+        width: 100%;
+        height: 100%;
         display: flex;
-        gap: 20px;
-        max-height: 500px;
-        overflow-y: auto;
-
-        .material-preview {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: #f5f7fa;
-            border-radius: 4px;
-            min-height: 300px;
-
-            .preview-image {
-                max-width: 100%;
-                max-height: 400px;
-                object-fit: contain;
-            }
-
-            .preview-video,
-            .preview-file {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                color: #909399;
-
-                span {
-                    font-size: 16px;
-                }
-            }
-        }
-
-        .annotation-info {
-            flex: 1;
-
-            .annotation-section {
-                margin-bottom: 20px;
-
-                h4 {
-                    margin: 0 0 10px 0;
-                    font-size: 14px;
-                    font-weight: 500;
-                    color: #303133;
-                }
-
-                .tag-input-section {
-                    margin-bottom: 10px;
-                    display: flex;
-                    align-items: center;
-                }
-
-                .tag-list {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 8px;
-                }
-            }
-        }
+        align-items: center;
+        justify-content: center;
+        // background-color: #f5f7fa;
+        // padding: 24px;
+      }
     }
+
+    .material-basic-info {
+      // 可以添加素材信息区域的样式
+      flex: 1;
+      padding: 10px;
+    }
+  }
+
+  // 标注信息区域样式
+  .annotation-info {
+    .annotation-section {
+      margin-bottom: 20px;
+
+      .material-title {
+        margin: 0 0 10px 0;
+        font-size: 20px;
+        font-weight: 500;
+        font-style: bold;
+        color: #303133;
+      }
+
+      .tag-input-section {
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+      }
+
+      .tag-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+    }
+  }
 }
 </style>

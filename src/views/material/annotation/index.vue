@@ -44,7 +44,7 @@
           </div>
         </div>
       </div>
-      
+
       <div class="card-body">
         <!-- 搜索结果 - 网格视图 -->
         <div class="material-list">
@@ -72,9 +72,9 @@
               <div class="material-thumb">
                 <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
                   @click="previewImg(material)" />
-                <el-icon v-else-if="isVideo(material.minioPath)" class="file-icon">
-                  <VideoPlay />
-                </el-icon>
+                <video v-else-if="isVideo(material.minioPath)" :src="material.minioPath" playsinline muted
+                  preload="metadata" @click.stop="previewVideo(material)"
+                  style="max-width: 90%; max-height: 70%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
                 <el-icon v-else class="file-icon" @click="downloadFile(material)" style="cursor:pointer;">
                   <Document />
                 </el-icon>
@@ -166,24 +166,35 @@
                   </el-button>
                 </div>
               </div>
-             
+
               <div class="material-thumb">
                 <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
                   @click="previewImg(material)" />
-                <el-icon v-else-if="isVideo(material.minioPath)" class="file-icon">
-                  <VideoPlay />
-                </el-icon>
+                <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="previewVideo(material)">
+                  <el-icon class="file-icon">
+                    <VideoPlay />
+                  </el-icon>
+                  <video :src="material.minioPath" playsinline muted preload="metadata"
+                    style="max-width: 90%; max-height: 70%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                </div>
                 <el-icon v-else class="file-icon" @click="downloadFile(material)" style="cursor:pointer;">
                   <Document />
                 </el-icon>
                 <div class="fileName">{{ getFileName(material.minioPath) }}</div>
               </div>
-              
+
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- 预览视频 -->
+    <el-dialog v-model="videoDialogVisible" :title="videoDialogTitle" width="50vw" :close-on-click-modal="false"
+      style="margin-top: 15vh;">
+      <video :src="videoFilePath" controls autoplay loop muted playsinline
+        style="max-width: 100%; max-height: 50vh; width: auto; height: auto; display: block; object-fit: contain;margin: 0 auto;"></video>
+    </el-dialog>
 
     <!-- 新增文件夹 -->
     <el-dialog v-model="addFolderDialogVisible" title="请输入文件夹名称" width="500" :before-close="handleAddFolderClose"
@@ -294,10 +305,10 @@ const backFolder = () => {
     return
   } else {
     Object.assign(curFolderObj, {
-    filePath: breadcrumbData.value[breadcrumbData.value.length - 2].filePath,
-    bizId: breadcrumbData.value[breadcrumbData.value.length - 2].bizId,
-    id: breadcrumbData.value[breadcrumbData.value.length - 2].id
-  });
+      filePath: breadcrumbData.value[breadcrumbData.value.length - 2].filePath,
+      bizId: breadcrumbData.value[breadcrumbData.value.length - 2].bizId,
+      id: breadcrumbData.value[breadcrumbData.value.length - 2].id
+    });
     // curFolderObj.filePath = breadcrumbData.value[breadcrumbData.value.length - 2].filePath
     // curFolderObj.bizId = breadcrumbData.value[breadcrumbData.value.length - 2].bizId
     // curFolderObj.id = breadcrumbData.value[breadcrumbData.value.length - 2].id
@@ -340,12 +351,12 @@ function getQueryData() {
     annotationStatus: statusFilter.value,
   }
   getFileList(params).then(res => {
-      queryfileListData.value = res.data
-      showSearchResults.value = true // 显示搜索结果
-      showFolder.value = false // 隐藏文件夹模式
-    }).finally(() => {
-      loading.value = false
-    })
+    queryfileListData.value = res.data
+    showSearchResults.value = true // 显示搜索结果
+    showFolder.value = false // 隐藏文件夹模式
+  }).finally(() => {
+    loading.value = false
+  })
 }
 
 
@@ -532,7 +543,7 @@ const handleFileChange = (file, fileList) => {
   const fileNames = fileList.map(f => f.name);
   const duplicateNamesInList = fileNames.filter((name, index) => fileNames.indexOf(name) !== index);
   const uniqueDuplicateNames = [...new Set(duplicateNamesInList)];
-  
+
   if (uniqueDuplicateNames.length > 0) {
     ElMessage.error(`上传列表中存在重复文件：${uniqueDuplicateNames.join('、')}，请移除重复文件！`);
     hasUploadError = true;
@@ -547,7 +558,7 @@ const handleFileChange = (file, fileList) => {
     }
     fileList.value = uniqueFiles;
   }
-  
+
   // 校验同名（与已存在的文件）
   const fileName = file.name;
   const existNames = fileListData.value.map(item => {
@@ -563,7 +574,7 @@ const handleFileChange = (file, fileList) => {
     hasUploadError = true;
     fileList.value = fileList.filter(f => !existNames.includes(f.name));
   }
-  
+
   isConfirmDisabled.value = hasUploadError || fileList.length === 0;
 
 }
@@ -573,7 +584,7 @@ function handleFileRemove(file, fileList) {
   handleFileChange(file, fileList);
 }
 
-  // 删除文件
+// 删除文件
 function deleteFile(item) {
   proxy.$modal.confirm('是否确认删除文件名为"' + item.fileName + '"的文件?').then(function () {
     return delFile(item.id);
@@ -612,6 +623,16 @@ function previewImg(material) {
     },
     images: [material.minioPath],
   });
+}
+
+//预览视频
+const videoDialogVisible = ref(false)
+const videoFilePath = ref('')
+const videoDialogTitle = ref('')
+function previewVideo(material) {
+  videoDialogVisible.value = true
+  videoFilePath.value = material.minioPath
+  videoDialogTitle.value = getFileName(material.minioPath)
 }
 
 //下载文件
@@ -767,26 +788,26 @@ function showMaterialDetail(material) {
 }
 
 .search-filter {
-    display: flex;
-    align-items: center;
-    padding: 16px 20px;
-    background: #ffffff;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 
-    :deep(.el-input__wrapper),
-    :deep(.el-select__wrapper) {
-      border-radius: 6px;
-      transition: all 0.3s ease;
-    }
+  :deep(.el-input__wrapper),
+  :deep(.el-select__wrapper) {
+    border-radius: 6px;
+    transition: all 0.3s ease;
   }
+}
 
-  .search-result-info {
-    margin-left: 20px;
-    font-size: 16px;
-    color: #606266;
-    font-weight: 500;
-  }
+.search-result-info {
+  margin-left: 20px;
+  font-size: 16px;
+  color: #606266;
+  font-weight: 500;
+}
 
 .card-body {
   background: #ffffff;
@@ -909,6 +930,25 @@ function showMaterialDetail(material) {
       transition: transform 0.3s;
       cursor: pointer;
       margin-bottom: 8px;
+    }
+
+    .videoBox {
+      cursor: pointer;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      .file-icon {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 2;
+        font-size: 36px;
+        color: #909399;
+        pointer-events: none;
+      }
     }
 
     .file-icon {

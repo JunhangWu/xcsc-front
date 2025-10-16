@@ -5,28 +5,20 @@
             <!-- 1. 素材预览区域（无错误，保留原结构） -->
             <div class="material-preview-container">
                 <div class="material-preview">
-                    <template v-if="currentMaterial.type && currentMaterial.type.includes('image')">
+                    <template v-if="getFileTypeText(currentMaterial.minioPath) == '图片'">
                         <img :src="currentMaterial.minioPath" class="preview-image" />
                     </template>
-                    <template v-else-if="currentMaterial.type && currentMaterial.type.includes('video')">
+                    <template v-else-if="getFileTypeText(currentMaterial.minioPath) == '视频'">
                         <div class="preview-video">
-                            <el-icon>
-                                <VideoCamera />
-                            </el-icon>
-                            <span>视频预览区域</span>
+                            <video :src="currentMaterial.minioPath" controls autoplay loop muted playsinline
+                                style="max-width: 100%; max-height: 400px; width: auto; height: auto; display: block; object-fit: contain;"></video>
                         </div>
                     </template>
                     <template v-else>
                         <div class="preview-file">
-                            <div v-if="currentMaterial.minioPath">
-                                <img :src="currentMaterial.minioPath" :alt="currentMaterial.name" id="image" class="preview-image" />
-                            </div>
-                            <template v-else>
-                                <el-icon>
-                                    <Picture />
-                                </el-icon>
-                                <span>图片预览区域</span>
-                            </template>
+                            <!-- 文件名称 -->
+                            <el-link type="primary" :href="currentMaterial.minioPath">{{ currentMaterial.fileName
+                            }}</el-link>
                         </div>
                     </template>
                 </div>
@@ -50,7 +42,8 @@
                             </div>
                             <div class="metadata-item">
                                 <span class="metadata-label">所属路径：</span>
-                                <span class="metadata-value">{{ getFilePath(currentMaterial.minioPath) || '未分类' }}</span>
+                                <span class="metadata-value">{{ getFilePath(currentMaterial.minioPath) || '未分类'
+                                }}</span>
                             </div>
                             <div class="metadata-item">
                                 <span class="metadata-label">文件大小：</span>
@@ -58,7 +51,7 @@
                             </div>
                             <div class="metadata-item">
                                 <span class="metadata-label">分辨率：</span>
-                                <span class="metadata-value"></span>
+                                <span class="metadata-value">{{ currentMaterial.fileResolution }}</span>
                             </div>
 
                         </div>
@@ -142,8 +135,8 @@
                         <!-- 基本信息部分 -->
                         <div class="annotation-section">
                             <el-form :model="manualTagForm" label-width="120px">
-                                <el-form-item label="时间信息">
-                                    <el-date-picker v-model="manualTagForm.timeInfo" type="datetime"
+                                <el-form-item label="事件时间">
+                                    <el-date-picker v-model="manualTagForm.eventTime" type="datetime"
                                         placeholder="选择日期时间" value-format="YYYY-MM-DD HH:mm:ss"></el-date-picker>
                                 </el-form-item>
                                 <el-form-item label="地点信息">
@@ -225,7 +218,7 @@ const autoTagForm = reactive({
 
 // 标注信息 - 基本信息（6个维度）
 const manualTagForm = reactive({
-    timeInfo: '', // 时间信息
+    eventTime: '', // 事件时间
     locationInfo: '', // 地点信息
     personNames: '', // 人物姓名
     buildingNames: '', // 建筑名称
@@ -340,43 +333,45 @@ const handleAIAutoTagging = () => {
 
 }
 // 获取文件类型文本
-const getFileTypeText = (fileType) => {
-    if (!fileType) return '未知类型';
+const getFileTypeText = (filePath) => {
+    if (!filePath) return '未知类型';
 
+    const dotIndex = filePath.lastIndexOf('.');
+    if (dotIndex === -1) return '其他';
+    const ext = filePath.substring(dotIndex + 1);
     const typeMap = {
-        'image': '图片',
-        'video': '视频',
-        'document': '文档',
-        'audio': '音频',
-        'pdf': 'PDF文档',
-        'word': 'Word文档',
-        'excel': 'Excel文档',
-        'powerpoint': 'PPT文档'
+        '图片': ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'svg', 'heic'],
+        '视频': ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm'],
+        '音频': ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'],
+        'PDF文档': ['pdf'],
+        'Word文档': ['doc', 'docx'],
+        'Excel文档': ['xls', 'xlsx'],
+        'PPT文档': ['ppt', 'pptx'],
+        '压缩文件': ['zip', 'rar', '7z', 'tar', 'gz'],
+        '文本': ['txt', 'md', 'csv', 'json', 'xml']
     };
-
-    for (const [type, text] of Object.entries(typeMap)) {
-        if (fileType.includes(type)) {
-            return text;
+    for (const [type, exts] of Object.entries(typeMap)) {
+        if (exts.includes(ext.toLowerCase())) {
+            return type;
         }
     }
-
     return '其他';
 };
 
 // 获取文件名
 function getFileName(path) {
-  if (!path) return '';
-  const idx = path.lastIndexOf('/');
-  return idx !== -1 ? path.substring(idx + 1) : path;
+    if (!path) return '';
+    const idx = path.lastIndexOf('/');
+    return idx !== -1 ? path.substring(idx + 1) : path;
 }
 
 //获取文件路径
 function getFilePath(path) {
-  if (!path) return '';
-  const prefix = 'xcsc/';
-  const startIndex = path.indexOf(prefix) + prefix.length;
-  const result = path.substring(startIndex);
-  return result.replace("/"+getFileName(path), "");
+    if (!path) return '';
+    const prefix = 'xcsc/';
+    const startIndex = path.indexOf(prefix) + prefix.length;
+    const result = path.substring(startIndex);
+    return result.replace("/" + getFileName(path), "");
 }
 
 
@@ -412,12 +407,12 @@ const hasUnsavedChanges = () => {
         if (Array.isArray(value) && value.length > 0) return true;
         if (typeof value === 'string' && value.trim() !== '') return true;
     }
-    
+
     // 检查manualTagForm是否有数据
     for (const key in manualTagForm) {
         if (manualTagForm[key] && manualTagForm[key].toString().trim() !== '') return true;
     }
-    
+
     return false;
 }
 
@@ -470,74 +465,75 @@ defineExpose({
 </script>
 <style scoped lang="scss">
 .annotation-dialog {
-  // 修复容器层级问题，匹配实际HTML结构
-  .material-preview-container {
-    display: flex;
-    gap: 20px;
-    max-height: 500px;
-    max-width: 100%;
-    overflow-y: auto;
-    margin-bottom: 20px; // 增加与标注区域的间距
 
-    .material-preview {
-      flex: 2;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    //   background-color: #f5f7fa;
-      border-radius: 4px;
-      min-height: 300px;
-
-      .preview-image {
+    // 修复容器层级问题，匹配实际HTML结构
+    .material-preview-container {
+        display: flex;
+        gap: 20px;
+        max-height: 500px;
         max-width: 100%;
-        max-height: 400px;
-        object-fit: contain;
-      }
+        overflow-y: auto;
+        margin-bottom: 20px; // 增加与标注区域的间距
 
-      .preview-video,
-      .preview-file {
-        width: 100%;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        // background-color: #f5f7fa;
-        // padding: 24px;
-      }
+        .material-preview {
+            flex: 2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            //   background-color: #f5f7fa;
+            border-radius: 4px;
+            min-height: 300px;
+
+            .preview-image {
+                max-width: 100%;
+                max-height: 400px;
+                object-fit: contain;
+            }
+
+            .preview-video,
+            .preview-file {
+                width: 100%;
+                height: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                // background-color: #f5f7fa;
+                // padding: 24px;
+            }
+        }
+
+        .material-basic-info {
+            // 可以添加素材信息区域的样式
+            flex: 1;
+            padding: 10px;
+        }
     }
 
-    .material-basic-info {
-      // 可以添加素材信息区域的样式
-      flex: 1;
-      padding: 10px;
+    // 标注信息区域样式
+    .annotation-info {
+        .annotation-section {
+            margin-bottom: 20px;
+
+            .material-title {
+                margin: 0 0 10px 0;
+                font-size: 20px;
+                font-weight: 500;
+                font-style: bold;
+                color: #303133;
+            }
+
+            .tag-input-section {
+                margin-bottom: 10px;
+                display: flex;
+                align-items: center;
+            }
+
+            .tag-list {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+        }
     }
-  }
-
-  // 标注信息区域样式
-  .annotation-info {
-    .annotation-section {
-      margin-bottom: 20px;
-
-      .material-title {
-        margin: 0 0 10px 0;
-        font-size: 20px;
-        font-weight: 500;
-        font-style: bold;
-        color: #303133;
-      }
-
-      .tag-input-section {
-        margin-bottom: 10px;
-        display: flex;
-        align-items: center;
-      }
-
-      .tag-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-    }
-  }
 }
 </style>

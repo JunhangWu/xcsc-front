@@ -203,7 +203,7 @@
     <!-- 新增文件夹 -->
     <el-dialog v-model="addFolderDialogVisible" title="请输入文件夹名称" width="500" :before-close="handleAddFolderClose"
       :close-on-click-modal="false" style="margin-top: 30vh;">
-      <el-input v-model="folderName" placeholder="请输入文件夹名称" />
+      <el-input v-model="folderName" placeholder="请输入文件夹名称" @keyup.enter="handleAddFolderConfirm" />
       <template #footer>
         <div class="dialogFoot">
           <el-button @click="handleAddFolderClose">取消</el-button>
@@ -409,7 +409,7 @@ function editFolder(item) {
 //  删除文件夹
 function deleteFolder(item) {
   proxy.$modal.confirm('是否确认删除文件夹名称为"' + item.filePath + '"的数据项?').then(function () {
-    return delFolder(item.id);
+    return delFolder(item.bizId);
   }).then(() => {
     getFolderData(curFolderObj.bizId)
     proxy.$modal.msgSuccess("删除成功");
@@ -454,8 +454,6 @@ function confirmUpload() {
     if (idx !== breadcrumbData.value.length - 1) {
       folderPath += '/'
     }
-    console.log('===folderPath===', folderPath);
-
   })
   formData.append("folderPath", folderPath);
   console.log('===formData===', formData);

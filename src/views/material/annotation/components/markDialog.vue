@@ -18,7 +18,7 @@
                         <div class="preview-file">
                             <!-- 文件名称 -->
                             <el-link type="primary" :href="currentMaterial.minioPath">{{ currentMaterial.fileName
-                            }}</el-link>
+                                }}</el-link>
                         </div>
                     </template>
                 </div>
@@ -43,13 +43,13 @@
                             <div class="metadata-item">
                                 <span class="metadata-label">所属路径：</span>
                                 <span class="metadata-value">{{ getFilePath(currentMaterial.minioPath) || '未分类'
-                                }}</span>
+                                    }}</span>
                             </div>
                             <div class="metadata-item">
                                 <span class="metadata-label">文件大小：</span>
-                                <span class="metadata-value">{{ formatFileSize(currentMaterial.fileSize) }}</span>
+                                <span class="metadata-value">{{ currentMaterial.fileSize }} M</span>
                             </div>
-                            <div class="metadata-item">
+                            <div class="metadata-item" v-if="getFileTypeText(currentMaterial.minioPath) == '图片'">
                                 <span class="metadata-label">分辨率：</span>
                                 <span class="metadata-value">{{ currentMaterial.fileResolution }}</span>
                             </div>

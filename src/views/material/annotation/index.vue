@@ -242,6 +242,7 @@
 const { proxy } = getCurrentInstance();
 import { ref, reactive, onMounted } from 'vue'
 import { api as viewerApi } from "v-viewer";
+import { parseTime, } from '@/utils/common'
 import { Search, VideoCamera, Document, Check, Edit, VideoPlay, Back, ArrowRight, FolderAdd, FolderOpened, Upload, UploadFilled, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile } from "@/api/xcsc/uploadFile"
@@ -440,8 +441,10 @@ function confirmUpload() {
   // debugger
   // files 是多个文件的数组集合，用于上传的文件流
   let files = fileList.value.map(item => item.raw || item.originFileObj || item); // 兼容不同上传组件的文件对象
-  files.forEach(file => {
+  files.forEach((file, index) => {
+    // console.log('====file==', file);
     formData.append("files", file);
+    formData.append("eventTimes", parseTime(file.lastModifiedDate) || '');
   });
   let folderPath = ''
   console.log('===curFolderObj===', curFolderObj);

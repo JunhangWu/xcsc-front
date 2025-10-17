@@ -42,7 +42,7 @@
           <h3 class="section-title">板块分类</h3>
           <div class="category-list">
             <div 
-              v-for="category in categories" 
+              v-for="category in categories.filePath" 
               :key="category"
               :class="['category-item', { active: activeCategory === category }]"
               @click="handleCategoryClick(category)"
@@ -95,73 +95,104 @@
         </div>
 
         <!-- 文件信息区 -->
-        <div class="file-info">
+        <!-- <div class="file-info">
           <span>共 {{ filteredFiles }} 个文件</span>
+        </div> -->
+        <div class="pageTop">
+          <div class="breadcrumbBox">
+            <!-- 返回到上一级 -->
+            <el-icon @click="backFolder" class="backBtn">
+              <Back />
+            </el-icon>
+            <div class="breadcrumb">
+              <!-- 文件夹面包屑 -->
+              <div class="breadcrumbItem" v-for="(item, index) in breadcrumbData" :key="index">
+                <div class="breadcrumbName" @click="clickBreadcrumb(item, index)"> {{ item.filePath }}</div>
+                <div class="breadcrumbArrow" v-if="index < breadcrumbData.length - 1">
+                  <el-icon>
+                    <ArrowRight />
+                  </el-icon>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="btnList">
+            <!-- <el-button type="primary" plain @click="handleAddFolder" size="default">
+              <el-icon style="margin-right: 6px;">
+                <FolderAdd />
+              </el-icon>新建文件夹
+            </el-button> -->
+            <!-- <el-button type="primary" plain @click="uploadFile" size="default">
+              <el-icon style="margin-right: 6px;">
+                <Upload />
+              </el-icon>上传文件
+            </el-button> -->
+          </div>
         </div>
 
         <!-- 素材列表区 -->
         <div class="material-list">
-          <!-- 当有文件需要显示时 -->
-          <template v-if="filteredFiles > 0">
-            <div v-for="(group, date) in groupedMaterials" :key="date" class="date-group">
-              <h4 class="group-title">{{ date }}</h4>
-              <div class="material-grid">
-                <div 
-                  v-for="material in group" 
-                  :key="material.id"
-                  class="material-item"
-                  @click="handleMaterialClick(material)"
-                >
-                  <div class="material-thumb">
-                    <img v-if="material.type === 'image'" :src="material.thumbnail" :alt="material.name" />
-                    <el-icon v-else class="file-icon">
-                      <VideoPlay v-if="material.type === 'video'" />
-                      <Document v-else-if="material.type === 'document'" />
-                      <Collection v-else-if="material.type === 'ppt'" />
-                    </el-icon>
-                  </div>
-                  <div class="material-name">{{ material.name }}</div>
-          <div class="material-tags">
-            <template v-for="(tagArray, tagType) in material.tags" :key="tagType">
-              <el-tag 
-                v-for="tag in tagArray"
-                :key="tag"
-                size="small"
-                type="primary"
-                effect="plain"
-              >
-                {{ tag }}
-              </el-tag>
-            </template>
+          <div v-if="loading" class="loading-container">
+            <el-loading-text>正在加载素材...</el-loading-text>
           </div>
-          <div class="material-actions">
-            <el-button 
-              :type="material.isFavorite ? 'warning' : 'default'"
-              size="small"
-              @click="toggleFavorite($event, material)"
-              :icon="material.isFavorite ? 'StarFilled' : 'Star'"
-              class="favorite-btn"
-            >
-              {{ material.isFavorite ? '取消收藏' : '收藏' }}
-            </el-button>
-            <el-button 
-              type="primary"
-              size="small"
-              @click="handleDownload($event, material)"
-              icon="Download"
-              class="download-btn"
-            >
-              下载
-            </el-button>
-          </div>
-            </div>
-              </div>
-            </div>
-          </template>
-          <!-- 无文件时显示空状态 -->
-          <div v-else class="empty-state">
+          <div v-else-if="folderData.length == 0 && fileListData.length == 0" class="empty-state">
             <el-empty description="暂无内容" />
           </div>
+          <div v-else class="material-grid">
+            <!-- 文件夹列表 -->
+            <div class="subFolder" v-for="(item, index) in folderData" :key="index"
+              @mouseenter="onSubFolderMouseEnter(item)" @mouseleave="onSubFolderMouseLeave(item)">
+              <!-- <span class="subFolder-actions">
+                <el-icon class="action-icon" @click.stop="editFolder(item)" v-show="item._hover"
+                  style="color: #409eff;">
+                  <Edit />
+                </el-icon>
+                <el-icon class="action-icon" @click.stop="deleteFolder(item)" v-show="item._hover"
+                  style="color: #f56c6c;">
+                  <Delete />
+                </el-icon>
+              </span> -->
+              <el-icon @click="selectFolder(item)">
+                <FolderOpened />
+              </el-icon>
+              <div class="subFolderName">{{ item.filePath }}</div>
+            </div>
+            <!-- 文件列表 -->
+            <div v-for="material in fileListData" :key="material.id" class="material-item">
+              <!-- <div class="material-info"> -->
+                <!-- <div class="material-status">
+                  <el-tag :type="getStatusTagType(material.annotationStatus)" size="small">
+                    {{ getStatusText(material.annotationStatus) }}
+                  </el-tag>
+                </div> -->
+                <!-- <div class="material-actions">
+                  <el-button type="primary" size="small" @click.stop="showMaterialDetail(material)" icon="Edit">
+                    标注
+                  </el-button>
+                </div>
+                <div class="material-actions">
+                  <el-button type="danger" size="small" @click.stop="deleteFile(material)" icon="Delete">
+                  </el-button>
+                </div> -->
+              <!-- </div> -->
+              
+              <div class="material-thumb">
+                <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
+                  @click="handleMaterialClick(material)" />
+                <el-icon v-else-if="isVideo(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)" class="file-icon" @click="handleMaterialClick(material)" style="cursor:pointer;">
+                  <VideoPlay />
+                </el-icon>
+                <el-icon v-else :src="material.minioPath" :alt="getFileName(material.minioPath)" class="file-icon" @click="handleMaterialClick(material)" style="cursor:pointer;">
+                  <Document />
+                </el-icon>
+                <div class="fileName">{{ getFileName(material.minioPath) }}</div>
+              </div>
+            </div>
+          </div>
+
+
+
+
         </div>
 
         <!-- 分页栏 -->
@@ -198,6 +229,7 @@ import {
   Search
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile } from "@/api/xcsc/uploadFile"
 
 const router = useRouter()
 
@@ -228,19 +260,166 @@ const router = useRouter()
 //     icon: Search
 //   }
 // ])
-
+// 文件夹悬浮控制
+function onSubFolderMouseEnter(item) {
+  item._hover = true
+}
+function onSubFolderMouseLeave(item) {
+  item._hover = false
+}
 // 个人空间
 const personalSpace = ref([
   { id: 'all', name: '所有文件', icon: Folder },
   { id: 'favorite', name: '我的收藏', icon: Star }
 ])
 
+// 当前选中的板块分类
+const activeCategory = ref('')
+// const categories = ref([
+//   '高速公路建设', '高速公路营运', '设计咨询', '地产酒店', '建筑施工',
+//   '广告传媒', '服务区', '加油站', '金融资本', '物流运输', '资源板块',
+//   '深化改革', '党的建设', '群团工作', '企业文化', '科技创新', '其他'
+// ])
 // 板块分类
-const categories = ref([
-  '高速公路建设', '高速公路营运', '设计咨询', '地产酒店', '建筑施工',
-  '广告传媒', '服务区', '加油站', '金融资本', '物流运输', '资源板块',
-  '深化改革', '党的建设', '群团工作', '企业文化', '科技创新', '其他'
-])
+// const categories = ref([])
+const categories = reactive({
+  bizId: '',
+  filePath: '',
+})
+// 存储分类名称到bizId的映射
+const categoryMap = ref({})
+
+// 获取左侧板块列表
+function getCategories(pid) {
+  let params = {
+    pid: pid,
+  }
+  getFolderList(params).then(response => {
+    categories.filePath = response.data.map(item => item.filePath)
+    categories.bizId = response.data.map(item => item.bizId)
+    // 构建分类名称到bizId的映射
+    response.data.forEach(item => {
+      categoryMap.value[item.filePath] = item.bizId
+    })
+  })
+}
+getCategories(0)
+
+// 素材列表
+const loading = ref(false)
+const showFolder = ref(true)
+const curFolderObj = reactive({
+  filePath: '',
+  bizId: '',
+  id: '',
+})
+const breadcrumbData = ref([])
+// 获取文件夹及文件列表数据
+const folderData = ref([]) //文件夹列表
+const fileListData = ref([])//文件列表
+function getFolderData(pid) {
+  // debugger
+  let params = {
+    pid: pid,
+  }
+  console.log('===pid===', pid);
+  console.log('===params===', params);
+  getFolderList(params).then(res => {
+    folderData.value = res.data
+  })
+  console.log('===folderData.value===',folderData.value)
+  if (pid !== 0) {
+    let param = {
+      folderId: pid,
+    }
+    console.log('===params===', params);
+    getFileList(param).then(res => {
+      fileListData.value = res.data
+    })
+  }
+}
+
+// 根据分类名称获取对应的bizId
+function getCategoryPid(category){
+  return categoryMap.value[category] || 0
+}
+
+//点击子文件展示相关文件夹及文件
+function selectFolder(item, type) {
+  console.log('====item==', item);
+  Object.assign(curFolderObj, item)
+  if (type == 'isRootFolder') {
+    //根文件夹
+    showFolder.value = false
+    breadcrumbData.value = [{
+      filePath: item.filePath,
+      bizId: item.bizId,
+    }]
+  } else {
+    breadcrumbData.value.push({
+      filePath: item.filePath,
+      bizId: item.bizId,
+    })
+  }
+  getFolderData(item.bizId)
+  console.log('=== breadcrumbData.value===', breadcrumbData.value);
+
+}
+//点击面包屑
+function clickBreadcrumb(item, index) {
+  getFolderData(item.bizId)
+  console.log('===item===', item);
+  Object.assign(curFolderObj, item)
+  if (index == 0) {
+    breadcrumbData.value = [{
+      filePath: item.filePath,
+      bizId: item.bizId,
+    }]
+  }
+  // 判断item的filePath在breadcrumbData的哪一个对象中，删除breadcrumbData的后面部分
+  const idx = breadcrumbData.value.findIndex(b => b.filePath === item.filePath)
+  if (idx !== -1) {
+    breadcrumbData.value = breadcrumbData.value.slice(0, idx + 1)
+  }
+}
+//返回按钮
+const backFolder = () => {
+
+  if (breadcrumbData.value.length == 1) {
+    // showFolder.value = true
+    // getFolderData(0)
+    return
+  } else {
+    Object.assign(curFolderObj, {
+    filePath: breadcrumbData.value[breadcrumbData.value.length - 2].filePath,
+    bizId: breadcrumbData.value[breadcrumbData.value.length - 2].bizId,
+    id: breadcrumbData.value[breadcrumbData.value.length - 2].id
+  });
+    // curFolderObj.filePath = breadcrumbData.value[breadcrumbData.value.length - 2].filePath
+    // curFolderObj.bizId = breadcrumbData.value[breadcrumbData.value.length - 2].bizId
+    // curFolderObj.id = breadcrumbData.value[breadcrumbData.value.length - 2].id
+    getFolderData(breadcrumbData.value[breadcrumbData.value.length - 2].bizId) //获取上一级文件夹的bizId
+    breadcrumbData.value.pop()
+  }
+  console.log('===breadcrumbData.value===', breadcrumbData.value);
+}
+
+// 获取文件列表数据
+const queryfileListData = ref([])//文件列表
+function getQueryData() {
+  loading.value = true
+  let params = {
+    fileName: searchKeyword.value,
+    annotationStatus: statusFilter.value,
+  }
+  getFileList(params).then(res => {
+      queryfileListData.value = res.data
+      showSearchResults.value = true // 显示搜索结果
+      showFolder.value = false // 隐藏文件夹模式
+    }).finally(() => {
+      loading.value = false
+    })
+}
 
 // 筛选表单
 const filterForm = reactive({
@@ -258,9 +437,25 @@ const pagination = reactive({
   end: computed(() => Math.min(pagination.current * pagination.size, totalFiles.value))
 })
 
-// 素材数据，从localStorage获取已标注的素材
+// 素材数据
 const materials = ref([])
+//预览图片
+function previewImg(material) {
+  const $viewer = viewerApi({
+    options: {
+      toolbar: true,
+      initialViewIndex: 0,
+    },
+    images: [material.minioPath],
+  });
+}
 
+//下载文件
+function downloadFile(material) {
+  if (material && material.minioPath) {
+    window.open(material.minioPath, '_blank');
+  }
+}
 // 获取已标注的素材
 const fetchCompletedMaterials = () => {
   try {
@@ -346,8 +541,7 @@ onMounted(() => {
 // 当前选中的个人空间
 const activeSpace = ref('all')
 
-// 当前选中的板块分类
-const activeCategory = ref('')
+
 
 // 总文件数
 const totalFiles = computed(() => materials.value.length)
@@ -509,10 +703,26 @@ const handleSpaceClick = (spaceId) => {
 
 // 点击板块分类
 const handleCategoryClick = (category) => {
-  activeCategory.value = category
+  activeCategory.value = category // 设置当前选中的分类
   activeSpace.value = '' // 清空个人空间选中状态
+  console.log('===activeCategory===', category)
+  const pid = getCategoryPid(category)
+  if (pid) {
+    getFolderData(pid)
+    // 更新面包屑数据
+    breadcrumbData.value = [{
+      filePath: category,
+      bizId: pid,
+    }]
+    // 更新当前文件夹对象
+    Object.assign(curFolderObj, {
+      filePath: category,
+      bizId: pid,
+    })
+    // 隐藏根文件夹视图
+    showFolder.value = false
+  }
 }
-
 // 查询处理
 const handleQuery = () => {
   pagination.current = 1
@@ -555,22 +765,30 @@ const navigateToModule = (path) => {
 const handleMaterialClick = (material) => {
   // 跳转到预览界面
   router.push({ name: 'MaterialPreview', params: { id: material.id } })
-  
-  // 将素材数据存储到localStorage，供预览页面使用
-  try {
-    const globalMaterials = JSON.parse(localStorage.getItem('globalMaterials') || '[]')
-    // 检查是否已存在该素材
-    const exists = globalMaterials.some(m => m.id === material.id)
-    if (!exists) {
-      globalMaterials.push(material)
-      localStorage.setItem('globalMaterials', JSON.stringify(globalMaterials))
-      console.log('素材数据已保存到localStorage:', material.name)
-    }
-  } catch (error) {
-    console.error('保存素材数据失败:', error)
-  }
 }
-
+// 支持的文件格式
+const supportedFormats = {
+  image: ['jpg', 'jpeg', 'png', 'bmp', 'gif'],
+  video: ['mp4', 'mov', 'avi', 'mkv', 'flv'],
+  document: ['docx', 'pdf', 'pptx']
+}
+function isImage(path) {
+  return ['jpg', 'jpeg', 'png', 'bmp', 'gif'].some(ext => path.toLowerCase().includes(ext));
+}
+function isVideo(path) {
+  return ['mp4', 'mov', 'avi', 'mkv', 'flv'].some(ext => path.toLowerCase().includes(ext));
+}
+//获取文件名
+function getFileName(path) {
+  if (!path) return '';
+  const idx = path.lastIndexOf('/');
+  return idx !== -1 ? path.substring(idx + 1) : path;
+}
+// 检查文件格式是否支持
+const isSupportedFormat = (filename) => {
+  const ext = filename.split('.').pop().toLowerCase()
+  return Object.values(supportedFormats).flat().includes(ext)
+}
 //同步素材数据
 const syncMaterials = () => {
   try {
@@ -816,71 +1034,344 @@ onBeforeUnmount(() => {
     color: #606266;
   }
   
-  .material-list {
-    .date-group {
-      margin-bottom: 32px;
+  // .material-list {
+  //   .date-group {
+  //     margin-bottom: 32px;
       
-      .group-title {
-        font-size: 16px;
-        font-weight: 600;
-        color: #303133;
-        margin: 0 0 16px 0;
-        padding-bottom: 8px;
-        border-bottom: 1px solid #e4e7ed;
-      }
-    }
+  //     .group-title {
+  //       font-size: 16px;
+  //       font-weight: 600;
+  //       color: #303133;
+  //       margin: 0 0 16px 0;
+  //       padding-bottom: 8px;
+  //       border-bottom: 1px solid #e4e7ed;
+  //     }
+  //   }
     
-    .material-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 20px;
-    }
+  //   // .material-grid {
+  //   //   display: grid;
+  //   //   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  //   //   gap: 20px;
+  //   // }
     
-    .material-item {
-      border: 1px solid #e4e7ed;
-      border-radius: 8px;
-      overflow: hidden;
-      transition: all 0.2s;
+  //   // .material-item {
+  //   //   border: 1px solid #e4e7ed;
+  //   //   border-radius: 8px;
+  //   //   overflow: hidden;
+  //   //   transition: all 0.2s;
+  //   //   cursor: pointer;
+      
+  //   //   &:hover {
+  //   //     transform: translateY(-2px);
+  //   //     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  //   //     border-color: #409eff;
+  //   //   }
+      
+  //   //   .material-thumb {
+  //   //     height: 180px;
+  //   //     background: #f5f7fa;
+  //   //     display: flex;
+  //   //     align-items: center;
+  //   //     justify-content: center;
+        
+  //   //     img {
+  //   //       width: 100%;
+  //   //       height: 100%;
+  //   //       object-fit: cover;
+  //   //     }
+        
+  //   //     .file-icon {
+  //   //       font-size: 32px;
+  //   //       color: #909399;
+  //   //     }
+  //   //   }
+      
+  //   //   .material-name {
+  //   //     padding: 12px;
+  //   //     font-size: 13px;
+  //   //     color: #606266;
+  //   //     text-align: center;
+  //   //     overflow: hidden;
+  //   //     text-overflow: ellipsis;
+  //   //     white-space: nowrap;
+  //   //   }
+  //   // }
+  // }
+  
+  // .pagination {
+  // margin-top: 32px;
+  // padding-top: 20px;
+  // border-top: 1px solid #e4e7ed;
+  // display: flex;
+  // justify-content: space-between;
+  // align-items: center;
+  
+  // .pagination-info {
+  //   font-size: 14px;
+  //   color: #606266;
+  // }
+  // }
+
+  /* 素材标签样式 */
+  .material-tags {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 12px 12px;
+  }
+
+  /* 素材操作区样式 */
+  // .material-actions {
+  //   padding: 0 12px 12px;
+  //   display: flex;
+  //   gap: 10px;
+  // }
+
+  .favorite-btn,
+  .download-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+.subFolder {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  width: 180px;
+  height: 160px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+  background: #fafafa;
+
+  :deep(.el-icon) {
+    font-size: 80px;
+    font-weight: 500;
+    color: #ffd45e;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+
+  &:hover {
+    background-color: #ecf5ff;
+    border-color: #c6e2ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .subFolder-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  &:hover .subFolder-actions {
+    opacity: 1;
+  }
+
+  .action-icon {
+    font-size: 18px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    padding: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+    &:hover {
+      transform: scale(1.1);
+    }
+  }
+
+  .subFolderName {
+    text-align: center;
+    font-size: 14px;
+    color: #303133;
+    padding: 0 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+}
+.material-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.material-item {
+  margin: 0;
+  position: relative;
+  aspect-ratio: 1 / 1;
+  width: 180px;
+  height: 160px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  display: block;
+  background: #ffffff;
+  border: 1px solid #ebeef5;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+
+  &:hover {
+    border-color: #409eff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .material-thumb {
+    width: 100%;
+    height: calc(100% - 36px);
+    margin-top: 36px;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+
+    img {
+      width: 90%;
+      height: 70%;
+      object-fit: contain;
+      transition: transform 0.3s;
       cursor: pointer;
-      
+      margin-bottom: 8px;
+    }
+
+    .file-icon {
+      font-size: 36px;
+      color: #909399;
+      margin-bottom: 8px;
+    }
+
+    .fileName {
+      text-align: center;
+      font-size: 12px;
+      color: #606266;
+      padding: 0 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+  }
+}
+.material-info {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 36px;
+  z-index: 2;
+  background: #f8f9fa;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 8px;
+  border-bottom: 1px solid #ebeef5;
+  border-radius: 8px 8px 0 0;
+
+  .material-status {
+    display: flex;
+    align-items: center;
+  }
+
+  .material-actions {
+    display: flex;
+    align-items: center;
+  }
+
+  .material-del {
+    display: flex;
+    align-items: center;
+  }
+
+  :deep(.el-button) {
+    padding: 4px 10px;
+    font-size: 12px;
+    height: 24px;
+  }
+}
+
+//面包屑
+.pageTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: #ffffff;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid #e4e7ed;
+  margin-top: 16px;
+
+  .breadcrumbBox {
+    display: flex;
+    align-items: center;
+
+    .backBtn {
+      font-size: 36px;
+      cursor: pointer;
+      color: #606266;
+      padding: 4px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+
       &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        border-color: #409eff;
+        color: #409eff;
+        background-color: #ecf5ff;
       }
-      
-      .material-thumb {
-        height: 180px;
-        background: #f5f7fa;
+    }
+
+    .breadcrumb {
+      display: flex;
+      margin-left: 16px;
+      align-items: center;
+
+      .breadcrumbItem {
         display: flex;
         align-items: center;
-        justify-content: center;
-        
-        img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
+
+        .breadcrumbName {
+          line-height: 28px;
+          padding: 0 8px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 16px;
+          color: #606266;
+          transition: all 0.2s ease;
+
+          &:hover {
+            color: #409eff;
+            background-color: #ecf5ff;
+          }
         }
-        
-        .file-icon {
-          font-size: 32px;
-          color: #909399;
+
+        .breadcrumbArrow {
+          margin: 0 4px;
+          color: #c0c4cc;
         }
-      }
-      
-      .material-name {
-        padding: 12px;
-        font-size: 13px;
-        color: #606266;
-        text-align: center;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
       }
     }
   }
-  
-  .pagination {
+
+  .btnList {
+    display: flex;
+    gap: 12px;
+  }
+}
+
+.pagination {
   margin-top: 32px;
   padding-top: 20px;
   border-top: 1px solid #e4e7ed;
@@ -917,6 +1408,6 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
 }
-}
+
 </style>
 

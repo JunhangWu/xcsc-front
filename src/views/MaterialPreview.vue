@@ -2,18 +2,18 @@
   <div class="preview-container">
     <!-- 左侧预览区 -->
     <div class="preview-area">
-      <div v-if="material.type === 'image'" class="image-preview">
-        <img :src="material.thumbnail" :alt="material.name" class="preview-image" />
+      <div v-if="getFileType(material.minioPath) === 'image'" class="image-preview">
+        <img :src="material.minioPath" :alt="material.fileName" class="preview-image" />
       </div>
-      <div v-else-if="material.type === 'video'" class="video-preview">
+      <div v-else-if="getFileType(material.minioPath) === 'video'" class="video-preview">
         <video :src="material.thumbnail" controls class="preview-video">
           您的浏览器不支持视频播放
         </video>
       </div>
       <div v-else class="file-preview">
         <el-icon class="file-icon">
-          <Document v-if="material.type === 'document'" />
-          <Collection v-else-if="material.type === 'ppt'" />
+          <Document v-if="getFileType(material.minioPath) === 'document'" />
+          <Collection v-else-if="getFileType(material.minioPath) === 'ppt'" />
         </el-icon>
         <p class="file-text">无法在线预览该类型文件</p>
       </div>
@@ -37,27 +37,27 @@
         <div class="metadata-grid">
           <div class="metadata-item">
             <span class="metadata-label">文件类型：</span>
-            <span class="metadata-value">{{ getFileTypeText(material.type) }}</span>
+            <span class="metadata-value">{{ getFileTypeText(material.minioPath) }}</span>
           </div>
           <div class="metadata-item">
             <span class="metadata-label">上传时间：</span>
-            <span class="metadata-value">{{ material.uploadTime }}</span>
+            <span class="metadata-value">{{ material.createTime }}</span>
           </div>
           <div class="metadata-item">
             <span class="metadata-label">上传者：</span>
-            <span class="metadata-value">{{ material.uploader }}</span>
+            <span class="metadata-value">{{ material.createBy }}</span>
           </div>
           <div class="metadata-item">
-            <span class="metadata-label">所属分类：</span>
-            <span class="metadata-value">{{ material.category }}</span>
+            <span class="metadata-label">所属路径：</span>
+            <span class="metadata-value">{{ getFilePath(material.minioPath)}}</span>
           </div>
           <div class="metadata-item">
             <span class="metadata-label">文件大小：</span>
-            <span class="metadata-value">{{ formatFileSize(material.fileSize) }}</span>
+            <span class="metadata-value">{{ material.fileSize }}M</span>
           </div>
           <div class="metadata-item">
             <span class="metadata-label">分辨率：</span>
-            <span class="metadata-value">{{ material.resolution || '不适用' }}</span>
+            <span class="metadata-value">{{ material.resolution }}</span>
           </div>
         </div>
       </div>
@@ -72,43 +72,45 @@
             <div class="tag-dimension">
               <span class="dimension-label">场景分类：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in getAutoTags('scene')" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
+                <el-tag v-for="tag in autoTagForm.sceneCategory" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">核心物体：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in getAutoTags('objects')" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
+                <el-tag v-for="tag in autoTagForm.coreObjects" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">活动事件：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in getAutoTags('events')" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
+                <el-tag v-for="tag in autoTagForm.activityEvent" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">文本信息：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in getAutoTags('text')" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
+                <el-tag v-for="tag in autoTagForm.textInfo" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">颜色色调：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in getAutoTags('color')" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
+                <el-tag v-for="tag in autoTagForm.colorTone" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">拍摄角度：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in getAutoTags('angle')" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
+                <el-tag v-for="tag in autoTagForm.shootingAngle" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">素材描述：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in getAutoTags('description')" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
+                <el-tag size="small" type="primary" effect="plain">
+                  {{ autoTagForm.materialDescription }}
+                </el-tag>
               </div>
             </div>
           </div>
@@ -121,37 +123,37 @@
             <div class="tag-dimension">
               <span class="dimension-label">时间信息：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in getManualTags('time')" :key="tag" size="small" type="success" effect="plain">{{ tag }}</el-tag>
+                <el-tag size="small" type="success" effect="plain">{{ manualTagForm.eventTime }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">地点信息：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in getManualTags('location')" :key="tag" size="small" type="success" effect="plain">{{ tag }}</el-tag>
+                <el-tag size="small" type="success" effect="plain">{{ manualTagForm.locationInfo }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">人物姓名：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in getManualTags('person')" :key="tag" size="small" type="success" effect="plain">{{ tag }}</el-tag>
+                <el-tag size="small" type="success" effect="plain">{{ manualTagForm.personNames }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">建筑名称：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in getManualTags('building')" :key="tag" size="small" type="success" effect="plain">{{ tag }}</el-tag>
+                <el-tag size="small" type="success" effect="plain">{{ manualTagForm.buildingNames }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">相关主题：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in getManualTags('theme')" :key="tag" size="small" type="success" effect="plain">{{ tag }}</el-tag>
+                <el-tag size="small" type="success" effect="plain">{{ manualTagForm.relatedThemes }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">专有名词：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in getManualTags('noun')" :key="tag" size="small" type="success" effect="plain">{{ tag }}</el-tag>
+                <el-tag size="small" type="success" effect="plain">{{ manualTagForm.properNouns }}</el-tag>
               </div>
             </div>
           </div>
@@ -170,24 +172,129 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Document, Collection, ArrowLeft, Download } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile } from "@/api/xcsc/uploadFile"
 
 const router = useRouter()
 const route = useRoute()
-
-// 初始化素材数据
-const material = ref({
-  id: '',
-  name: '',
-  type: '',
-  thumbnail: '',
-  uploadTime: '',
-  uploader: '',
-  tags: [],
-  category: '',
-  fileSize: 0,
-  resolution: ''
+const material = reactive({
+  minioPath: '',
+  fileSize: '',
+  fileName: '',
+  resolution: '',
+  createTime: '',
+  createBy: '',
+  fileType: '',
+  tag: '',
+})
+// 标注信息 - 标签信息（8个维度）
+const autoTagForm = reactive({
+    sceneCategory: '', // 场景分类
+    characterBehavior: '', // 人物行为
+    coreObjects: '', // 核心物体
+    activityEvent: '', // 活动事件
+    textInfo: '', // 文本信息
+    colorTone: '', // 颜色色调
+    shootingAngle: '', // 拍摄角度
+    materialDescription: '' // 素材描述
 })
 
+// 标注信息 - 基本信息（6个维度）
+const manualTagForm = reactive({
+    eventTime: '', // 事件时间
+    locationInfo: '', // 地点信息
+    personNames: '', // 人物姓名
+    buildingNames: '', // 建筑名称
+    relatedThemes: '', // 相关主题
+    properNouns: '' // 专有名词
+})
+
+//获取自动标注信息
+function getAutoTags() {
+    let params = {
+        id: route.params.id,
+    }
+    getFileList(params).then(res => {
+        console.log('自动标注:', JSON.parse(res.data[0].annotationContent))
+        let resJson = JSON.parse(res.data[0].annotationContent)
+        autoTagForm.sceneCategory = resJson.sceneCategory || ''
+        autoTagForm.characterBehavior = resJson.characterBehavior || ''
+        autoTagForm.coreObjects = resJson.coreObjects || ''
+        autoTagForm.activityEvent = resJson.activityEvent || ''
+        autoTagForm.textInfo = resJson.textInfo || ''
+        autoTagForm.colorTone = resJson.colorTone || ''
+        autoTagForm.shootingAngle = resJson.shootingAngle || ''
+        autoTagForm.materialDescription = resJson.materialDescription || ''
+    })
+}
+getAutoTags()
+
+//获取人工标注信息
+function getManualTags() {
+    let params = {
+        id: route.params.id,
+    }
+    getFileList(params).then(res => {
+        console.log('人工标注:', res.data[0])
+        manualTagForm.eventTime = res.data[0].eventTime || ''
+        manualTagForm.locationInfo = res.data[0].locationInfo || ''
+        manualTagForm.personNames = res.data[0].personNames || ''
+        manualTagForm.buildingNames = res.data[0].buildingNames || ''
+        manualTagForm.relatedThemes = res.data[0].relatedThemes || ''
+        manualTagForm.properNouns = res.data[0].properNouns || ''
+    })
+}
+getManualTags() 
+
+//获取素材
+function getMaterial(){
+  // debugger
+  let params = {
+    id: route.params.id,
+  }
+  
+  getFileList(params).then(res => {
+    console.log('getFileList 响应:', res)
+    console.log('getFileList 响应:', res.data[0].minioPath)
+    material.minioPath = res.data[0].minioPath || ''
+    material.fileSize = res.data[0].fileSize || ''
+    material.fileName = res.data[0].fileName || ''
+    material.resolution = res.data[0].fileResolution || ''
+    material.createTime = res.data[0].createTime || ''
+    material.createBy = res.data[0].createBy || ''
+    material.fileType = getFileType(res.data[0].minioPath)
+    material.tag = res.data.annotationContent || ''
+  })
+  console.log('素材数据加载成功:', material);
+}
+onMounted(() => {
+  getMaterial() // 组件挂载后初始加载
+  console.log('material.minioPath:', material.minioPath)
+})
+
+// 根据文件路径判断文件类型
+function getFileType(filePath) {
+  if (!filePath) return 'other'
+  const lowerPath = filePath.toLowerCase()
+  if (/\.(jpg|jpeg|png|gif|bmp)$/.test(lowerPath)) {
+    return 'image'
+  } else if (/\.(mp4|avi|mov|wmv|flv)$/.test(lowerPath)) {
+    return 'video'
+  } else if (/\.(doc|docx|pdf|txt)$/.test(lowerPath)) {
+    return 'document'
+  } else if (/\.(ppt|pptx)$/.test(lowerPath)) {
+    return 'ppt'
+  }
+  return 'other'
+}
+//获取文件路径
+function getFilePath(path) {
+    if (!path) return '';
+    const prefix = 'xcsc/';
+    const startIndex = path.indexOf(prefix) + prefix.length;
+    const result = path.substring(startIndex);
+    return result.replace("/" + material.fileName, "");
+}
 // 格式化文件大小
 const formatFileSize = (bytes) => {
   if (bytes === 0) return '0 Bytes';
@@ -200,70 +307,133 @@ const formatFileSize = (bytes) => {
 }
 
 // 获取文件类型文本
-const getFileTypeText = (type) => {
-  const typeMap = {
-    'image': '图片',
-    'video': '视频',
-    'document': '文档',
-    'ppt': 'PPT'
-  }
-  return typeMap[type] || '未知'
-}
+// const getFileTypeText = (type) => {
+//   const typeMap = {
+//     'image': '图片',
+//     'video': '视频',
+//     'document': '文档',
+//     'ppt': 'PPT'
+//   }
+//   return typeMap[type] || '未知'
+// }
+// 获取文件类型文本
+const getFileTypeText = (filePath) => {
+    if (!filePath) return '未知类型';
 
+    const dotIndex = filePath.lastIndexOf('.');
+    if (dotIndex === -1) return '其他';
+    const ext = filePath.substring(dotIndex + 1);
+    const typeMap = {
+        '图片': ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'svg', 'heic'],
+        '视频': ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm'],
+        '音频': ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'],
+        'PDF文档': ['pdf'],
+        'Word文档': ['doc', 'docx'],
+        'Excel文档': ['xls', 'xlsx'],
+        'PPT文档': ['ppt', 'pptx'],
+        '压缩文件': ['zip', 'rar', '7z', 'tar', 'gz'],
+        '文本': ['txt', 'md', 'csv', 'json', 'xml']
+    };
+    for (const [type, exts] of Object.entries(typeMap)) {
+        if (exts.includes(ext.toLowerCase())) {
+            return type;
+        }
+    }
+    return '其他';
+};
 // 返回上一页
 const handleBack = () => {
   router.back()
 }
 
 // 处理下载
-const handleDownload = () => {
-  // 模拟下载功能
-  console.log('下载文件:', material.value.name)
-  // 实际项目中可以使用a标签下载或调用后端接口
-  const link = document.createElement('a')
-  link.href = material.value.thumbnail
-  link.download = material.value.name
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+const handleDownload = async () => {
+  if (!material.minioPath) {
+    ElMessage.warning('文件路径不存在，无法下载')
+    return
+  }
+  console.log('下载文件:', material.fileName)
+  try {
+    // 使用fetch API获取文件内容
+    const response = await fetch(material.minioPath, {
+      method: 'GET',
+      credentials: 'include' // 包含cookies等认证信息
+    })
+    if (!response.ok) {
+      throw new Error(`服务器响应错误: ${response.status}`)
+    }
+    // 获取文件内容并创建Blob对象
+    const blob = await response.blob()
+    // 创建下载链接
+    const link = document.createElement('a')
+    // 创建指向Blob的URL
+    const url = window.URL.createObjectURL(blob)
+    // 设置下载属性
+    link.href = url
+    link.download = material.fileName || getFileNameFromUrl(material.minioPath) || 'download_file' 
+    // 隐藏链接
+    link.style.display = 'none'
+    // 添加到文档并触发点击
+    document.body.appendChild(link)
+    link.click()
+    // 延迟清理
+    setTimeout(() => {
+      // 移除链接
+      document.body.removeChild(link)
+      // 释放Blob URL
+      window.URL.revokeObjectURL(url)
+    }, 100)
+    ElMessage.success('文件下载已开始')
+  } catch (error) {
+    console.error('文件下载失败:', error)
+    ElMessage.error('文件下载失败，请稍后重试')
+  }
+}
+
+// 从URL中提取文件名
+function getFileNameFromUrl(url) {
+  // 尝试从URL路径中提取文件名
+  const pathname = new URL(url).pathname
+  const parts = pathname.split('/')
+  return parts[parts.length - 1]
 }
 
 // 获取自动标签
-const getAutoTags = (type) => {
-  // 直接从素材对象的tags属性中获取对应的分类标签
-  const tags = material.value.tags || {}
+// const getAutoTags = (type) => {
+  // // 直接从素材对象的tags属性中获取对应的分类标签
+  // const tags = material.value.tags || {}
   
-  // 映射类型到对应的标签分类
-  const typeMap = {
-    'scene': tags.scene || [],
-    'objects': tags.objects || [],
-    'events': tags.events || [],
-    'text': tags.text || [],
-    'color': tags.color || [],
-    'angle': tags.angle || [],
-    'description': [material.value.category || '']
-  }
+  // // 映射类型到对应的标签分类
+  // const typeMap = {
+  //   'scene': tags.scene || [],
+  //   'objects': tags.objects || [],
+  //   'events': tags.events || [],
+  //   'text': tags.text || [],
+  //   'color': tags.color || [],
+  //   'angle': tags.angle || [],
+  //   'description': [material.value.category || '']
+  // }
   
-  return typeMap[type] || []
-}
+  // return typeMap[type] || []
+// }
 
 // 获取人工标签
-const getManualTags = (type) => {
-  // 直接从素材名称和现有标签中提取人工标签
-  const name = material.value.name || ''
+// const getManualTags = (type) => {
+  // // 直接从素材名称和现有标签中提取人工标签
+  // const name = material.value.name || ''
   
-  // 映射类型到对应的标签提取逻辑
-  const typeMap = {
-    'time': name.includes('2025') ? ['2025'] : [],
-    'location': extractLocationTags(name),
-    'person': [],
-    'building': extractBuildingTags(name),
-    'theme': extractThemeTags(name),
-    'noun': extractNounTags(name)
-  }
+  // // 映射类型到对应的标签提取逻辑
+  // const typeMap = {
+  //   'time': name.includes('2025') ? ['2025'] : [],
+  //   'location': extractLocationTags(name),
+  //   'person': [],
+  //   'building': extractBuildingTags(name),
+  //   'theme': extractThemeTags(name),
+  //   'noun': extractNounTags(name)
+  // }
   
-  return typeMap[type] || []
-}
+  // return typeMap[type] || []
+// }
 
 // 提取地点标签
 const extractLocationTags = (name) => {
@@ -365,6 +535,7 @@ onMounted(async () => {
     console.error('获取素材数据失败:', error)
   }
 })
+
 </script>
 
 <style scoped lang="scss">
@@ -511,16 +682,44 @@ onMounted(async () => {
   padding: 12px;
   background: #f5f7fa;
   border-radius: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .tag-dimension {
   margin-bottom: 12px;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .tag-dimension:last-child {
   margin-bottom: 0;
+}
+
+.dimension-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  padding-right: 4px;
+}
+
+.dimension-values .el-tag {
+  max-width: 100%;
+  word-break: break-all;
+  white-space: normal;
+  line-height: 1.4;
+  padding: 6px 8px;
+  box-sizing: border-box;
+  height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 .dimension-label {

@@ -73,3 +73,11 @@ export function updateFile(data) {
         data: data
     })
 }
+// 文件列表
+export function getFileIndexList(query) {
+    return request({
+        url: '/file/index/list',
+        method: 'get',
+        params: query
+    })
+}

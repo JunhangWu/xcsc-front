@@ -34,7 +34,7 @@
       <div class="filter-bar">
         <el-form :model="filterForm" inline>
           <el-form-item label="素材类型：">
-            <el-select v-model="filterForm.type" placeholder="请选择" clearable style="width: 150px;">
+            <el-select v-model="filterForm.fileType" placeholder="请选择" clearable style="width: 150px;">
               <el-option label="图片" value="image" />
               <el-option label="视频" value="video" />
               <el-option label="文档" value="document" />
@@ -48,11 +48,11 @@
           </el-form-item>
 
           <el-form-item label="上传人：">
-            <el-input v-model="filterForm.uploader" placeholder="请输入上传人" clearable style="width: 150px;" />
+            <el-input v-model="filterForm.createBy" placeholder="请输入上传人" clearable style="width: 150px;" />
           </el-form-item>
 
           <el-form-item label="素材标签：">
-            <el-input v-model="filterForm.tags" placeholder="请输入素材标签" clearable style="width: 150px;" />
+            <el-input v-model="filterForm.annotationContent" placeholder="请输入素材标签" clearable style="width: 150px;" />
           </el-form-item>
 
           <el-form-item>
@@ -100,46 +100,44 @@
           <!-- 文件夹列表 -->
           <div class="subFolder" v-for="(item, index) in folderData" :key="index"
             @mouseenter="onSubFolderMouseEnter(item)" @mouseleave="onSubFolderMouseLeave(item)">
-            <!-- <span class="subFolder-actions">
-                <el-icon class="action-icon" @click.stop="editFolder(item)" v-show="item._hover"
-                  style="color: #409eff;">
-                  <Edit />
-                </el-icon>
-                <el-icon class="action-icon" @click.stop="deleteFolder(item)" v-show="item._hover"
-                  style="color: #f56c6c;">
-                  <Delete />
-                </el-icon>
-              </span> -->
             <el-icon @click="selectFolder(item)">
               <FolderOpened />
             </el-icon>
             <div class="subFolderName">{{ item.filePath }}</div>
           </div>
-          <!-- 文件列表 -->
-          <div v-for="material in fileListData" :key="material.id" class="material-item">
-            <!-- <div class="material-info"> -->
-            <!-- <div class="material-status">
-                  <el-tag :type="getStatusTagType(material.annotationStatus)" size="small">
-                    {{ getStatusText(material.annotationStatus) }}
-                  </el-tag>
-                </div> -->
-            <!-- <div class="material-actions">
-                  <el-button type="primary" size="small" @click.stop="showMaterialDetail(material)" icon="Edit">
-                    标注
+          <!-- 文件列表 -所有文件 -->
+          <div class="allFileList">
+            <div class="everydayBox" v-for="(everydayData, index) in allFileListData" :key="index">
+              <div class="date">{{ everydayData }}</div>
+              <!-- <div v-for="material in fileListData" :key="material.id" class="material-item">
+                <div class="material-thumb">
+                  <img v-if="isImage(material.minioPath)" :src="material.minioPath"
+                    :alt="getFileName(material.minioPath)" @click="handleMaterialClick(material)" />
+                  <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
+                    <el-icon class="file-icon">
+                      <VideoPlay />
+                    </el-icon>
+                    <video :src="material.minioPath" playsinline muted preload="metadata"
+                      style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                  </div>
+                  <el-icon v-else :src="material.minioPath" :alt="getFileName(material.minioPath)" class="file-icon"
+                    @click="handleMaterialClick(material)" style="cursor:pointer;">
+                    <Document />
+                  </el-icon>
+                  <div class="fileName">{{ getFileName(material.minioPath) }}</div>
+                  <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
+                    :icon="Download">
+                    下载
                   </el-button>
                 </div>
-                <div class="material-actions">
-                  <el-button type="danger" size="small" @click.stop="deleteFile(material)" icon="Delete">
-                  </el-button>
-                </div> -->
-            <!-- </div> -->
-
-            <div class="material-thumb">
+              </div> -->
+            </div>
+          </div>
+          <!-- 文件列表 -->
+          <div v-for="material in fileListData" :key="material.id" class="material-item">
+            <div class="material-thumb" v-if="activeSpace !== 'all'">
               <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
                 @click="handleMaterialClick(material)" />
-              <!-- <el-icon v-else-if="isVideo(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)" class="file-icon" @click="handleMaterialClick(material)" style="cursor:pointer;">
-                  <VideoPlay />
-                </el-icon> -->
               <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
                 <el-icon class="file-icon">
                   <VideoPlay />
@@ -158,8 +156,8 @@
               </el-button>
             </div>
           </div>
-        </div>
 
+        </div>
       </div>
     </div>
   </div>
@@ -181,7 +179,7 @@ import {
   Search
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile } from "@/api/xcsc/uploadFile"
+import { getFolderList, getFileList, getFileIndexList } from "@/api/xcsc/uploadFile"
 
 const router = useRouter()
 
@@ -193,11 +191,7 @@ function onSubFolderMouseEnter(item) {
 function onSubFolderMouseLeave(item) {
   item._hover = false
 }
-// 个人空间
-const personalSpace = ref([
-  { id: 'all', name: '所有文件', icon: Folder },
-  // { id: 'favorite', name: '我的收藏', icon: Star }
-])
+
 
 // 当前选中的板块分类
 const activeCategory = ref('')
@@ -233,7 +227,6 @@ getCategories(0)
 
 // 素材列表
 const loading = ref(false)
-const showFolder = ref(true)
 const curFolderObj = reactive({
   filePath: '',
   bizId: '',
@@ -244,7 +237,6 @@ const breadcrumbData = ref([])
 const folderData = ref([]) //文件夹列表
 const fileListData = ref([])//文件列表
 function getFolderData(pid) {
-  // debugger
   let params = {
     pid: pid,
   }
@@ -276,7 +268,6 @@ function selectFolder(item, type) {
   Object.assign(curFolderObj, item)
   if (type == 'isRootFolder') {
     //根文件夹
-    showFolder.value = false
     breadcrumbData.value = [{
       filePath: item.filePath,
       bizId: item.bizId,
@@ -312,7 +303,6 @@ function clickBreadcrumb(item, index) {
 const backFolder = () => {
 
   if (breadcrumbData.value.length == 1) {
-    // showFolder.value = true
     // getFolderData(0)
     return
   } else {
@@ -341,7 +331,6 @@ function getQueryData() {
   getFileList(params).then(res => {
     queryfileListData.value = res.data
     showSearchResults.value = true // 显示搜索结果
-    showFolder.value = false // 隐藏文件夹模式
   }).finally(() => {
     loading.value = false
   })
@@ -349,10 +338,10 @@ function getQueryData() {
 
 // 筛选表单
 const filterForm = reactive({
-  type: '',
+  fileType: '',
   dateRange: [],
-  uploader: '',
-  tags: ''
+  createBy: '',
+  annotationContent: ''
 })
 
 
@@ -375,92 +364,9 @@ function downloadFile(material) {
     window.open(material.minioPath, '_blank');
   }
 }
-// 获取已标注的素材
-const fetchCompletedMaterials = () => {
-  try {
-    // 从localStorage获取素材标注界面的数据
-    const annotationMaterials = JSON.parse(localStorage.getItem('annotationMaterials') || '[]')
-
-    // 只获取状态为completed(已标注)的素材
-    materials.value = annotationMaterials
-      .filter(material => material.status === 'completed')
-      .map(material => {
-        // 转换数据格式，使其符合首页要求
-        return {
-          id: material.id,
-          name: material.name,
-          type: material.type.includes('image') ? 'image' :
-            material.type.includes('video') ? 'video' :
-              material.type.includes('word') ? 'document' : 'other',
-          thumbnail: material.url || '',
-          uploadTime: material.uploadTime.split(' ')[0].replace(/-/g, '/'),
-          uploader: material.uploader || 'admin',
-          tags: material.tags || {
-            scene: [],
-            behavior: [],
-            objects: [],
-            text: [],
-            events: [],
-            color: [],
-            angle: []
-          },
-          category: material.category || '未分类',
-          fileSize: material.size * 1024, // 转换为字节
-          resolution: material.resolution || '不适用',
-          isFavorite: false // 默认为未收藏
-        }
-      })
-
-    // 同时获取收藏状态
-    try {
-      const storedFavorites = JSON.parse(localStorage.getItem('globalMaterials') || '[]')
-      materials.value.forEach(material => {
-        const storedMaterial = storedFavorites.find(m => m.id === material.id)
-        if (storedMaterial) {
-          material.isFavorite = storedMaterial.isFavorite || false
-        }
-      })
-    } catch (error) {
-      console.error('加载收藏状态失败:', error)
-    }
-  } catch (error) {
-    console.error('获取已标注素材失败:', error)
-    // 出错时使用备用数据
-    materials.value = [
-      {
-        id: 'backup-1',
-        name: '芜湖二桥.jpg',
-        type: 'image',
-        thumbnail: '/images/芜湖二桥.jpg',
-        uploadTime: '2025/09/04',
-        uploader: 'admin',
-        tags: {
-          scene: ['桥梁', '江面'],
-          behavior: [],
-          objects: ['大桥', '船只'],
-          text: [],
-          events: [],
-          color: ['冷色调', '蓝紫色'],
-          angle: ['航拍']
-        },
-        category: '建筑施工',
-        fileSize: 2456800,
-        resolution: '3264x2448',
-        isFavorite: false
-      }
-    ]
-  }
-}
-
-// 组件挂载时获取素材数据
-onMounted(() => {
-  fetchCompletedMaterials()
-})
 
 // 当前选中的个人空间
 const activeSpace = ref('all')
-
-
 
 // 总文件数
 const totalFiles = computed(() => materials.value.length)
@@ -527,103 +433,40 @@ const handleDownload = async (material) => {
     ElMessage.error('文件下载失败，请稍后重试')
   }
 }
-// 获取过滤后的素材列表
-const getFilteredMaterials = () => {
-  let filtered = [...materials.value]
 
-  // 1. 应用个人空间和分类筛选
-  if (activeSpace.value === 'favorite') {
-    // 只显示收藏的素材
-    filtered = filtered.filter(m => m.isFavorite)
-  } else if (activeCategory.value) {
-    // 应用分类筛选
-    filtered = filtered.filter(m => m.category === activeCategory.value)
-  }
-
-  // 2. 应用搜索表单筛选条件
-  if (filterForm.type) {
-    filtered = filtered.filter(m => m.type === filterForm.type)
-  }
-
-  if (filterForm.dateRange && filterForm.dateRange.length === 2) {
-    const startDate = new Date(filterForm.dateRange[0])
-    const endDate = new Date(filterForm.dateRange[1])
-    filtered = filtered.filter(m => {
-      const materialDate = new Date(m.uploadTime.replace(/\//g, '-'))
-      return materialDate >= startDate && materialDate <= endDate
-    })
-  }
-
-  if (filterForm.uploader) {
-    const uploaderLower = filterForm.uploader.toLowerCase()
-    filtered = filtered.filter(m =>
-      m.uploader.toLowerCase().includes(uploaderLower)
-    )
-  }
-
-  if (filterForm.tags) {
-    const tagsLower = filterForm.tags.toLowerCase()
-    filtered = filtered.filter(m => {
-      // 检查所有标签类别中的所有标签
-      for (const tagType in m.tags) {
-        if (m.tags[tagType].some(tag => tag.toLowerCase().includes(tagsLower))) {
-          return true
-        }
-      }
-      return false
-    })
-  }
-
-  return filtered
-}
-
-// 筛选后的文件数
-const filteredFiles = computed(() => {
-  return getFilteredMaterials().length
-})
-
-// 按日期分组的素材
-const groupedMaterials = computed(() => {
-  const groups = {}
-
-  // 使用统一的过滤方法获取过滤后的素材列表
-  const filteredMaterials = getFilteredMaterials()
-
-  filteredMaterials.forEach(material => {
-    if (!groups[material.uploadTime]) {
-      groups[material.uploadTime] = []
-    }
-    groups[material.uploadTime].push(material)
-  })
-
-  // 按日期由近到远排序
-  const sortedGroups = {}
-  const dates = Object.keys(groups)
-  // 日期排序（由近到远） 
-  dates.sort((a, b) => {
-    // 将日期字符串转换为Date对象进行比较
-    const dateA = new Date(a.replace(/\//g, '-'))
-    const dateB = new Date(b.replace(/\//g, '-'))
-    // 降序排序（新日期在前）
-    return dateB - dateA
-  })
-
-  // 根据排序后的日期重新构建groups对象
-  dates.forEach(date => {
-    sortedGroups[date] = groups[date]
-  })
-
-  return sortedGroups
-})
+// 个人空间
+const personalSpace = ref([
+  { id: 'all', name: '所有文件', icon: Folder },
+  // { id: 'favorite', name: '我的收藏', icon: Star }
+])
 
 // 点击个人空间
 const handleSpaceClick = (spaceId) => {
   activeSpace.value = spaceId
   activeCategory.value = '' // 清空板块分类选中状态
-  //禁用文件夹
-  showFolder.value = false
-  getFileList().then(res => {
-    fileListData.value = res.data
+  if (activeSpace.value == 'all') {
+    folderData.value = [] // 不展示文件夹
+    getALlFileListData()
+  }
+}
+
+// 获取所有文件
+const allFileListData = reactive({})//文件列表
+function getALlFileListData() {
+  let params = {
+    fileType: filterForm.fileType,
+    createStartTime: filterForm.dateRange[0] + ' 00:00:00',
+    createEndTime: filterForm.dateRange[1] + ' 23:59:59',
+    createBy: filterForm.createBy,
+    annotationContent: filterForm.annotationContent,
+  }
+  console.log('执行查询:', params)
+  getFileIndexList(params).then(res => {
+    // 删除所有 key
+    Object.keys(allFileListData).forEach(key => {
+      delete obj[key];
+    });
+    Object.assign(allFileListData, res.data)
   })
 }
 
@@ -645,19 +488,14 @@ const handleCategoryClick = (category) => {
       filePath: category,
       bizId: pid,
     })
-    // 隐藏根文件夹视图
-    showFolder.value = false
   }
 }
 // 查询处理
 const handleQuery = () => {
-  // 这里可以添加实际的查询逻辑
-  let params = {
-    spaceId: activeSpace.value,
-    category: activeCategory.value,
-    ...filterForm
+  if (activeSpace.value == 'all') {
+    folderData.value = [] // 不展示文件夹
+    getALlFileListData()
   }
-  console.log('执行查询:', params)
 }
 
 // 重置表单
@@ -668,6 +506,7 @@ const handleReset = () => {
     uploader: '',
     tags: ''
   })
+  getALlFileListData()
 }
 
 // AI搜索
@@ -754,8 +593,7 @@ let syncInterval = null
 onMounted(() => {
   console.log('首页加载完成')
 
-  // 从localStorage获取已标注的素材
-  fetchCompletedMaterials()
+
 
   // 初始同步
   syncMaterials()

@@ -10,7 +10,7 @@
           您的浏览器不支持视频播放
         </video> -->
         <video :src="material.minioPath" controls autoplay loop muted playsinline
-           style="max-width: 100%; max-height: 400px; width: auto; height: auto; display: block; object-fit: contain;"></video>
+          style="max-width: 100%; max-height: 400px; width: auto; height: auto; display: block; object-fit: contain;"></video>
       </div>
       <div v-else class="file-preview">
         <el-icon class="file-icon">
@@ -20,19 +20,19 @@
         <p class="file-text">无法在线预览该类型文件</p>
       </div>
     </div>
-    
+
     <!-- 右侧信息区 -->
     <div class="info-area">
       <!-- 返回按钮 -->
       <div class="back-section">
         <el-button @click="handleBack" icon="ArrowLeft">返回</el-button>
       </div>
-      
+
       <!-- 文件名称 -->
       <div class="name-section">
         <h2 class="material-name">{{ material.name }}</h2>
       </div>
-      
+
       <!-- 元数据信息 -->
       <div class="metadata-section">
         <h3 class="section-title">文件信息</h3>
@@ -43,7 +43,7 @@
           </div>
           <div class="metadata-item">
             <span class="metadata-label">上传时间：</span>
-            <span class="metadata-value">{{ material.createTime }}</span>
+            <span class="metadata-value">{{ parseTime(material.createTime) }}</span>
           </div>
           <div class="metadata-item">
             <span class="metadata-label">上传者：</span>
@@ -51,7 +51,7 @@
           </div>
           <div class="metadata-item">
             <span class="metadata-label">所属路径：</span>
-            <span class="metadata-value">{{ getFilePath(material.minioPath)}}</span>
+            <span class="metadata-value">{{ getFilePath(material.minioPath) }}</span>
           </div>
           <div class="metadata-item">
             <span class="metadata-label">文件大小：</span>
@@ -63,7 +63,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- 标签信息 -->
       <h3 class="section-title">标签信息</h3>
       <div class="tags-section">
@@ -74,37 +74,43 @@
             <div class="tag-dimension">
               <span class="dimension-label">场景分类：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in autoTagForm.sceneCategory" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
+                <el-tag v-for="tag in autoTagForm.sceneCategory" :key="tag" size="small" type="primary"
+                  effect="plain">{{ tag }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">核心物体：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in autoTagForm.coreObjects" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
+                <el-tag v-for="tag in autoTagForm.coreObjects" :key="tag" size="small" type="primary" effect="plain">{{
+                  tag }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">活动事件：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in autoTagForm.activityEvent" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
+                <el-tag v-for="tag in autoTagForm.activityEvent" :key="tag" size="small" type="primary"
+                  effect="plain">{{ tag }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">文本信息：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in autoTagForm.textInfo" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
+                <el-tag v-for="tag in autoTagForm.textInfo" :key="tag" size="small" type="primary" effect="plain">{{ tag
+                }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">颜色色调：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in autoTagForm.colorTone" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
+                <el-tag v-for="tag in autoTagForm.colorTone" :key="tag" size="small" type="primary" effect="plain">{{
+                  tag }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">拍摄角度：</span>
               <div class="dimension-values">
-                <el-tag v-for="tag in autoTagForm.shootingAngle" :key="tag" size="small" type="primary" effect="plain">{{ tag }}</el-tag>
+                <el-tag v-for="tag in autoTagForm.shootingAngle" :key="tag" size="small" type="primary"
+                  effect="plain">{{ tag }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
@@ -117,7 +123,7 @@
             </div>
           </div>
         </div>
-        
+
         <!-- 人工标签 -->
         <div class="tag-category">
           <h3 class="section-title2">人工标签</h3>
@@ -161,7 +167,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- 操作按钮 -->
       <div class="actions-section">
         <el-button type="primary" @click="handleDownload" icon="Download">下载</el-button>
@@ -175,7 +181,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Document, Collection, ArrowLeft, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile } from "@/api/xcsc/uploadFile"
+import { getFileList } from "@/api/xcsc/uploadFile"
 
 const router = useRouter()
 const route = useRoute()
@@ -191,70 +197,70 @@ const material = reactive({
 })
 // 标注信息 - 标签信息（8个维度）
 const autoTagForm = reactive({
-    sceneCategory: '', // 场景分类
-    characterBehavior: '', // 人物行为
-    coreObjects: '', // 核心物体
-    activityEvent: '', // 活动事件
-    textInfo: '', // 文本信息
-    colorTone: '', // 颜色色调
-    shootingAngle: '', // 拍摄角度
-    materialDescription: '' // 素材描述
+  sceneCategory: '', // 场景分类
+  characterBehavior: '', // 人物行为
+  coreObjects: '', // 核心物体
+  activityEvent: '', // 活动事件
+  textInfo: '', // 文本信息
+  colorTone: '', // 颜色色调
+  shootingAngle: '', // 拍摄角度
+  materialDescription: '' // 素材描述
 })
 
 // 标注信息 - 基本信息（6个维度）
 const manualTagForm = reactive({
-    eventTime: '', // 事件时间
-    locationInfo: '', // 地点信息
-    personNames: '', // 人物姓名
-    buildingNames: '', // 建筑名称
-    relatedThemes: '', // 相关主题
-    properNouns: '' // 专有名词
+  eventTime: '', // 事件时间
+  locationInfo: '', // 地点信息
+  personNames: '', // 人物姓名
+  buildingNames: '', // 建筑名称
+  relatedThemes: '', // 相关主题
+  properNouns: '' // 专有名词
 })
 
 //获取自动标注信息
 function getAutoTags() {
-    let params = {
-        id: route.params.id,
-    }
-    getFileList(params).then(res => {
-        console.log('自动标注:', JSON.parse(res.data[0].annotationContent))
-        let resJson = JSON.parse(res.data[0].annotationContent)
-        autoTagForm.sceneCategory = resJson.sceneCategory || ''
-        autoTagForm.characterBehavior = resJson.characterBehavior || ''
-        autoTagForm.coreObjects = resJson.coreObjects || ''
-        autoTagForm.activityEvent = resJson.activityEvent || ''
-        autoTagForm.textInfo = resJson.textInfo || ''
-        autoTagForm.colorTone = resJson.colorTone || ''
-        autoTagForm.shootingAngle = resJson.shootingAngle || ''
-        autoTagForm.materialDescription = resJson.materialDescription || ''
-    })
+  let params = {
+    id: route.params.id,
+  }
+  getFileList(params).then(res => {
+    console.log('自动标注:', JSON.parse(res.data[0].annotationContent))
+    let resJson = JSON.parse(res.data[0].annotationContent)
+    autoTagForm.sceneCategory = resJson.sceneCategory || ''
+    autoTagForm.characterBehavior = resJson.characterBehavior || ''
+    autoTagForm.coreObjects = resJson.coreObjects || ''
+    autoTagForm.activityEvent = resJson.activityEvent || ''
+    autoTagForm.textInfo = resJson.textInfo || ''
+    autoTagForm.colorTone = resJson.colorTone || ''
+    autoTagForm.shootingAngle = resJson.shootingAngle || ''
+    autoTagForm.materialDescription = resJson.materialDescription || ''
+  })
 }
 getAutoTags()
 
 //获取人工标注信息
 function getManualTags() {
-    let params = {
-        id: route.params.id,
-    }
-    getFileList(params).then(res => {
-        console.log('人工标注:', res.data[0])
-        manualTagForm.eventTime = res.data[0].eventTime || ''
-        manualTagForm.locationInfo = res.data[0].locationInfo || ''
-        manualTagForm.personNames = res.data[0].personNames || ''
-        manualTagForm.buildingNames = res.data[0].buildingNames || ''
-        manualTagForm.relatedThemes = res.data[0].relatedThemes || ''
-        manualTagForm.properNouns = res.data[0].properNouns || ''
-    })
+  let params = {
+    id: route.params.id,
+  }
+  getFileList(params).then(res => {
+    console.log('人工标注:', res.data[0])
+    manualTagForm.eventTime = res.data[0].eventTime || ''
+    manualTagForm.locationInfo = res.data[0].locationInfo || ''
+    manualTagForm.personNames = res.data[0].personNames || ''
+    manualTagForm.buildingNames = res.data[0].buildingNames || ''
+    manualTagForm.relatedThemes = res.data[0].relatedThemes || ''
+    manualTagForm.properNouns = res.data[0].properNouns || ''
+  })
 }
-getManualTags() 
+getManualTags()
 
 //获取素材
-function getMaterial(){
+function getMaterial() {
   // debugger
   let params = {
     id: route.params.id,
   }
-  
+
   getFileList(params).then(res => {
     console.log('getFileList 响应:', res)
     console.log('getFileList 响应:', res.data[0].minioPath)
@@ -291,20 +297,20 @@ function getFileType(filePath) {
 }
 //获取文件路径
 function getFilePath(path) {
-    if (!path) return '';
-    const prefix = 'xcsc/';
-    const startIndex = path.indexOf(prefix) + prefix.length;
-    const result = path.substring(startIndex);
-    return result.replace("/" + material.fileName, "");
+  if (!path) return '';
+  const prefix = 'xcsc/';
+  const startIndex = path.indexOf(prefix) + prefix.length;
+  const result = path.substring(startIndex);
+  return result.replace("/" + material.fileName, "");
 }
 // 格式化文件大小
 const formatFileSize = (bytes) => {
   if (bytes === 0) return '0 Bytes';
-  
+
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
@@ -320,28 +326,28 @@ const formatFileSize = (bytes) => {
 // }
 // 获取文件类型文本
 const getFileTypeText = (filePath) => {
-    if (!filePath) return '未知类型';
+  if (!filePath) return '未知类型';
 
-    const dotIndex = filePath.lastIndexOf('.');
-    if (dotIndex === -1) return '其他';
-    const ext = filePath.substring(dotIndex + 1);
-    const typeMap = {
-        '图片': ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'svg', 'heic'],
-        '视频': ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm'],
-        '音频': ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'],
-        'PDF文档': ['pdf'],
-        'Word文档': ['doc', 'docx'],
-        'Excel文档': ['xls', 'xlsx'],
-        'PPT文档': ['ppt', 'pptx'],
-        '压缩文件': ['zip', 'rar', '7z', 'tar', 'gz'],
-        '文本': ['txt', 'md', 'csv', 'json', 'xml']
-    };
-    for (const [type, exts] of Object.entries(typeMap)) {
-        if (exts.includes(ext.toLowerCase())) {
-            return type;
-        }
+  const dotIndex = filePath.lastIndexOf('.');
+  if (dotIndex === -1) return '其他';
+  const ext = filePath.substring(dotIndex + 1);
+  const typeMap = {
+    '图片': ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'svg', 'heic'],
+    '视频': ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm'],
+    '音频': ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'],
+    'PDF文档': ['pdf'],
+    'Word文档': ['doc', 'docx'],
+    'Excel文档': ['xls', 'xlsx'],
+    'PPT文档': ['ppt', 'pptx'],
+    '压缩文件': ['zip', 'rar', '7z', 'tar', 'gz'],
+    '文本': ['txt', 'md', 'csv', 'json', 'xml']
+  };
+  for (const [type, exts] of Object.entries(typeMap)) {
+    if (exts.includes(ext.toLowerCase())) {
+      return type;
     }
-    return '其他';
+  }
+  return '其他';
 };
 // 返回上一页
 const handleBack = () => {
@@ -372,7 +378,7 @@ const handleDownload = async () => {
     const url = window.URL.createObjectURL(blob)
     // 设置下载属性
     link.href = url
-    link.download = material.fileName || getFileNameFromUrl(material.minioPath) || 'download_file' 
+    link.download = material.fileName || getFileNameFromUrl(material.minioPath) || 'download_file'
     // 隐藏链接
     link.style.display = 'none'
     // 添加到文档并触发点击
@@ -402,39 +408,39 @@ function getFileNameFromUrl(url) {
 
 // 获取自动标签
 // const getAutoTags = (type) => {
-  // // 直接从素材对象的tags属性中获取对应的分类标签
-  // const tags = material.value.tags || {}
-  
-  // // 映射类型到对应的标签分类
-  // const typeMap = {
-  //   'scene': tags.scene || [],
-  //   'objects': tags.objects || [],
-  //   'events': tags.events || [],
-  //   'text': tags.text || [],
-  //   'color': tags.color || [],
-  //   'angle': tags.angle || [],
-  //   'description': [material.value.category || '']
-  // }
-  
-  // return typeMap[type] || []
+// // 直接从素材对象的tags属性中获取对应的分类标签
+// const tags = material.value.tags || {}
+
+// // 映射类型到对应的标签分类
+// const typeMap = {
+//   'scene': tags.scene || [],
+//   'objects': tags.objects || [],
+//   'events': tags.events || [],
+//   'text': tags.text || [],
+//   'color': tags.color || [],
+//   'angle': tags.angle || [],
+//   'description': [material.value.category || '']
+// }
+
+// return typeMap[type] || []
 // }
 
 // 获取人工标签
 // const getManualTags = (type) => {
-  // // 直接从素材名称和现有标签中提取人工标签
-  // const name = material.value.name || ''
-  
-  // // 映射类型到对应的标签提取逻辑
-  // const typeMap = {
-  //   'time': name.includes('2025') ? ['2025'] : [],
-  //   'location': extractLocationTags(name),
-  //   'person': [],
-  //   'building': extractBuildingTags(name),
-  //   'theme': extractThemeTags(name),
-  //   'noun': extractNounTags(name)
-  // }
-  
-  // return typeMap[type] || []
+// // 直接从素材名称和现有标签中提取人工标签
+// const name = material.value.name || ''
+
+// // 映射类型到对应的标签提取逻辑
+// const typeMap = {
+//   'time': name.includes('2025') ? ['2025'] : [],
+//   'location': extractLocationTags(name),
+//   'person': [],
+//   'building': extractBuildingTags(name),
+//   'theme': extractThemeTags(name),
+//   'noun': extractNounTags(name)
+// }
+
+// return typeMap[type] || []
 // }
 
 // 提取地点标签
@@ -468,7 +474,7 @@ const getRealFileSize = async (fileUrl) => {
       method: 'HEAD',
       credentials: 'include'
     });
-    
+
     if (response.ok) {
       const contentLength = response.headers.get('Content-Length');
       if (contentLength) {
@@ -503,15 +509,15 @@ onMounted(async () => {
   // 从路由参数中获取素材ID
   const materialId = route.params.id
   console.log('获取素材ID:', materialId)
-  
+
   // 尝试从localStorage获取全局素材数据
   try {
     const globalMaterials = JSON.parse(localStorage.getItem('globalMaterials') || '[]')
     const selectedMaterial = globalMaterials.find(m => m.id === materialId)
-    
+
     if (selectedMaterial) {
       material.value = selectedMaterial
-      
+
       // 尝试获取文件真实大小和分辨率
       if (material.value.type === 'image') {
         // 对于图片，获取真实分辨率和大小
@@ -526,7 +532,7 @@ onMounted(async () => {
         const realFileSize = await getRealFileSize(material.value.thumbnail);
         material.value.fileSize = realFileSize;
       }
-      
+
       console.log('已获取文件真实信息:', material.value.name);
     } else {
       // 如果localStorage中没有，使用模拟数据（实际项目中应该从API获取）
@@ -561,7 +567,8 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-.image-preview, .video-preview {
+.image-preview,
+.video-preview {
   width: 100%;
   height: 100%;
   display: flex;
@@ -634,10 +641,14 @@ onMounted(async () => {
 
 .tags-section {
   margin-bottom: 24px;
-  max-height: 400px; /* 设置最大高度 */
-  overflow-y: auto; /* 添加垂直滚动条 */
-  scrollbar-width: thin; /* 细滚动条 */
-  scrollbar-color: #c0c4cc #f0f2f5; /* 滚动条颜色 */
+  max-height: 400px;
+  /* 设置最大高度 */
+  overflow-y: auto;
+  /* 添加垂直滚动条 */
+  scrollbar-width: thin;
+  /* 细滚动条 */
+  scrollbar-color: #c0c4cc #f0f2f5;
+  /* 滚动条颜色 */
 }
 
 .section-title {
@@ -646,6 +657,7 @@ onMounted(async () => {
   margin: 0 0 12px 0;
   font-size: 16px;
 }
+
 .section-title2 {
   font-size: 14px;
   font-weight: 600;

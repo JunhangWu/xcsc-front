@@ -6,9 +6,11 @@
         <img :src="material.minioPath" :alt="material.fileName" class="preview-image" />
       </div>
       <div v-else-if="getFileType(material.minioPath) === 'video'" class="video-preview">
-        <video :src="material.thumbnail" controls class="preview-video">
+        <!-- <video :src="material.thumbnail" controls class="preview-video">
           您的浏览器不支持视频播放
-        </video>
+        </video> -->
+        <video :src="material.minioPath" controls autoplay loop muted playsinline
+           style="max-width: 100%; max-height: 400px; width: auto; height: auto; display: block; object-fit: contain;"></video>
       </div>
       <div v-else class="file-preview">
         <el-icon class="file-icon">

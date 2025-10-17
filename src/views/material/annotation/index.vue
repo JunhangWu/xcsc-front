@@ -679,7 +679,10 @@ function downloadFile(material) {
 // 重置搜索，返回文件夹视图
 function resetSearch() {
   showSearchResults.value = false
-  // showFolder.value = true // 确保显示文件夹视图
+  if(curFolderObj.bizId == 0){
+    showFolder.value = true // 确保显示文件夹视图
+  }
+  
   searchKeyword.value = ''
   statusFilter.value = ''
   // breadcrumbData.value = [] // 清空面包屑数据

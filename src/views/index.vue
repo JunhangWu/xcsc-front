@@ -59,7 +59,7 @@
         <div class="filter-bar">
           <el-form :model="filterForm" inline>
             <el-form-item label="素材类型：">
-              <el-select v-model="filterForm.type" placeholder="请选择" clearable>
+              <el-select v-model="filterForm.type" placeholder="请选择" clearable style="width: 150px;">
                 <el-option label="图片" value="image" />
                 <el-option label="视频" value="video" />
                 <el-option label="文档" value="document" />
@@ -80,11 +80,11 @@
             </el-form-item>
             
             <el-form-item label="上传者：">
-              <el-input v-model="filterForm.uploader" placeholder="请输入上传者" clearable />
+              <el-input v-model="filterForm.uploader" placeholder="请输入上传者" clearable  style="width: 150px;"/>
             </el-form-item>
             
             <el-form-item label="素材标签：">
-              <el-input v-model="filterForm.tags" placeholder="请输入素材标签" clearable />
+              <el-input v-model="filterForm.tags" placeholder="请输入素材标签" clearable  style="width: 150px;"/>
             </el-form-item>
             
             <el-form-item>
@@ -100,8 +100,12 @@
         </div> -->
         <div class="pageTop">
           <div class="breadcrumbBox">
-            <!-- 返回到上一级 -->
-            <el-icon @click="backFolder" class="backBtn">
+            <!-- 返回到上一级 - 当不在'所有文件'或'我的收藏'界面时显示 -->
+            <el-icon 
+              v-if="breadcrumbData.length > 1 || (breadcrumbData.length === 1 && breadcrumbData[0].bizId !== 'all' && breadcrumbData[0].bizId !== 'favorite')" 
+              @click="backFolder" 
+              class="backBtn"
+            >
               <Back />
             </el-icon>
             <div class="breadcrumb">
@@ -179,13 +183,29 @@
               <div class="material-thumb">
                 <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
                   @click="handleMaterialClick(material)" />
-                <el-icon v-else-if="isVideo(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)" class="file-icon" @click="handleMaterialClick(material)" style="cursor:pointer;">
+                <!-- <el-icon v-else-if="isVideo(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)" class="file-icon" @click="handleMaterialClick(material)" style="cursor:pointer;">
                   <VideoPlay />
-                </el-icon>
+                </el-icon> -->
+                <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
+                  <el-icon class="file-icon">
+                    <VideoPlay />
+                  </el-icon>
+                  <video :src="material.minioPath" playsinline muted preload="metadata"
+                    style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                </div>
                 <el-icon v-else :src="material.minioPath" :alt="getFileName(material.minioPath)" class="file-icon" @click="handleMaterialClick(material)" style="cursor:pointer;">
                   <Document />
                 </el-icon>
                 <div class="fileName">{{ getFileName(material.minioPath) }}</div>
+                <el-button 
+                  type="primary" 
+                  size="small" 
+                  @click.stop="handleDownload(material)"
+                  class="download-btn"
+                  :icon="Download"
+                >
+                  下载
+                </el-button>
               </div>
             </div>
           </div>
@@ -197,7 +217,7 @@
 
         <!-- 分页栏 -->
         <div class="pagination">
-          <span class="pagination-info">显示 {{ pagination.start }} - {{ pagination.end }} 共 {{ filteredFiles }} 个文件</span>
+          <!-- <span class="pagination-info">显示 {{ pagination.start }} - {{ pagination.end }} 共 {{ filteredFiles }} 个项目</span> -->
           <el-pagination
             v-model:current-page="pagination.current"
             v-model:page-size="pagination.size"
@@ -270,7 +290,7 @@ function onSubFolderMouseLeave(item) {
 // 个人空间
 const personalSpace = ref([
   { id: 'all', name: '所有文件', icon: Folder },
-  { id: 'favorite', name: '我的收藏', icon: Star }
+  // { id: 'favorite', name: '我的收藏', icon: Star }
 ])
 
 // 当前选中的板块分类
@@ -565,47 +585,49 @@ const toggleFavorite = (event, material) => {
 }
 
 // 下载素材
-const handleDownload = (event, material) => {
-  event.stopPropagation() // 阻止事件冒泡，避免触发素材点击事件
-  
+// 处理下载
+const handleDownload = async (material) => {
+  if (!material.minioPath) {
+    ElMessage.warning('文件路径不存在，无法下载')
+    return
+  }
+  console.log('下载文件:', material.fileName)
   try {
-    // 检查素材是否有thumbnail属性作为下载路径
-    if (material.thumbnail) {
-      // 创建下载链接
-      const link = document.createElement('a')
-      
-      // 对于本地开发环境，直接使用素材路径
-      if (material.thumbnail.startsWith('/')) {
-        // 对于以/开头的路径，我们需要考虑实际部署的情况
-        // 在模拟环境中，我们使用相对路径
-        link.href = material.thumbnail
-      } else {
-        link.href = material.thumbnail
-      }
-      
-      // 设置下载属性
-      link.download = material.name
-      
-      // 添加到文档并触发点击
-      document.body.appendChild(link)
-      link.click()
-      
-      // 清理
-      document.body.removeChild(link)
-      
-      // 显示下载成功提示
-      ElMessage.success(`开始下载: ${material.name}`)
-      console.log('下载素材:', material.name, '路径:', material.thumbnail)
-    } else {
-      // 如果没有可下载的路径
-      ElMessage.error('该素材没有可下载的路径')
+    // 使用fetch API获取文件内容
+    const response = await fetch(material.minioPath, {
+      method: 'GET',
+      credentials: 'include' // 包含cookies等认证信息
+    })
+    if (!response.ok) {
+      throw new Error(`服务器响应错误: ${response.status}`)
     }
+    // 获取文件内容并创建Blob对象
+    const blob = await response.blob()
+    // 创建下载链接
+    const link = document.createElement('a')
+    // 创建指向Blob的URL
+    const url = window.URL.createObjectURL(blob)
+    // 设置下载属性
+    link.href = url
+    link.download = material.fileName || getFileNameFromUrl(material.minioPath) || 'download_file' 
+    // 隐藏链接
+    link.style.display = 'none'
+    // 添加到文档并触发点击
+    document.body.appendChild(link)
+    link.click()
+    // 延迟清理
+    setTimeout(() => {
+      // 移除链接
+      document.body.removeChild(link)
+      // 释放Blob URL
+      window.URL.revokeObjectURL(url)
+    }, 100)
+    ElMessage.success('文件下载已开始')
   } catch (error) {
-    console.error('下载素材失败:', error)
-    ElMessage.error('下载失败，请稍后重试')
+    console.error('文件下载失败:', error)
+    ElMessage.error('文件下载失败，请稍后重试')
   }
 }
-
 // 获取过滤后的素材列表
 const getFilteredMaterials = () => {
   let filtered = [...materials.value]
@@ -699,6 +721,11 @@ const groupedMaterials = computed(() => {
 const handleSpaceClick = (spaceId) => {
   activeSpace.value = spaceId
   activeCategory.value = '' // 清空板块分类选中状态
+  //禁用文件夹
+  showFolder.value = false
+  getFileList().then(res => {
+      fileListData.value = res.data
+    })
 }
 
 // 点击板块分类
@@ -727,7 +754,12 @@ const handleCategoryClick = (category) => {
 const handleQuery = () => {
   pagination.current = 1
   // 这里可以添加实际的查询逻辑
-  console.log('执行查询:', filterForm)
+  let params = {
+    spaceId: activeSpace.value,
+    category: activeCategory.value,
+    ...filterForm
+  }
+  console.log('执行查询:', params)
 }
 
 // 重置表单
@@ -839,9 +871,7 @@ let syncInterval = null
 
 onMounted(() => {
   console.log('首页加载完成')
-  
-  
-  
+
   // 从localStorage获取已标注的素材
   fetchCompletedMaterials()
   
@@ -850,6 +880,8 @@ onMounted(() => {
   
   // 设置定时同步（每2秒一次）
   syncInterval = setInterval(syncMaterials, 2000000)
+
+  handleSpaceClick('all')
 })
 
 // 路由更新时同步
@@ -1013,8 +1045,8 @@ onBeforeUnmount(() => {
   background: #fff;
   
   .filter-bar {
-    margin-bottom: 20px;
-    padding: 20px;
+    // margin-bottom: 20px;
+    padding: 10px;
     background: #f8f9fa;
     border-radius: 8px;
     
@@ -1128,19 +1160,29 @@ onBeforeUnmount(() => {
   //   gap: 10px;
   // }
 
-  .favorite-btn,
-  .download-btn {
+  .favorite-btn {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
   }
+  
+  .download-btn {
+    width: 80px !important;
+    height: 28px !important;
+    padding: 0 !important;
+    font-size: 12px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+  }
 }
 .subFolder {
   position: relative;
   aspect-ratio: 1 / 1;
-  width: 180px;
-  height: 160px;
+  width: 260px;
+  height: 200px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1209,13 +1251,13 @@ onBeforeUnmount(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
+  margin-top: 20px;
 }
 .material-item {
   margin: 0;
   position: relative;
-  aspect-ratio: 1 / 1;
-  width: 180px;
-  height: 160px;
+  width: 260px;
+  height: 220px;
   border-radius: 8px;
   transition: all 0.3s ease;
   display: block;
@@ -1231,14 +1273,15 @@ onBeforeUnmount(() => {
 
   .material-thumb {
     width: 100%;
-    height: calc(100% - 36px);
-    margin-top: 36px;
+    height: calc(100% - 16px);
+    margin-top: 6px;
     z-index: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    flex: 1;
 
     img {
       width: 90%;
@@ -1248,7 +1291,26 @@ onBeforeUnmount(() => {
       cursor: pointer;
       margin-bottom: 8px;
     }
+    .videoBox {
+      cursor: pointer;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+      padding: 0;
 
+      .file-icon {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 2;
+        font-size: 36px;
+        color: #ffffff;
+        pointer-events: none;
+      }
+    }
     .file-icon {
       font-size: 36px;
       color: #909399;
@@ -1260,10 +1322,27 @@ onBeforeUnmount(() => {
       font-size: 12px;
       color: #606266;
       padding: 0 8px;
+      margin-bottom: 8px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      // display: -webkit-box;
+      // -webkit-line-clamp: 2;
+      // -webkit-box-orient: vertical;
+      // line-height: 1.3;
+      // height: 30px;
       max-width: 100%;
+    }
+    
+    .download-btn {
+      width: 80px !important;
+      height: 28px !important;
+      padding: 0 !important;
+      font-size: 12px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      margin: 0 auto;
     }
   }
 }
@@ -1313,7 +1392,7 @@ onBeforeUnmount(() => {
   background: #ffffff;
   border-radius: 8px 8px 0 0;
   border-bottom: 1px solid #e4e7ed;
-  margin-top: 16px;
+  // margin-top: 16px;
 
   .breadcrumbBox {
     display: flex;
@@ -1401,8 +1480,7 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 
-.favorite-btn,
-.download-btn {
+.favorite-btn {
   flex: 1;
   display: flex;
   align-items: center;

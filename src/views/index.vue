@@ -38,7 +38,6 @@
               <el-option label="图片" value="image" />
               <el-option label="视频" value="video" />
               <el-option label="文档" value="document" />
-              <el-option label="PPT" value="ppt" />
             </el-select>
           </el-form-item>
 
@@ -93,7 +92,8 @@
         <div v-if="loading" class="loading-container">
           <el-loading-text>正在加载素材...</el-loading-text>
         </div>
-        <div v-else-if="folderData.length == 0 && fileListData.length == 0" class="empty-state">
+        <div v-else-if="folderData.length == 0 && fileListData.length == 0 && Object.keys(allFileListData).length == 0"
+          class="empty-state">
           <el-empty description="暂无内容" />
         </div>
         <div v-else class="material-grid">
@@ -106,10 +106,11 @@
             <div class="subFolderName">{{ item.filePath }}</div>
           </div>
           <!-- 文件列表 -所有文件 -->
-          <div class="allFileList">
-            <div class="everydayBox" v-for="(everydayData, index) in allFileListData" :key="index">
-              <div class="date">{{ everydayData }}</div>
-              <!-- <div v-for="material in fileListData" :key="material.id" class="material-item">
+          <div class="allFileList" v-if="activeSpace == 'all'">
+            <div class="everydayBox" v-for="(everydayData, index) in Object.keys(allFileListData)" :key="index">
+              <div class="date" style=" font-size: 16px;font-weight: 600;color: #303133;padding: 10px 0;border-bottom: 1px solid #ebeef5;width: 100%; margin-bottom: 16px;
+              ">{{ everydayData }}</div>
+              <div v-for="material in allFileListData[everydayData]" :key="material.id" class="material-item">
                 <div class="material-thumb">
                   <img v-if="isImage(material.minioPath)" :src="material.minioPath"
                     :alt="getFileName(material.minioPath)" @click="handleMaterialClick(material)" />
@@ -130,7 +131,7 @@
                     下载
                   </el-button>
                 </div>
-              </div> -->
+              </div>
             </div>
           </div>
           <!-- 文件列表 -->
@@ -193,6 +194,7 @@ function onSubFolderMouseLeave(item) {
 }
 
 
+
 // 当前选中的板块分类
 const activeCategory = ref('')
 // const categories = ref([
@@ -249,8 +251,12 @@ function getFolderData(pid) {
   if (pid !== 0) {
     let param = {
       folderId: pid,
+      fileTypeList: fileTypeObj[filterForm.fileType] || null,
+      createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
+      createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
+      createBy: filterForm.createBy,
+      annotationContent: filterForm.annotationContent,
     }
-    console.log('===params===', params);
     getFileList(param).then(res => {
       fileListData.value = res.data
     })
@@ -320,21 +326,6 @@ const backFolder = () => {
   console.log('===breadcrumbData.value===', breadcrumbData.value);
 }
 
-// 获取文件列表数据
-const queryfileListData = ref([])//文件列表
-function getQueryData() {
-  loading.value = true
-  let params = {
-    fileName: searchKeyword.value,
-    annotationStatus: statusFilter.value,
-  }
-  getFileList(params).then(res => {
-    queryfileListData.value = res.data
-    showSearchResults.value = true // 显示搜索结果
-  }).finally(() => {
-    loading.value = false
-  })
-}
 
 // 筛选表单
 const filterForm = reactive({
@@ -452,19 +443,38 @@ const handleSpaceClick = (spaceId) => {
 
 // 获取所有文件
 const allFileListData = reactive({})//文件列表
+let fileTypeObj = {
+  'image': ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'svg', 'heic'],
+  'video': ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm'],
+  'document': ['doc', 'docx', 'xls', 'xlsx', 'pdf', 'pptx', 'zip', 'rar', '7z', 'tar', 'gz', 'txt', 'md', 'csv', 'json', 'xml'],
+}
 function getALlFileListData() {
   let params = {
-    fileType: filterForm.fileType,
-    createStartTime: filterForm.dateRange[0] + ' 00:00:00',
-    createEndTime: filterForm.dateRange[1] + ' 23:59:59',
+    fileTypeList: fileTypeObj[filterForm.fileType] || null,
+    createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
+    createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
     createBy: filterForm.createBy,
     annotationContent: filterForm.annotationContent,
   }
+  // 如果filterForm.dateRange是空的，默认获取近30天的开始时间和结束时间
+  if (filterForm.dateRange.length === 0) {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - 30);
+    const formatDate = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    filterForm.dateRange = [formatDate(startDate), formatDate(endDate)];
+  }
+
   console.log('执行查询:', params)
   getFileIndexList(params).then(res => {
     // 删除所有 key
     Object.keys(allFileListData).forEach(key => {
-      delete obj[key];
+      delete allFileListData[key];
     });
     Object.assign(allFileListData, res.data)
   })
@@ -495,18 +505,27 @@ const handleQuery = () => {
   if (activeSpace.value == 'all') {
     folderData.value = [] // 不展示文件夹
     getALlFileListData()
+  } else {
+    const pid = getCategoryPid(activeCategory.value)
+    getFolderData(pid)
   }
 }
 
 // 重置表单
 const handleReset = () => {
   Object.assign(filterForm, {
-    type: '',
+    fileType: '',
     dateRange: [],
-    uploader: '',
-    tags: ''
+    createBy: '',
+    annotationContent: ''
   })
-  getALlFileListData()
+  if (activeSpace.value == 'all') {
+    folderData.value = [] // 不展示文件夹
+    getALlFileListData()
+  } else {
+    const pid = getCategoryPid(activeCategory.value)
+    getFolderData(pid)
+  }
 }
 
 // AI搜索
@@ -542,50 +561,7 @@ const isSupportedFormat = (filename) => {
   const ext = filename.split('.').pop().toLowerCase()
   return Object.values(supportedFormats).flat().includes(ext)
 }
-//同步素材数据
-const syncMaterials = () => {
-  try {
-    console.log('执行素材同步...')
 
-    // 检查是否有待同步的素材
-    const needSync = localStorage.getItem('materialsNeedSync') === 'true'
-    console.log('是否需要同步:', needSync)
-
-    // 双向同步: 从localStorage获取数据并更新到本地，同时将本地数据保存到localStorage
-    // 1. 从localStorage获取数据更新到本地
-    if (needSync || true) { // 暂时强制同步，便于调试
-      // 从本地存储获取全局素材数据
-      const globalMaterials = JSON.parse(localStorage.getItem('globalMaterials') || '[]')
-      console.log('从localStorage获取的素材数量:', globalMaterials.length)
-
-      if (globalMaterials && globalMaterials.length > 0) {
-        // 更新现有素材的状态并添加新素材
-        globalMaterials.forEach(material => {
-          const existingIndex = materials.value.findIndex(m => m.id === material.id)
-          if (existingIndex !== -1) {
-            // 更新现有素材的所有属性
-            materials.value[existingIndex] = { ...materials.value[existingIndex], ...material }
-            console.log('更新素材数据:', material.name)
-          } else {
-            // 添加新素材
-            materials.value.push(material)
-            console.log('添加新素材:', material.name, '分类:', material.category)
-          }
-        })
-        // 清除同步标记
-        localStorage.removeItem('materialsNeedSync')
-        console.log('从localStorage同步完成，当前素材总数:', materials.value.length)
-      }
-    }
-
-    // 2. 将本地数据保存到localStorage
-    // localStorage.setItem('globalMaterials', JSON.stringify(materials.value))
-    // console.log('本地素材数据已同步到localStorage')
-
-  } catch (error) {
-    console.error('同步素材数据失败:', error)
-  }
-}
 
 // 定时检查同步（每5秒）
 let syncInterval = null
@@ -593,21 +569,9 @@ let syncInterval = null
 onMounted(() => {
   console.log('首页加载完成')
 
-
-
-  // 初始同步
-  syncMaterials()
-
-  // 设置定时同步（每2秒一次）
-  syncInterval = setInterval(syncMaterials, 2000000)
-
   handleSpaceClick('all')
 })
 
-// 路由更新时同步
-onBeforeRouteUpdate(() => {
-  syncMaterials()
-})
 
 // 组件卸载时清除定时器
 onBeforeUnmount(() => {
@@ -890,6 +854,30 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: 16px;
   margin-top: 16px;
+}
+
+.allFileList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+
+  .everydayBox {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 16px;
+
+    .date {
+      font-size: 14px;
+      color: #606266;
+      padding: 0 8px;
+      margin-bottom: 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+  }
 }
 
 .material-item {

@@ -135,8 +135,8 @@
             </div>
           </div>
           <!-- 文件列表 -->
-          <div v-for="material in fileListData" :key="material.id" class="material-item">
-            <div class="material-thumb" v-if="activeSpace !== 'all'">
+          <div v-for="material in fileListData" :key="material.id" class="material-item" v-else>
+            <div class="material-thumb">
               <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
                 @click="handleMaterialClick(material)" />
               <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
@@ -157,7 +157,6 @@
               </el-button>
             </div>
           </div>
-
         </div>
       </div>
     </div>

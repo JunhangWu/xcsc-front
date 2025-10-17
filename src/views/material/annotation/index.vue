@@ -56,19 +56,13 @@
           </div>
           <div v-else class="material-grid">
             <!-- 搜索结果文件列表 -->
-            <div v-for="material in queryfileListData" :key="material.id" class="material-item">
-              <div class="material-info">
-                <div class="material-status">
-                  <el-tag :type="getStatusTagType(material.annotationStatus)" size="small">
-                    {{ getStatusText(material.annotationStatus) }}
-                  </el-tag>
-                </div>
-                <div class="material-actions">
-                  <el-button type="primary" size="small" @click.stop="showMaterialDetail(material)" icon="Edit">
-                    标注
-                  </el-button>
-                </div>
-              </div>
+            <div v-for="material in queryfileListData" :key="material.id" class="material-item"
+              @mouseenter="onSubFolderMouseEnter(material)" @mouseleave="onSubFolderMouseLeave(material)">
+                <span class="subFolder-actions">
+                  <el-icon class="action-icon" @click.stop="deleteFile(material)" v-show="material._hover" style="color: #f56c6c;">
+                    <Delete />
+                  </el-icon>
+                </span>
               <div class="material-thumb">
                 <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
                   @click="previewImg(material)" />
@@ -77,12 +71,33 @@
                     <VideoPlay />
                   </el-icon>
                   <video :src="material.minioPath" playsinline muted preload="metadata"
-                    style="max-width: 90%; max-height: 70%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                    style="max-width: 95%; max-height: 95%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
                 </div>
                 <el-icon v-else class="file-icon" @click="downloadFile(material)" style="cursor:pointer;">
                   <Document />
                 </el-icon>
-                <div class="fileName">{{ getFileName(material.minioPath) }}</div>
+              </div>
+              
+              <div class="material-details">
+                <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
+                <div class="file-status">
+                  <el-tag :type="getStatusTagType(material.annotationStatus)" size="medium">
+                    {{ getStatusText(material.annotationStatus) }}
+                  </el-tag>
+                </div>
+                <!-- <div class="file-info">
+                  <span class="file-size">大小: {{ formatFileSize(material.fileSize) }}</span>
+                  <span class="file-type">类型: {{ getFileType(material.minioPath) }}</span>
+                  <span class="upload-time">上传时间: {{ formatDate(material.createTime) }}</span>
+                </div> -->
+              </div>
+              
+              <div class="material-actions">
+                <el-button type="primary" size="small" @click.stop="showMaterialDetail(material)" icon="Edit">
+                  标注
+                </el-button>
+                <!-- <el-button type="danger" size="small" @click.stop="deleteFile(material)" icon="Delete" style="margin-left: 8px;">
+                </el-button> -->
               </div>
             </div>
           </div>
@@ -152,25 +167,13 @@
               <div class="subFolderName">{{ item.filePath }}</div>
             </div>
             <!-- 文件列表 -->
-            <div v-for="material in fileListData" :key="material.id" class="material-item">
-              <div class="material-info">
-                <div class="material-status">
-                  <!-- 待标注:0  AI标注:1  人工修改:2-->
-                  <el-tag :type="getStatusTagType(material.annotationStatus)" size="small">
-                    {{ getStatusText(material.annotationStatus) }}
-                  </el-tag>
-                </div>
-                <div class="material-actions">
-                  <el-button type="primary" size="small" @click.stop="showMaterialDetail(material)" icon="Edit">
-                    标注
-                  </el-button>
-                </div>
-                <div class="material-actions">
-                  <el-button type="danger" size="small" @click.stop="deleteFile(material)" icon="Delete">
-                  </el-button>
-                </div>
-              </div>
-
+            <div v-for="material in fileListData" :key="material.id" class="material-item"
+              @mouseenter="onSubFolderMouseEnter(material)" @mouseleave="onSubFolderMouseLeave(material)">
+                <span class="subFolder-actions">
+                  <el-icon class="action-icon" @click.stop="deleteFile(material)" v-show="material._hover" style="color: #f56c6c;">
+                    <Delete />
+                  </el-icon>
+                </span>
               <div class="material-thumb">
                 <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
                   @click="previewImg(material)" />
@@ -179,12 +182,34 @@
                     <VideoPlay />
                   </el-icon>
                   <video :src="material.minioPath" playsinline muted preload="metadata"
-                    style="max-width: 90%; max-height: 70%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                    style="max-width: 95%; max-height: 95%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
                 </div>
                 <el-icon v-else class="file-icon" @click="downloadFile(material)" style="cursor:pointer;">
                   <Document />
                 </el-icon>
-                <div class="fileName">{{ getFileName(material.minioPath) }}</div>
+              </div>
+              
+              <div class="material-details">
+                <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
+                <div class="file-status">
+                  <!-- 待标注:0  AI标注:1  人工修改:2-->
+                  <el-tag :type="getStatusTagType(material.annotationStatus)" size="medium">
+                    {{ getStatusText(material.annotationStatus) }}
+                  </el-tag>
+                </div>
+                <!-- <div class="file-info">
+                  <span class="file-size">{{ formatFileSize(material.fileSize) }}</span>
+                  <span class="file-type">类型: {{ getFileType(material.minioPath) }}</span>
+                  <span class="upload-time">上传时间: {{ formatDate(material.createTime) }}</span>
+                </div> -->
+              </div>
+              
+              <div class="material-actions">
+                <el-button type="primary" size="small" @click.stop="showMaterialDetail(material)" icon="Edit">
+                  标注
+                </el-button>
+                <!-- <el-button type="danger" size="small" @click.stop="deleteFile(material)" icon="Delete" style="margin-left: 8px;">
+                </el-button> -->
               </div>
 
             </div>
@@ -301,7 +326,7 @@ function clickBreadcrumb(item, index) {
     breadcrumbData.value = breadcrumbData.value.slice(0, idx + 1)
   }
 }
-//返回按钮
+// 返回按钮
 const backFolder = () => {
 
   if (breadcrumbData.value.length == 1) {
@@ -476,11 +501,33 @@ function isImage(path) {
 function isVideo(path) {
   return ['mp4', 'mov', 'avi', 'mkv', 'flv'].some(ext => path.toLowerCase().includes(ext));
 }
-//获取文件名
+// 获取文件名
 function getFileName(path) {
   if (!path) return '';
   const idx = path.lastIndexOf('/');
   return idx !== -1 ? path.substring(idx + 1) : path;
+}
+
+// 格式化文件大小
+function formatFileSize(bytes) {
+  if (!bytes) return '未知';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+// 获取文件类型
+function getFileType(path) {
+  if (!path) return '未知';
+  const idx = path.lastIndexOf('.');
+  return idx !== -1 ? path.substring(idx + 1).toUpperCase() : '未知';
+}
+
+// 格式化日期
+function formatDate(dateStr) {
+  if (!dateStr) return '未知';
+  const date = new Date(dateStr);
+  return date.getFullYear() + '/' + String(date.getMonth() + 1).padStart(2, '0') + '/' + String(date.getDate()).padStart(2, '0');
 }
 // 检查文件格式是否支持
 const isSupportedFormat = (filename) => {
@@ -706,6 +753,37 @@ function showMaterialDetail(material) {
 </script>
 
 <style scoped lang="scss">
+.subFolder-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+}
+
+.action-icon {
+  font-size: 18px;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.2s, transform 0.2s;
+  background-color: #ffffff;
+  border-radius: 50%;
+  padding: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-icon:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.material-item {
+  position: relative;
+}
+
 .folderBox {
   display: flex;
   flex-wrap: wrap;
@@ -720,8 +798,8 @@ function showMaterialDetail(material) {
   .folderItem {
     margin: 8px;
     aspect-ratio: 1 / 1;
-    width: 160px;
-    height: 160px;
+    width: 250px;
+    height: 250px;
     cursor: pointer;
     display: flex;
     flex-direction: column;
@@ -732,7 +810,7 @@ function showMaterialDetail(material) {
     border: 1px solid transparent;
 
     :deep(.el-icon) {
-      font-size: 80px;
+      font-size: 120px;
       font-weight: 500;
       color: #ffd45e;
       margin-bottom: 8px;
@@ -740,7 +818,7 @@ function showMaterialDetail(material) {
 
     .folderName {
       text-align: center;
-      font-size: 14px;
+      font-size: 16px;
       color: #303133;
       padding: 0 8px;
       overflow: hidden;
@@ -863,8 +941,8 @@ function showMaterialDetail(material) {
 .subFolder {
   position: relative;
   aspect-ratio: 1 / 1;
-  width: 180px;
-  height: 160px;
+  width: 250px;
+  height: 250px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -875,7 +953,7 @@ function showMaterialDetail(material) {
   background: #fafafa;
 
   :deep(.el-icon) {
-    font-size: 80px;
+    font-size: 120px;
     font-weight: 500;
     color: #ffd45e;
     margin-bottom: 8px;
@@ -920,7 +998,7 @@ function showMaterialDetail(material) {
 
   .subFolderName {
     text-align: center;
-    font-size: 14px;
+    font-size: 16px;
     color: #303133;
     padding: 0 8px;
     overflow: hidden;
@@ -931,42 +1009,44 @@ function showMaterialDetail(material) {
 }
 
 .material-item {
-  margin: 0;
-  position: relative;
-  aspect-ratio: 1 / 1;
-  width: 180px;
-  height: 160px;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-  display: block;
-  background: #ffffff;
-  border: 1px solid #ebeef5;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    margin: 0;
+    position: relative;
+    width: 250px;
+    height: 250px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    border: 1px solid #ebeef5;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
 
-  &:hover {
-    border-color: #409eff;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
+    &:hover {
+      border-color: #409eff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
 
   .material-thumb {
+    // flex: 2;
     width: 100%;
-    height: calc(100% - 36px);
-    margin-top: 36px;
-    z-index: 1;
+    height: 220px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    background: #f5f7fa;
+    // position: relative;
 
     img {
-      width: 90%;
-      height: 70%;
-      object-fit: contain;
+      width: 95%;
+      height: 95%;
+      // object-fit: cover;
+      contain: content;
       transition: transform 0.3s;
       cursor: pointer;
-      margin-bottom: 8px;
     }
 
     .videoBox {
@@ -975,6 +1055,14 @@ function showMaterialDetail(material) {
       display: flex;
       align-items: center;
       justify-content: center;
+      width: 100%;
+      height: 100%;
+
+      video {
+        width: 100%;
+        height: 100%;
+        // object-fit: contain;
+      }
 
       .file-icon {
         position: absolute;
@@ -982,63 +1070,61 @@ function showMaterialDetail(material) {
         top: 50%;
         transform: translate(-50%, -50%);
         z-index: 2;
-        font-size: 36px;
+        font-size: 48px;
         color: #ffffff;
         pointer-events: none;
+        background: rgba(0, 0, 0, 0.5);
+        border-radius: 50%;
+        padding: 8px;
       }
     }
 
     .file-icon {
-      font-size: 36px;
+      font-size: 64px;
       color: #909399;
+    }
+  }
+
+  .material-details {
+      // flex: 1;
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    
+    .file-status {
       margin-bottom: 8px;
     }
 
-    .fileName {
-      text-align: center;
-      font-size: 12px;
-      color: #606266;
-      padding: 0 8px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      max-width: 100%;
-    }
+  .fileName {
+    font-size: 16px;
+    font-weight: 500;
+    color: #303133;
+    margin-bottom: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
   }
-}
 
-.material-info {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 36px;
-  z-index: 2;
-  background: #f8f9fa;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 8px;
-  border-bottom: 1px solid #ebeef5;
-  border-radius: 8px 8px 0 0;
-
-  .material-status {
+  .file-info {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: #909399;
   }
 
   .material-actions {
-    display: flex;
-    align-items: center;
-  }
-
-  .material-del {
-    display: flex;
-    align-items: center;
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+    margin-top: -4px;
   }
 
   :deep(.el-button) {
-    padding: 4px 10px;
+    padding: 6px 8px;
     font-size: 12px;
     height: 24px;
   }
@@ -1079,12 +1165,14 @@ function showMaterialDetail(material) {
 
 /* 适配不同屏幕尺寸 */
 @media screen and (max-width: 1200px) {
-
-  .folderItem,
-  .subFolder,
-  .material-item {
+  .subFolder {
     width: 120px;
     height: 120px;
+  }
+  
+  .material-item {
+    width: 250px;
+    height: 240px;
   }
 }
 
@@ -1111,10 +1199,16 @@ function showMaterialDetail(material) {
   }
 
   .folderItem,
-  .subFolder,
-  .material-item {
+  .subFolder {
     width: 100px;
     height: 100px;
+  }
+  
+  .material-item {
+    width: 100%;
+    max-width: 280px;
+    height: 260px;
+    margin: 0 auto;
   }
 
   :deep(.el-icon) {

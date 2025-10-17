@@ -53,7 +53,6 @@
                                 <span class="metadata-label">分辨率：</span>
                                 <span class="metadata-value">{{ currentMaterial.fileResolution }}</span>
                             </div>
-
                         </div>
                     </div>
                 </div>
@@ -463,7 +462,7 @@ defineExpose({
         margin-bottom: 20px; // 增加与标注区域的间距
 
         .material-preview {
-            flex: 2;
+            flex: 3;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -473,7 +472,7 @@ defineExpose({
 
             .preview-image {
                 max-width: 100%;
-                max-height: 400px;
+                max-height: 500px;
                 object-fit: contain;
             }
 
@@ -490,9 +489,52 @@ defineExpose({
         }
 
         .material-basic-info {
-            // 可以添加素材信息区域的样式
             flex: 1;
-            padding: 10px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            display: flex;
+            flex-direction: column;
+            
+            .material-title {
+                margin: 0 0 16px 0;
+                font-size: 18px;
+                font-weight: 600;
+                color: #2c3e50;
+                line-height: 1.4;
+                word-break: break-word;
+            }
+            
+            .metadata-section {
+                flex: 1;
+                
+                .metadata-grid {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                }
+                
+                .metadata-item {
+                    display: flex;
+                    align-items: flex-start;
+                    line-height: 1.5;
+                    
+                    .metadata-label {
+                        font-weight: 500;
+                        color: #606266;
+                        min-width: 80px;
+                        flex-shrink: 0;
+                    }
+                    
+                    .metadata-value {
+                        color: #303133;
+                        font-size: 14px;
+                        flex: 1;
+                        word-break: break-word;
+                    }
+                }
+            }
         }
     }
 

@@ -60,60 +60,36 @@
           </el-form-item>
         </el-form>
       </div>
-
-      <!-- 文件信息区 -->
-      <!-- <div class="file-info">
-          <span>共 {{ filteredFiles }} 个文件</span>
-        </div> -->
-      <div class="pageTop">
-        <div class="breadcrumbBox">
-          <!-- 返回到上一级 - 当不在'所有文件'或'我的收藏'界面时显示 -->
-          <el-icon
-            v-if="breadcrumbData.length > 1 || (breadcrumbData.length === 1 && breadcrumbData[0].bizId !== 'all' && breadcrumbData[0].bizId !== 'favorite')"
-            @click="backFolder" class="backBtn">
-            <Back />
-          </el-icon>
-          <div class="breadcrumb">
-            <!-- 文件夹面包屑 -->
-            <div class="breadcrumbItem" v-for="(item, index) in breadcrumbData" :key="index">
-              <div class="breadcrumbName" @click="clickBreadcrumb(item, index)"> {{ item.filePath }}</div>
-              <div class="breadcrumbArrow" v-if="index < breadcrumbData.length - 1">
-                <el-icon>
-                  <ArrowRight />
-                </el-icon>
-              </div>
+      <!-- 搜索结果展示区域 -->
+      <div class="card" v-if="showSearchResults">
+        <div class="pageTop">
+          <div class="breadcrumbBox">
+            <el-button type="primary" plain @click="resetSearch" size="default" style="margin-right: 20px;">
+              <el-icon style="margin-right: 6px;">
+                <Back />
+              </el-icon>返回文件夹视图
+            </el-button>
+            <div class="search-result-info">
+              搜索结果：共 {{ queryfileListData.length }} 个文件
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- 素材列表区 -->
-      <div class="material-list">
-        <div v-if="loading" class="loading-container">
-          <el-loading-text>正在加载素材...</el-loading-text>
-        </div>
-        <div v-else-if="folderData.length == 0 && fileListData.length == 0 && Object.keys(allFileListData).length == 0"
-          class="empty-state">
-          <el-empty description="暂无内容" />
-        </div>
-        <div v-else class="material-grid">
-          <!-- 文件夹列表 -->
-          <div class="subFolder" v-for="(item, index) in folderData" :key="index"
-            @mouseenter="onSubFolderMouseEnter(item)" @mouseleave="onSubFolderMouseLeave(item)">
-            <el-icon @click="selectFolder(item)">
-              <FolderOpened />
-            </el-icon>
-            <div class="subFolderName">{{ item.filePath }}</div>
-          </div>
-          <!-- 文件列表 -所有文件 -->
-          <div class="allFileList" v-if="activeSpace == 'all'">
-            <div class="everydayBox" v-for="(everydayData, index) in Object.keys(allFileListData)" :key="index">
-              <div class="date" style=" font-size: 16px;font-weight: 600;color: #303133;padding: 10px 0;border-bottom: 1px solid #ebeef5;width: 100%; margin-bottom: 16px;
-              ">{{ everydayData }}</div>
-              <div v-for="material in allFileListData[everydayData]" :key="material.id" class="material-item">
+        <div class="card-body">
+          <!-- 搜索结果 - 网格视图 -->
+          <div class="material-list">
+            <div v-if="loading" class="loading-container">
+              <el-loading-text>正在加载搜索结果...</el-loading-text>
+            </div>
+            <div v-else-if="queryfileListData.length == 0" class="empty-state">
+              <el-empty description="未找到匹配的文件" />
+            </div>
+            <div v-else class="material-grid">
+              <!-- 搜索结果文件列表 -->
+              <div v-for="material in queryfileListData" :key="material.id" class="material-item">
                 <div class="material-thumb">
-                  <img v-if="isImage(material.minioPath)" :src="material.minioPath"
-                    :alt="getFileName(material.minioPath)" @click="handleMaterialClick(material)" />
+                  <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
+                    @click="handleMaterialClick(material)" />
                   <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
                     <el-icon class="file-icon">
                       <VideoPlay />
@@ -125,7 +101,81 @@
                     @click="handleMaterialClick(material)" style="cursor:pointer;">
                     <Document />
                   </el-icon>
-                  <div class="fileName">{{ getFileName(material.minioPath) }}</div>
+                </div>
+                <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
+                <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
+                  :icon="Download">
+                  下载
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>  
+      <!-- 文件信息区 -->
+      <div class="card" v-else-if="!showSearchResults">
+        <div class="pageTop" v-if="activeSpace !== 'all'">
+          <div class="breadcrumbBox">
+            <!-- 返回到上一级 - 当不在'所有文件'或'我的收藏'界面时显示 -->
+            <el-icon
+              v-if="breadcrumbData.length > 1 || (breadcrumbData.length === 1 && breadcrumbData[0].bizId !== 'all' && breadcrumbData[0].bizId !== 'favorite')"
+              @click="backFolder" class="backBtn">
+              <Back />
+            </el-icon>
+            <div class="breadcrumb">
+              <!-- 文件夹面包屑 -->
+              <div class="breadcrumbItem" v-for="(item, index) in breadcrumbData" :key="index">
+                <div class="breadcrumbName" @click="clickBreadcrumb(item, index)"> {{ item.filePath }}</div>
+                <div class="breadcrumbArrow" v-if="index < breadcrumbData.length - 1">
+                  <el-icon>
+                    <ArrowRight />
+                  </el-icon>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 素材列表区 -->
+        <div class="material-list">
+          <div v-if="loading" class="loading-container">
+            <el-loading-text>正在加载素材...</el-loading-text>
+          </div>
+          <div v-else-if="folderData.length == 0 && fileListData.length == 0 && Object.keys(allFileListData).length == 0"
+            class="empty-state">
+            <el-empty description="暂无内容" />
+          </div>
+          <div v-else class="material-grid">
+            <!-- 文件夹列表 -->
+            <div class="subFolder" v-for="(item, index) in folderData" :key="index"
+              @mouseenter="onSubFolderMouseEnter(item)" @mouseleave="onSubFolderMouseLeave(item)">
+              <el-icon @click="selectFolder(item)">
+                <FolderOpened />
+              </el-icon>
+              <div class="subFolderName">{{ item.filePath }}</div>
+            </div>
+            <!-- 文件列表 -所有文件 -->
+            <div class="allFileList" v-if="activeSpace == 'all'">
+              <div class="everydayBox" v-for="(everydayData, index) in Object.keys(allFileListData)" :key="index">
+                <div class="date" style=" font-size: 16px;font-weight: 600;color: #303133;padding: 10px 0;border-bottom: 1px solid #ebeef5;width: 100%; margin-bottom: 16px;
+                ">{{ everydayData }}</div>
+                <div v-for="material in allFileListData[everydayData]" :key="material.id" class="material-item">
+                  <div class="material-thumb">
+                    <img v-if="isImage(material.minioPath)" :src="material.minioPath"
+                      :alt="getFileName(material.minioPath)" @click="handleMaterialClick(material)" />
+                    <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
+                      <el-icon class="file-icon">
+                        <VideoPlay />
+                      </el-icon>
+                      <video :src="material.minioPath" playsinline muted preload="metadata"
+                        style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                    </div>
+                    <el-icon v-else :src="material.minioPath" :alt="getFileName(material.minioPath)" class="file-icon"
+                      @click="handleMaterialClick(material)" style="cursor:pointer;">
+                      <Document />
+                    </el-icon>
+                  </div>
+                  <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
                   <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
                     :icon="Download">
                     下载
@@ -133,24 +183,24 @@
                 </div>
               </div>
             </div>
-          </div>
-          <!-- 文件列表 -->
-          <div v-for="material in fileListData" :key="material.id" class="material-item" v-else>
-            <div class="material-thumb">
-              <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
-                @click="handleMaterialClick(material)" />
-              <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
-                <el-icon class="file-icon">
-                  <VideoPlay />
+            <!-- 文件列表 -->
+            <div v-for="material in fileListData" :key="material.id" class="material-item" v-else>
+              <div class="material-thumb">
+                <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
+                  @click="handleMaterialClick(material)" />
+                <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
+                  <el-icon class="file-icon">
+                    <VideoPlay />
+                  </el-icon>
+                  <video :src="material.minioPath" playsinline muted preload="metadata"
+                    style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                </div>
+                <el-icon v-else :src="material.minioPath" :alt="getFileName(material.minioPath)" class="file-icon"
+                  @click="handleMaterialClick(material)" style="cursor:pointer;">
+                  <Document />
                 </el-icon>
-                <video :src="material.minioPath" playsinline muted preload="metadata"
-                  style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
               </div>
-              <el-icon v-else :src="material.minioPath" :alt="getFileName(material.minioPath)" class="file-icon"
-                @click="handleMaterialClick(material)" style="cursor:pointer;">
-                <Document />
-              </el-icon>
-              <div class="fileName">{{ getFileName(material.minioPath) }}</div>
+              <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
               <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
                 :icon="Download">
                 下载
@@ -182,27 +232,20 @@ import { ElMessage } from 'element-plus'
 import { getFolderList, getFileList, getFileIndexList } from "@/api/xcsc/uploadFile"
 
 const router = useRouter()
-
+const showSearchResults = ref(false) // 控制是否显示搜索结果
 
 // 文件夹悬浮控制
 function onSubFolderMouseEnter(item) {
-  item._hover = true
+    item._hover = true
 }
 function onSubFolderMouseLeave(item) {
-  item._hover = false
+    item._hover = false
 }
-
 
 
 // 当前选中的板块分类
 const activeCategory = ref('')
-// const categories = ref([
-//   '高速公路建设', '高速公路营运', '设计咨询', '地产酒店', '建筑施工',
-//   '广告传媒', '服务区', '加油站', '金融资本', '物流运输', '资源板块',
-//   '深化改革', '党的建设', '群团工作', '企业文化', '科技创新', '其他'
-// ])
 // 板块分类
-// const categories = ref([])
 const categories = reactive({
   bizId: '',
   filePath: '',
@@ -212,17 +255,17 @@ const categoryMap = ref({})
 
 // 获取左侧板块列表
 function getCategories(pid) {
-  let params = {
-    pid: pid,
-  }
-  getFolderList(params).then(response => {
-    categories.filePath = response.data.map(item => item.filePath)
-    categories.bizId = response.data.map(item => item.bizId)
-    // 构建分类名称到bizId的映射
-    response.data.forEach(item => {
-      categoryMap.value[item.filePath] = item.bizId
+    let params = {
+        pid: pid,
+    }
+    getFolderList(params).then(response => {
+        categories.filePath = response.data.map(item => item.filePath)
+        categories.bizId = response.data.map(item => item.bizId)
+        // 构建分类名称到bizId的映射
+        response.data.forEach(item => {
+            categoryMap.value[item.filePath] = item.bizId
+        })
     })
-  })
 }
 getCategories(0)
 
@@ -238,91 +281,88 @@ const breadcrumbData = ref([])
 const folderData = ref([]) //文件夹列表
 const fileListData = ref([])//文件列表
 function getFolderData(pid) {
-  let params = {
-    pid: pid,
-  }
-  console.log('===pid===', pid);
-  console.log('===params===', params);
-  getFolderList(params).then(res => {
-    folderData.value = res.data
-  })
-  console.log('===folderData.value===', folderData.value)
-  if (pid !== 0) {
-    let param = {
-      folderId: pid,
-      fileTypeList: fileTypeObj[filterForm.fileType] || null,
-      createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
-      createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
-      createBy: filterForm.createBy,
-      annotationContent: filterForm.annotationContent,
+    let params = {
+        pid: pid,
     }
-    getFileList(param).then(res => {
-      fileListData.value = res.data
+    console.log('===pid===', pid);
+    console.log('===params===', params);
+    getFolderList(params).then(res => {
+        folderData.value = res.data
     })
-  }
+    console.log('===folderData.value===', folderData.value)
+    if (pid !== 0) {
+        let param = {
+            folderId: pid,
+            fileTypeList: fileTypeObj[filterForm.fileType] || null,
+            createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
+            createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
+            createBy: filterForm.createBy,
+            annotationContent: filterForm.annotationContent,
+        }
+        getFileList(param).then(res => {
+            fileListData.value = res.data
+        })
+    }
 }
 
 // 根据分类名称获取对应的bizId
 function getCategoryPid(category) {
-  return categoryMap.value[category] || 0
+    return categoryMap.value[category] || 0
 }
 
 //点击子文件展示相关文件夹及文件
 function selectFolder(item, type) {
-  console.log('====item==', item);
-  Object.assign(curFolderObj, item)
-  if (type == 'isRootFolder') {
-    //根文件夹
-    breadcrumbData.value = [{
-      filePath: item.filePath,
-      bizId: item.bizId,
-    }]
-  } else {
-    breadcrumbData.value.push({
-      filePath: item.filePath,
-      bizId: item.bizId,
-    })
-  }
-  getFolderData(item.bizId)
-  console.log('=== breadcrumbData.value===', breadcrumbData.value);
-
+    console.log('====item==', item);
+    Object.assign(curFolderObj, item)
+    if (type == 'isRootFolder') {
+        //根文件夹
+        breadcrumbData.value = [{
+            filePath: item.filePath,
+            bizId: item.bizId,
+        }]
+    } else {
+        breadcrumbData.value.push({
+            filePath: item.filePath,
+            bizId: item.bizId,
+        })
+    }
+    getFolderData(item.bizId)
+    console.log('=== breadcrumbData.value===', breadcrumbData.value);
 }
+
 //点击面包屑
 function clickBreadcrumb(item, index) {
-  getFolderData(item.bizId)
-  console.log('===item===', item);
-  Object.assign(curFolderObj, item)
-  if (index == 0) {
-    breadcrumbData.value = [{
-      filePath: item.filePath,
-      bizId: item.bizId,
-    }]
-  }
-  // 判断item的filePath在breadcrumbData的哪一个对象中，删除breadcrumbData的后面部分
-  const idx = breadcrumbData.value.findIndex(b => b.filePath === item.filePath)
-  if (idx !== -1) {
-    breadcrumbData.value = breadcrumbData.value.slice(0, idx + 1)
-  }
+    getFolderData(item.bizId)
+    console.log('===item===', item);
+    Object.assign(curFolderObj, item)
+    if (index == 0) {
+        breadcrumbData.value = [{
+            filePath: item.filePath,
+            bizId: item.bizId,
+        }]
+    }
+    // 判断item的filePath在breadcrumbData的哪一个对象中，删除breadcrumbData的后面部分
+    const idx = breadcrumbData.value.findIndex(b => b.filePath === item.filePath)
+    if (idx !== -1) {
+        breadcrumbData.value = breadcrumbData.value.slice(0, idx + 1)
+    }
 }
+
 //返回按钮
 const backFolder = () => {
-
-  if (breadcrumbData.value.length == 1) {
-    // getFolderData(0)
-    return
-  } else {
-    Object.assign(curFolderObj, {
-      filePath: breadcrumbData.value[breadcrumbData.value.length - 2].filePath,
-      bizId: breadcrumbData.value[breadcrumbData.value.length - 2].bizId,
-      id: breadcrumbData.value[breadcrumbData.value.length - 2].id
-    });
-    // curFolderObj.filePath = breadcrumbData.value[breadcrumbData.value.length - 2].filePath
-    // curFolderObj.bizId = breadcrumbData.value[breadcrumbData.value.length - 2].bizId
-    // curFolderObj.id = breadcrumbData.value[breadcrumbData.value.length - 2].id
-    getFolderData(breadcrumbData.value[breadcrumbData.value.length - 2].bizId) //获取上一级文件夹的bizId
-    breadcrumbData.value.pop()
-  }
-  console.log('===breadcrumbData.value===', breadcrumbData.value);
+    if (breadcrumbData.value.length == 1) {
+        // getFolderData(0)
+        return
+    } else {
+        Object.assign(curFolderObj, {
+            filePath: breadcrumbData.value[breadcrumbData.value.length - 2].filePath,
+            bizId: breadcrumbData.value[breadcrumbData.value.length - 2].bizId,
+            id: breadcrumbData.value[breadcrumbData.value.length - 2].id
+        });
+        getFolderData(breadcrumbData.value[breadcrumbData.value.length - 2].bizId) //获取上一级文件夹的bizId
+        breadcrumbData.value.pop()
+    }
+    console.log('===breadcrumbData.value===', breadcrumbData.value);
 }
 
 
@@ -337,22 +377,22 @@ const filterForm = reactive({
 
 // 素材数据
 const materials = ref([])
-//预览图片
+// 预览图片
 function previewImg(material) {
-  const $viewer = viewerApi({
-    options: {
-      toolbar: true,
-      initialViewIndex: 0,
-    },
-    images: [material.minioPath],
-  });
+    const $viewer = viewerApi({
+        options: {
+            toolbar: true,
+            initialViewIndex: 0,
+        },
+        images: [material.minioPath],
+    });
 }
 
 //下载文件
 function downloadFile(material) {
-  if (material && material.minioPath) {
-    window.open(material.minioPath, '_blank');
-  }
+    if (material && material.minioPath) {
+        window.open(material.minioPath, '_blank');
+    }
 }
 
 // 当前选中的个人空间
@@ -363,65 +403,65 @@ const totalFiles = computed(() => materials.value.length)
 
 // 收藏操作
 const toggleFavorite = (event, material) => {
-  event.stopPropagation() // 阻止事件冒泡，避免触发素材点击事件
+    event.stopPropagation() // 阻止事件冒泡，避免触发素材点击事件
 
-  // 切换收藏状态
-  const materialIndex = materials.value.findIndex(m => m.id === material.id)
-  if (materialIndex !== -1) {
-    materials.value[materialIndex].isFavorite = !materials.value[materialIndex].isFavorite
+    // 切换收藏状态
+    const materialIndex = materials.value.findIndex(m => m.id === material.id)
+    if (materialIndex !== -1) {
+        materials.value[materialIndex].isFavorite = !materials.value[materialIndex].isFavorite
 
-    // 保存到localStorage
-    try {
-      localStorage.setItem('globalMaterials', JSON.stringify(materials.value))
-    } catch (error) {
-      console.error('保存收藏状态失败:', error)
+        // 保存到localStorage
+        try {
+            localStorage.setItem('globalMaterials', JSON.stringify(materials.value))
+        } catch (error) {
+            console.error('保存收藏状态失败:', error)
+        }
     }
-  }
 }
 
 // 下载素材
 // 处理下载
 const handleDownload = async (material) => {
-  if (!material.minioPath) {
-    ElMessage.warning('文件路径不存在，无法下载')
-    return
-  }
-  console.log('下载文件:', material.fileName)
-  try {
-    // 使用fetch API获取文件内容
-    const response = await fetch(material.minioPath, {
-      method: 'GET',
-      credentials: 'include' // 包含cookies等认证信息
-    })
-    if (!response.ok) {
-      throw new Error(`服务器响应错误: ${response.status}`)
+    if (!material.minioPath) {
+        ElMessage.warning('文件路径不存在，无法下载')
+        return
     }
-    // 获取文件内容并创建Blob对象
-    const blob = await response.blob()
-    // 创建下载链接
-    const link = document.createElement('a')
-    // 创建指向Blob的URL
-    const url = window.URL.createObjectURL(blob)
-    // 设置下载属性
-    link.href = url
-    link.download = material.fileName || getFileNameFromUrl(material.minioPath) || 'download_file'
-    // 隐藏链接
-    link.style.display = 'none'
-    // 添加到文档并触发点击
-    document.body.appendChild(link)
-    link.click()
-    // 延迟清理
-    setTimeout(() => {
-      // 移除链接
-      document.body.removeChild(link)
-      // 释放Blob URL
-      window.URL.revokeObjectURL(url)
-    }, 100)
-    ElMessage.success('文件下载已开始')
-  } catch (error) {
-    console.error('文件下载失败:', error)
-    ElMessage.error('文件下载失败，请稍后重试')
-  }
+    console.log('下载文件:', material.fileName)
+    try {
+        // 使用fetch API获取文件内容
+        const response = await fetch(material.minioPath, {
+            method: 'GET',
+            credentials: 'include' // 包含cookies等认证信息
+        })
+        if (!response.ok) {
+            throw new Error(`服务器响应错误: ${response.status}`)
+        }
+        // 获取文件内容并创建Blob对象
+        const blob = await response.blob()
+        // 创建下载链接
+        const link = document.createElement('a')
+        // 创建指向Blob的URL
+        const url = window.URL.createObjectURL(blob)
+        // 设置下载属性
+        link.href = url
+        link.download = material.fileName || getFileNameFromUrl(material.minioPath) || 'download_file'
+        // 隐藏链接
+        link.style.display = 'none'
+        // 添加到文档并触发点击
+        document.body.appendChild(link)
+        link.click()
+        // 延迟清理
+        setTimeout(() => {
+            // 移除链接
+            document.body.removeChild(link)
+            // 释放Blob URL
+            window.URL.revokeObjectURL(url)
+        }, 100)
+        ElMessage.success('文件下载已开始')
+    } catch (error) {
+        console.error('文件下载失败:', error)
+        ElMessage.error('文件下载失败，请稍后重试')
+    }
 }
 
 // 个人空间
@@ -432,73 +472,74 @@ const personalSpace = ref([
 
 // 点击个人空间
 const handleSpaceClick = (spaceId) => {
-  activeSpace.value = spaceId
-  activeCategory.value = '' // 清空板块分类选中状态
-  if (activeSpace.value == 'all') {
-    folderData.value = [] // 不展示文件夹
-    getALlFileListData()
-  }
+    activeSpace.value = spaceId
+    activeCategory.value = '' // 清空板块分类选中状态
+    if (activeSpace.value == 'all') {
+        folderData.value = [] // 不展示文件夹
+        getALlFileListData()
+    }
 }
 
 // 获取所有文件
 const allFileListData = reactive({})//文件列表
 let fileTypeObj = {
-  'image': ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'svg', 'heic'],
-  'video': ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm'],
-  'document': ['doc', 'docx', 'xls', 'xlsx', 'pdf', 'pptx', 'zip', 'rar', '7z', 'tar', 'gz', 'txt', 'md', 'csv', 'json', 'xml'],
+    'image': ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'svg', 'heic'],
+    'video': ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm'],
+    'document': ['doc', 'docx', 'xls', 'xlsx', 'pdf', 'pptx', 'zip', 'rar', '7z', 'tar', 'gz', 'txt', 'md', 'csv', 'json', 'xml'],
 }
 function getALlFileListData() {
-  let params = {
-    fileTypeList: fileTypeObj[filterForm.fileType] || null,
-    createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
-    createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
-    createBy: filterForm.createBy,
-    annotationContent: filterForm.annotationContent,
-  }
-  // 如果filterForm.dateRange是空的，默认获取近30天的开始时间和结束时间
-  if (filterForm.dateRange.length === 0) {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(endDate.getDate() - 30);
-    const formatDate = (date) => {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-    filterForm.dateRange = [formatDate(startDate), formatDate(endDate)];
-  }
+    let params = {
+        fileTypeList: fileTypeObj[filterForm.fileType] || null,
+        createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
+        createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
+        createBy: filterForm.createBy,
+        annotationContent: filterForm.annotationContent,
+    }
+    // 如果filterForm.dateRange是空的，默认获取近30天的开始时间和结束时间
+    if (filterForm.dateRange.length === 0) {
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(endDate.getDate() - 30);
+        const formatDate = (date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+        filterForm.dateRange = [formatDate(startDate), formatDate(endDate)];
+    }
 
-  console.log('执行查询:', params)
-  getFileIndexList(params).then(res => {
-    // 删除所有 key
-    Object.keys(allFileListData).forEach(key => {
-      delete allFileListData[key];
-    });
-    Object.assign(allFileListData, res.data)
-  })
+    console.log('执行查询:', params)
+    getFileIndexList(params).then(res => {
+        // 删除所有 key
+        Object.keys(allFileListData).forEach(key => {
+            delete allFileListData[key];
+        });
+        Object.assign(allFileListData, res.data)
+    })
 }
 
 // 点击板块分类
 const handleCategoryClick = (category) => {
-  activeCategory.value = category // 设置当前选中的分类
-  activeSpace.value = '' // 清空个人空间选中状态
-  console.log('===activeCategory===', category)
-  const pid = getCategoryPid(category)
-  if (pid) {
-    getFolderData(pid)
-    // 更新面包屑数据
-    breadcrumbData.value = [{
-      filePath: category,
-      bizId: pid,
-    }]
-    // 更新当前文件夹对象
-    Object.assign(curFolderObj, {
-      filePath: category,
-      bizId: pid,
-    })
-  }
+    activeCategory.value = category // 设置当前选中的分类
+    activeSpace.value = '' // 清空个人空间选中状态
+    console.log('===activeCategory===', category)
+    const pid = getCategoryPid(category)
+    if (pid) {
+        getFolderData(pid)
+        // 更新面包屑数据
+        breadcrumbData.value = [{
+            filePath: category,
+            bizId: pid,
+        }]
+        // 更新当前文件夹对象
+        Object.assign(curFolderObj, {
+            filePath: category,
+            bizId: pid,
+        })
+    }
 }
+
 // 查询处理
 const handleQuery = () => {
   if (activeSpace.value == 'all') {
@@ -506,10 +547,60 @@ const handleQuery = () => {
     getALlFileListData()
   } else {
     const pid = getCategoryPid(activeCategory.value)
-    getFolderData(pid)
+    // getFolderData(pid)
+    getQueryData(pid)
   }
 }
 
+// 获取文件列表数据
+const queryfileListData = ref([])//文件列表
+function getQueryData(pid) {
+  if (pid !== 0) {
+    let param = {
+      folderId: pid,
+      fileTypeList: fileTypeObj[filterForm.fileType] || null,
+      createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
+      createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
+      createBy: filterForm.createBy,
+      annotationContent: filterForm.annotationContent,
+    }
+    getFileList(param).then(res => {
+      queryfileListData.value = res.data
+      showSearchResults.value = true
+    })
+  }
+}
+// 重置搜索，返回文件夹视图
+function resetSearch() {
+  showSearchResults.value = false
+  if(curFolderObj.bizId == 0){
+    showFolder.value = true // 确保显示文件夹视图
+  }
+  
+  // searchKeyword.value = ''
+  // statusFilter.value = ''
+  // breadcrumbData.value = [] // 清空面包屑数据
+  // Object.assign(curFolderObj, {
+  //   filePath: '',
+  //   bizId: '',
+  //   id: ''
+  // }) // 重置当前文件夹对象
+  Object.assign(filterForm, {
+    fileType: '',
+    dateRange: [],
+    createBy: '',
+    annotationContent: ''
+  })
+  if (activeSpace.value == 'all') {
+    folderData.value = [] // 不展示文件夹
+    // getALlFileListData()
+  } else {
+    const pid = getCategoryPid(activeCategory.value)
+    getFolderData(pid)
+  }
+  console.log(curFolderObj)
+  // getFolderData(curFolderObj.bizId) // 获取根文件夹数据
+}
 // 重置表单
 const handleReset = () => {
   Object.assign(filterForm, {
@@ -537,24 +628,29 @@ const handleMaterialClick = (material) => {
   // 跳转到预览界面
   router.push({ name: 'MaterialPreview', params: { id: material.id } })
 }
+
 // 支持的文件格式
 const supportedFormats = {
   image: ['jpg', 'jpeg', 'png', 'bmp', 'gif'],
   video: ['mp4', 'mov', 'avi', 'mkv', 'flv'],
   document: ['docx', 'pdf', 'pptx']
 }
+
 function isImage(path) {
   return ['jpg', 'jpeg', 'png', 'bmp', 'gif'].some(ext => path.toLowerCase().includes(ext));
 }
+
 function isVideo(path) {
   return ['mp4', 'mov', 'avi', 'mkv', 'flv'].some(ext => path.toLowerCase().includes(ext));
 }
+
 //获取文件名
 function getFileName(path) {
   if (!path) return '';
   const idx = path.lastIndexOf('/');
   return idx !== -1 ? path.substring(idx + 1) : path;
 }
+
 // 检查文件格式是否支持
 const isSupportedFormat = (filename) => {
   const ext = filename.split('.').pop().toLowerCase()
@@ -567,7 +663,6 @@ let syncInterval = null
 
 onMounted(() => {
   console.log('首页加载完成')
-
   handleSpaceClick('all')
 })
 
@@ -718,7 +813,7 @@ onBeforeUnmount(() => {
 .content-area {
   flex: 1;
   padding: 24px;
-  overflow-y: hidden;
+  overflow-y: auto;
   background: #fff;
   height: 100%;
 
@@ -766,23 +861,23 @@ onBeforeUnmount(() => {
     justify-content: center;
   }
 
-  .download-btn {
-    width: 80px !important;
-    height: 28px !important;
-    padding: 0 !important;
-    font-size: 12px !important;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto;
-  }
+  // .download-btn {
+  //   width: 80px !important;
+  //   height: 28px !important;
+  //   padding: 0 !important;
+  //   font-size: 12px !important;
+  //   display: flex;
+  //   align-items: center;
+  //   justify-content: center;
+  //   margin: 0 auto;
+  // }
 }
 
 .subFolder {
   position: relative;
   aspect-ratio: 1 / 1;
-  width: 260px;
-  height: 200px;
+  width: 250px;
+  height: 250px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -793,7 +888,7 @@ onBeforeUnmount(() => {
   background: #fafafa;
 
   :deep(.el-icon) {
-    font-size: 80px;
+    font-size: 100px;
     font-weight: 500;
     color: #ffd45e;
     margin-bottom: 8px;
@@ -880,42 +975,42 @@ onBeforeUnmount(() => {
 }
 
 .material-item {
-  margin: 0;
-  position: relative;
-  width: 260px;
-  height: 220px;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-  display: block;
-  background: #ffffff;
-  border: 1px solid #ebeef5;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    margin: 0;
+    position: relative;
+    width: 250px;
+    height: 250px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    border: 1px solid #ebeef5;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
 
-  &:hover {
-    border-color: #409eff;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
+    &:hover {
+      border-color: #409eff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
 
   .material-thumb {
     width: 100%;
-    height: calc(100% - 16px);
-    margin-top: 6px;
-    z-index: 1;
+    height: 180px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    flex: 1;
+    background: #f5f7fa;
 
     img {
-      width: 90%;
-      height: 70%;
-      object-fit: contain;
+      width: 95%;
+      height: 95%;
+      // margin-top: 6px;
+      contain: content;
       transition: transform 0.3s;
       cursor: pointer;
-      margin-bottom: 8px;
     }
 
     .videoBox {
@@ -924,8 +1019,13 @@ onBeforeUnmount(() => {
       display: flex;
       align-items: center;
       justify-content: center;
-      margin: 0;
-      padding: 0;
+      width: 100%;
+      height: 100%;
+
+      video {
+        width: 100%;
+        height: 100%;
+      }
 
       .file-icon {
         position: absolute;
@@ -933,47 +1033,75 @@ onBeforeUnmount(() => {
         top: 50%;
         transform: translate(-50%, -50%);
         z-index: 2;
-        font-size: 36px;
+        font-size: 48px;
         color: #ffffff;
         pointer-events: none;
+        background: rgba(0, 0, 0, 0.5);
+        border-radius: 50%;
+        padding: 8px;
       }
     }
 
+    .video-icon {
+      font-size: 48px;
+      color: #409eff;
+    }
+
     .file-icon {
-      font-size: 36px;
+      font-size: 64px;
       color: #909399;
-      margin-bottom: 8px;
-    }
-
-    .fileName {
-      text-align: center;
-      font-size: 12px;
-      color: #606266;
-      padding: 0 8px;
-      margin-bottom: 8px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      // display: -webkit-box;
-      // -webkit-line-clamp: 2;
-      // -webkit-box-orient: vertical;
-      // line-height: 1.3;
-      // height: 30px;
-      max-width: 100%;
-    }
-
-    .download-btn {
-      width: 80px !important;
-      height: 28px !important;
-      padding: 0 !important;
-      font-size: 12px !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      margin: 0 auto;
     }
   }
-}
+
+  .material-details {
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+  .fileName {
+    font-size: 16px;
+    font-weight: 500;
+    color: #303133;
+    margin-bottom: 8px;
+    margin-left: 6px;
+    margin-right: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    text-align: center
+  }
+
+  .download-btn {
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+    margin-top: -4px;
+    background-color: #409eff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 24px;
+
+    &:hover {
+      background-color: #66b1ff;
+    }
+  }
+
+  :deep(.el-button) {
+    padding: 6px 8px;
+    font-size: 12px;
+    height: 24px;
+  }
+  }
 
 .material-info {
   position: absolute;
@@ -1021,7 +1149,6 @@ onBeforeUnmount(() => {
   background: #ffffff;
   border-radius: 8px 8px 0 0;
   border-bottom: 1px solid #e4e7ed;
-  // margin-top: 16px;
 
   .breadcrumbBox {
     display: flex;
@@ -1095,5 +1222,79 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.search-result-info {
+  margin-left: 20px;
+  font-size: 16px;
+  color: #606266;
+  font-weight: 500;
+}
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 80px 0;
+  color: #909399;
+}
+
+.empty-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 80px 0;
+}
+
+/* 适配不同屏幕尺寸 */
+@media screen and (max-width: 1200px) {
+  .subFolder {
+    width: 120px;
+    height: 120px;
+  }
+  
+  .material-item {
+    width: 250px;
+    height: 240px;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .search-filter {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .search-filter>* {
+    width: 100% !important;
+    margin-right: 0 !important;
+  }
+
+  .pageTop {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .btnList {
+    justify-content: center;
+  }
+
+  .folderItem,
+  .subFolder {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .material-item {
+    width: 100%;
+    max-width: 280px;
+    height: 260px;
+    margin: 0 auto;
+  }
+
+  :deep(.el-icon) {
+    font-size: 32px !important;
+  }
 }
 </style>

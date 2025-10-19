@@ -54,6 +54,10 @@
             <el-input v-model="filterForm.annotationContent" placeholder="请输入素材标签" clearable style="width: 150px;" />
           </el-form-item>
 
+          <el-form-item label="文件名：">
+            <el-input v-model="filterForm.fileName" placeholder="请输入文件名" clearable style="width: 150px;" />
+          </el-form-item>
+
           <el-form-item>
             <el-button type="primary" @click="handleQuery">查询</el-button>
             <el-button @click="handleReset">重置</el-button>
@@ -226,7 +230,8 @@ import {
   Folder,
   Star,
   Download,
-  Search
+  Search,
+  FolderOpened
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getFolderList, getFileList, getFileIndexList } from "@/api/xcsc/uploadFile"
@@ -298,6 +303,7 @@ function getFolderData(pid) {
             createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
             createBy: filterForm.createBy,
             annotationContent: filterForm.annotationContent,
+            fileName: filterForm.fileName
         }
         getFileList(param).then(res => {
             fileListData.value = res.data
@@ -371,7 +377,8 @@ const filterForm = reactive({
   fileType: '',
   dateRange: [],
   createBy: '',
-  annotationContent: ''
+  annotationContent: '',
+  fileName: ''
 })
 
 
@@ -494,6 +501,7 @@ function getALlFileListData() {
         createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
         createBy: filterForm.createBy,
         annotationContent: filterForm.annotationContent,
+        fileName: filterForm.fileName
     }
     // 如果filterForm.dateRange是空的，默认获取近30天的开始时间和结束时间
     if (filterForm.dateRange.length === 0) {
@@ -555,15 +563,26 @@ const handleQuery = () => {
 // 获取文件列表数据
 const queryfileListData = ref([])//文件列表
 function getQueryData(pid) {
+
   if (pid !== 0) {
+  let currentFilePath = "";
+  for (let i = 0; i < breadcrumbData.value.length; i++) {
+    // 避免开头出现多余的"/"
+    currentFilePath += i === 0 ? breadcrumbData.value[i].filePath : "/" + breadcrumbData.value[i].filePath;
+  }
     let param = {
-      folderId: pid,
+      localPath: currentFilePath,
+      // folderId: pid,
       fileTypeList: fileTypeObj[filterForm.fileType] || null,
       createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
       createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
       createBy: filterForm.createBy,
       annotationContent: filterForm.annotationContent,
+      fileName: filterForm.fileName
+      
     }
+    // console.log('localPath:', curFolderObj.filePath)
+    console.log('breadcrumbData:', currentFilePath)
     getFileList(param).then(res => {
       queryfileListData.value = res.data
       showSearchResults.value = true
@@ -589,17 +608,18 @@ function resetSearch() {
     fileType: '',
     dateRange: [],
     createBy: '',
-    annotationContent: ''
+    annotationContent: '',
+    fileName: ''
   })
-  if (activeSpace.value == 'all') {
-    folderData.value = [] // 不展示文件夹
-    // getALlFileListData()
-  } else {
-    const pid = getCategoryPid(activeCategory.value)
-    getFolderData(pid)
-  }
+  // if (activeSpace.value == 'all') {
+  //   folderData.value = [] // 不展示文件夹
+  //   // getALlFileListData()
+  // } else {
+  //   const pid = getCategoryPid(activeCategory.value)
+  //   getFolderData(pid)
+  // }
   console.log(curFolderObj)
-  // getFolderData(curFolderObj.bizId) // 获取根文件夹数据
+  getFolderData(curFolderObj.bizId) // 获取根文件夹数据
 }
 // 重置表单
 const handleReset = () => {
@@ -607,7 +627,8 @@ const handleReset = () => {
     fileType: '',
     dateRange: [],
     createBy: '',
-    annotationContent: ''
+    annotationContent: '',
+    fileName: ''
   })
   if (activeSpace.value == 'all') {
     folderData.value = [] // 不展示文件夹

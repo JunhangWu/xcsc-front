@@ -10,7 +10,7 @@
           您的浏览器不支持视频播放
         </video> -->
         <video :src="material.minioPath" controls autoplay loop muted playsinline
-          style="max-width: 100%; max-height: 400px; width: auto; height: auto; display: block; object-fit: contain;"></video>
+          style="max-width: 100%; max-height: 600px; width: auto; height: auto; display: block; object-fit: contain;"></video>
       </div>
       <div v-else class="file-preview">
         <el-icon class="file-icon">
@@ -79,6 +79,13 @@
               </div>
             </div>
             <div class="tag-dimension">
+              <span class="dimension-label">人物行为：</span>
+              <div class="dimension-values">
+                <el-tag v-for="tag in autoTagForm.characterBehavior" :key="tag" size="small" type="primary"
+                  effect="plain">{{ tag }}</el-tag>
+              </div>
+            </div>
+            <div class="tag-dimension">
               <span class="dimension-label">核心物体：</span>
               <div class="dimension-values">
                 <el-tag v-for="tag in autoTagForm.coreObjects" :key="tag" size="small" type="primary" effect="plain">{{
@@ -137,35 +144,59 @@
             <div class="tag-dimension">
               <span class="dimension-label">地点信息：</span>
               <div class="dimension-values">
-                <el-tag size="small" type="success" effect="plain">{{ manualTagForm.locationInfo }}</el-tag>
+                <el-tag v-for="(tag, index) in manualTagForm.locationInfo.split(',')"  :key="index" size="small" type="success"
+                  effect="plain">{{ tag.trim() }}</el-tag>
+                <!-- <el-tag size="small" type="success" effect="plain">{{ manualTagForm.locationInfo }}</el-tag> -->
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">人物姓名：</span>
               <div class="dimension-values">
-                <el-tag size="small" type="success" effect="plain">{{ manualTagForm.personNames }}</el-tag>
+                <el-tag v-for="(tag, index) in manualTagForm.properNouns.split(',')"  :key="index" size="small" type="success"
+                  effect="plain">{{ tag.trim() }}</el-tag>
+                <!-- <el-tag size="small" type="success" effect="plain">{{ manualTagForm.personNames }}</el-tag> -->
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">建筑名称：</span>
               <div class="dimension-values">
-                <el-tag size="small" type="success" effect="plain">{{ manualTagForm.buildingNames }}</el-tag>
+                <el-tag v-for="(tag, index) in manualTagForm.buildingNames.split(',')"  :key="index" size="small" type="success"
+                  effect="plain">{{ tag.trim() }}</el-tag>
+                <!-- <el-tag size="small" type="success" effect="plain">{{ manualTagForm.buildingNames }}</el-tag> -->
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">相关主题：</span>
               <div class="dimension-values">
-                <el-tag size="small" type="success" effect="plain">{{ manualTagForm.relatedThemes }}</el-tag>
+                <el-tag v-for="(tag, index) in manualTagForm.relatedThemes.split(',')"  :key="index" size="small" type="success"
+                  effect="plain">{{ tag.trim() }}</el-tag>
+                <!-- <el-tag size="small" type="success" effect="plain">{{ manualTagForm.relatedThemes }}</el-tag> -->
               </div>
             </div>
             <div class="tag-dimension">
               <span class="dimension-label">专有名词：</span>
               <div class="dimension-values">
-                <el-tag size="small" type="success" effect="plain">{{ manualTagForm.properNouns }}</el-tag>
+                <el-tag v-for="(tag, index) in manualTagForm.properNouns.split(',')"  :key="index" size="small" type="success"
+                  effect="plain">{{ tag.trim() }}</el-tag>
+                <!-- <el-tag size="small" type="success" effect="plain">{{ manualTagForm.properNouns }}</el-tag> -->
               </div>
             </div>
           </div>
         </div>
+
+        <!-- 补充标签 -->
+        <div class="tag-category">
+          <h3 class="section-title2">补充标签</h3>
+          <div class="tag-items"> 
+            <div class="tag-dimension">
+              <!-- <span class="dimension-label">补充标签：</span> -->
+              <div class="dimension-values">
+                <el-tag v-for="(tag, index) in supplementTags.split(',')"  :key="index" size="small" type="success"
+                      effect="plain">{{ tag.trim() }}</el-tag>
+              </div>
+            </div>
+          </div>
+        </div>  
       </div>
 
       <!-- 操作按钮 -->
@@ -217,6 +248,9 @@ const manualTagForm = reactive({
   properNouns: '' // 专有名词
 })
 
+// 标注信息 - 补充标签
+const supplementTags = ref('')
+
 //获取自动标注信息
 function getAutoTags() {
   let params = {
@@ -225,14 +259,14 @@ function getAutoTags() {
   getFileList(params).then(res => {
     console.log('自动标注:', JSON.parse(res.data[0].annotationContent))
     let resJson = JSON.parse(res.data[0].annotationContent)
-    autoTagForm.sceneCategory = resJson.sceneCategory || ''
-    autoTagForm.characterBehavior = resJson.characterBehavior || ''
-    autoTagForm.coreObjects = resJson.coreObjects || ''
-    autoTagForm.activityEvent = resJson.activityEvent || ''
-    autoTagForm.textInfo = resJson.textInfo || ''
-    autoTagForm.colorTone = resJson.colorTone || ''
-    autoTagForm.shootingAngle = resJson.shootingAngle || ''
-    autoTagForm.materialDescription = resJson.materialDescription || ''
+    autoTagForm.sceneCategory = resJson==null?['']:resJson.sceneCategory
+    autoTagForm.characterBehavior = resJson==null?['']:resJson.characterBehavior
+    autoTagForm.coreObjects = resJson==null?['']:resJson.coreObjects
+    autoTagForm.activityEvent = resJson==null?['']:resJson.activityEvent
+    autoTagForm.textInfo = resJson==null?['']:resJson.textInfo
+    autoTagForm.colorTone = resJson==null?['']:resJson.colorTone
+    autoTagForm.shootingAngle = resJson==null?['']:resJson.shootingAngle
+    autoTagForm.materialDescription = resJson==null?'':resJson.materialDescription || ''
   })
 }
 getAutoTags()
@@ -253,6 +287,19 @@ function getManualTags() {
   })
 }
 getManualTags()
+
+//获取补充标注信息
+function getSupplementTags() {
+  let params = {
+    id: route.params.id,
+  }
+  getFileList(params).then(res => {
+    console.log('补充标注:', res.data[0].supplementAnnotation)
+    supplementTags.value = res.data[0].supplementAnnotation || ''
+    console.log('补充标注:', supplementTags)
+  })
+}
+getSupplementTags()
 
 //获取素材
 function getMaterial() {

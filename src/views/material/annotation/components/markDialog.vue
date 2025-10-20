@@ -75,25 +75,25 @@
                             </div>
                             <el-form :model="autoTagForm" label-width="120px">
                                 <el-form-item label="场景分类">
-                                    <el-input v-model="autoTagForm.sceneCategory" placeholder="请输入场景分类，多个用逗号分隔" />
+                                    <el-input v-model="autoTagForm.sceneCategory" placeholder="请输入场景分类，多个用英文逗号分隔" />
                                 </el-form-item>
                                 <el-form-item label="人物行为">
-                                    <el-input v-model="autoTagForm.characterBehavior" placeholder="请输入人物行为，多个用逗号分隔" />
+                                    <el-input v-model="autoTagForm.characterBehavior" placeholder="请输入人物行为，多个用英文逗号分隔" />
                                 </el-form-item>
                                 <el-form-item label="核心物体">
-                                    <el-input v-model="autoTagForm.coreObjects" placeholder="请输入核心物体，多个用逗号分隔" />
+                                    <el-input v-model="autoTagForm.coreObjects" placeholder="请输入核心物体，多个用英文逗号分隔" />
                                 </el-form-item>
                                 <el-form-item label="活动事件">
-                                    <el-input v-model="autoTagForm.activityEvent" placeholder="请输入活动事件描述" />
+                                    <el-input v-model="autoTagForm.activityEvent" placeholder="请输入活动事件描述，多个用英文逗号分隔" />
                                 </el-form-item>
                                 <el-form-item label="文本信息">
-                                    <el-input v-model="autoTagForm.textInfo" placeholder="请输入识别到的文本信息" />
+                                    <el-input v-model="autoTagForm.textInfo" placeholder="请输入识别到的文本信息，多个用英文逗号分隔" />
                                 </el-form-item>
                                 <el-form-item label="颜色色调">
-                                    <el-input v-model="autoTagForm.colorTone" placeholder="请输入颜色色调" />
+                                    <el-input v-model="autoTagForm.colorTone" placeholder="请输入颜色色调，多个用英文逗号分隔" />
                                 </el-form-item>
                                 <el-form-item label="拍摄角度">
-                                    <el-input v-model="autoTagForm.shootingAngle" placeholder="请输入拍摄角度" />
+                                    <el-input v-model="autoTagForm.shootingAngle" placeholder="请输入拍摄角度，多个用英文逗号分隔" />
                                 </el-form-item>
                                 <el-form-item label="素材描述">
                                     <el-input v-model="autoTagForm.materialDescription" type="textarea"
@@ -111,28 +111,28 @@
                                         placeholder="选择日期时间" value-format="YYYY-MM-DD HH:mm:ss"></el-date-picker>
                                 </el-form-item>
                                 <el-form-item label="地点信息">
-                                    <el-input v-model="manualTagForm.locationInfo" placeholder="请输入地点信息" />
+                                    <el-input v-model="manualTagForm.locationInfo" placeholder="请输入地点信息，多个用英文逗号分隔" />
                                 </el-form-item>
                                 <el-form-item label="人物姓名">
-                                    <el-input v-model="manualTagForm.personNames" placeholder="请输入人物姓名，多个用逗号分隔" />
+                                    <el-input v-model="manualTagForm.personNames" placeholder="请输入人物姓名，多个用英文逗号分隔" />
                                 </el-form-item>
                                 <el-form-item label="建筑名称">
-                                    <el-input v-model="manualTagForm.buildingNames" placeholder="请输入建筑名称" />
+                                    <el-input v-model="manualTagForm.buildingNames" placeholder="请输入建筑名称，多个用英文逗号分隔" />
                                 </el-form-item>
                                 <el-form-item label="相关主题">
-                                    <el-input v-model="manualTagForm.relatedThemes" placeholder="请输入相关主题，多个用逗号分隔" />
+                                    <el-input v-model="manualTagForm.relatedThemes" placeholder="请输入相关主题，多个用英文逗号分隔" />
                                 </el-form-item>
                                 <el-form-item label="专有名词">
-                                    <el-input v-model="manualTagForm.properNouns" placeholder="请输入专有名词，多个用逗号分隔" />
+                                    <el-input v-model="manualTagForm.properNouns" placeholder="请输入专有名词，多个用英文逗号分隔" />
                                 </el-form-item>
                             </el-form>
                         </div>
                     </el-tab-pane>
                     <!-- 补充标签 -->
-                    <!-- <el-tab-pane label="补充标签" name="otherLabel">
+                    <el-tab-pane label="补充标签" name="otherLabel">
                         <div class="annotation-section">
                             <div class="tag-input-section">
-                                <el-input v-model="newSupplementTag" placeholder="输入补充标签"
+                                <el-input v-model="newSupplementTag" placeholder="请输入补充标签"
                                     style="width: 200px; margin-right: 10px;" @keyup.enter="addSupplementTag" />
                                 <el-button type="primary" size="small" @click="addSupplementTag">添加</el-button>
                             </div>
@@ -143,7 +143,7 @@
                                 </el-tag>
                             </div>
                         </div>
-                    </el-tab-pane> -->
+                    </el-tab-pane>
                 </el-tabs>
             </div>
         </div>
@@ -213,19 +213,44 @@ const resetTagForms = () => {
     })
 
     // 重置补充标签
-    // supplementTags.value = []
-    // newSupplementTag.value = ''
+    supplementTags.value = []
+    newSupplementTag.value = ''
 }
 
 // 保存标注
 const saveAnnotation = () => {
+
+    // 定义需要处理的字段列表
+    const fields = [
+    'sceneCategory',
+    'characterBehavior',
+    'coreObjects',
+    'activityEvent',
+    'textInfo',
+    'colorTone',
+    'shootingAngle' // 补充你未写完的字段
+    ];
+    //字符串转为数组
+    fields.forEach(field => {
+        const value = autoTagForm[field];
+        if (typeof value === 'string') {
+            autoTagForm[field] = value
+            .split(',')
+            .map(item => item.trim())
+            .filter(item => item); // 过滤空值
+        }
+    });
+    // autoTagForm.materialDescription = [autoTagForm.materialDescription]
     // 构建完整的标注数据
     let params = {
         id: currentMaterial.id,
         annotationStatus: "2", // 已审核
         annotationContent: JSON.stringify(autoTagForm), //标签信息
         ...manualTagForm, // 基本信息
+        supplementAnnotation: supplementTags.value.join(',')  // 补充标签
     }
+    console.log("autoTagForm",autoTagForm)
+    console.log("JSON.stringify(autoTagForm)",JSON.stringify(autoTagForm))
     updateFile(params).then(res => {
         console.log("标注状态更新成功", res)
         ElMessage.success('标注保存成功！')
@@ -241,7 +266,9 @@ const saveAnnotation = () => {
         })
         Object.keys(manualTagForm).forEach(key => {
             manualTagForm[key] = ''
-        })
+        }) 
+        supplementTags.value = []
+        newSupplementTag.value = ''
         // 发送事件刷新文件列表
         emit("updateFileList");
     })
@@ -383,6 +410,15 @@ function open(material) {
             manualTagForm[key] = ''
         }
     })
+    // 填充补充标签
+    if (material && material.supplementAnnotation) {
+        supplementTags.value = material.supplementAnnotation
+            .split(',')
+            .map(tag => tag.trim())
+            .filter(tag => tag !== '')
+    } else {
+        supplementTags.value = []
+    }
     dialogVisible.value = true
 }
 // 检查是否有未保存的数据

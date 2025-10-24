@@ -1331,6 +1331,7 @@ onBeforeUnmount(() => {
     flex-wrap: wrap;
     gap: 16px;
     margin-top: 16px;
+    width: 1500px;
 
     .date {
       font-size: 14px;

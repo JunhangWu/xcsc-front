@@ -333,7 +333,12 @@ const backFolder = () => {
   if (breadcrumbData.value.length == 1) {
     showFolder.value = true
     getFolderData(0)
-    return
+    Object.assign(curFolderObj, {
+      filePath: '',
+      bizId: 0,
+      id: 0
+    });
+    // return
   } else {
     Object.assign(curFolderObj, {
       filePath: breadcrumbData.value[breadcrumbData.value.length - 2].filePath,
@@ -346,6 +351,7 @@ const backFolder = () => {
     getFolderData(breadcrumbData.value[breadcrumbData.value.length - 2].bizId) //获取上一级文件夹的bizId
     breadcrumbData.value.pop()
   }
+  console.log('===返回后的curFolderObj===', curFolderObj);
   console.log('===breadcrumbData.value===', breadcrumbData.value);
 }
 
@@ -739,7 +745,7 @@ function resetSearch() {
   //   bizId: '',
   //   id: ''
   // }) // 重置当前文件夹对象
-  console.log(curFolderObj)
+  console.log("==curFolderObj==",curFolderObj)
   getFolderData(curFolderObj.bizId) // 获取根文件夹数据
 }
 

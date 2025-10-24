@@ -81,3 +81,27 @@ export function getFileIndexList(query) {
         params: query
     })
 }
+//收藏列表
+export function getCollectionList(query){
+    return request({
+        url: '/collection/list',
+        method: 'get',
+        params: query
+    })
+}
+//新增收藏
+export function addCollection(data){
+    return request({
+        url: '/collection',
+        method: 'post',
+        data: data
+    })
+}
+//删除收藏
+export function delCollection(query){
+    return request({
+        url: '/collection/del',
+        method: 'delete',
+        params: query
+    })
+}

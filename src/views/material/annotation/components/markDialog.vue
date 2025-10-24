@@ -329,7 +329,17 @@ const handleAIAutoTagging = () => {
     AIMark(params).then(res => {
         dialogLoading.value = false
         isAIAutoTagging.value = false
+        if(res.data[0].annotationContent == "null"){
+            ElMessage.error('AI自动标注失败！')
+            return
+        }
+        // else{
+        //     ElMessage.success('AI自动标注成功！')
+        // }
         ElMessage.success('AI自动标注成功！')
+        // ElMessage.error('AI自动标注失败！')
+        // console.log("JSON.parse(res.data[0].annotationContent)",res.data[0])
+        console.log("JSON.parse(res.data[0].annotationContent)",res.data[0].annotationContent)
         emit("updateFileList"); //状态改变，更新文件列表
         Object.assign(autoTagForm, JSON.parse(res.data[0].annotationContent))
     })

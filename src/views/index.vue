@@ -107,10 +107,17 @@
                   </el-icon>
                 </div>
                 <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
-                <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
-                  :icon="Download">
-                  下载
-                </el-button>
+                  <div class="material-actions">
+                    <el-button size="small" @click.stop="toggleFavorite($event, material)" 
+                      :class="['favorite-btn', { favorited: material.isFavorite }]"
+                      :icon="material.isFavorite ? StarFilled : Star">
+                      {{ material.isFavorite ? '已收藏' : '收藏' }}
+                    </el-button>
+                    <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
+                      :icon="Download">
+                      下载
+                    </el-button>
+                  </div>
               </div>
             </div>
           </div>
@@ -145,7 +152,15 @@
           <div v-if="loading" class="loading-container">
             <el-loading-text>正在加载素材...</el-loading-text>
           </div>
-          <div v-else-if="folderData.length == 0 && fileListData.length == 0 && Object.keys(allFileListData).length == 0"
+          <!-- <div v-else-if="folderData.length == 0 && fileListData.length == 0 && Object.keys(allFileListData).length == 0"
+            class="empty-state">
+            <el-empty description="暂无内容" />
+          </div> -->
+          <div v-else-if="activeSpace == 'all' && Object.keys(allFileListData).length == 0"
+            class="empty-state">
+            <el-empty description="暂无内容" />
+          </div>
+          <div v-else-if="activeSpace == '' && folderData.length == 0 && fileListData == 0"
             class="empty-state">
             <el-empty description="暂无内容" />
           </div>
@@ -180,10 +195,17 @@
                     </el-icon>
                   </div>
                   <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
-                  <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
-                    :icon="Download">
-                    下载
-                  </el-button>
+                  <div class="material-actions">
+                    <el-button size="small" @click.stop="toggleFavorite($event, material)" 
+                      :class="['favorite-btn', { favorited: material.isFavorite }]"
+                      :icon="material.isFavorite ? StarFilled : Star">
+                      {{ material.isFavorite ? '已收藏' : '收藏' }}
+                    </el-button>
+                    <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
+                      :icon="Download">
+                      下载
+                    </el-button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -205,10 +227,17 @@
                 </el-icon>
               </div>
               <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
-              <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
-                :icon="Download">
-                下载
-              </el-button>
+                  <div class="material-actions">
+                    <el-button size="small" @click.stop="toggleFavorite($event, material)" 
+                      :class="['favorite-btn', { favorited: material.isFavorite }]"
+                      :icon="material.isFavorite ? StarFilled : Star">
+                      {{ material.isFavorite ? '已收藏' : '收藏' }}
+                    </el-button>
+                    <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
+                      :icon="Download">
+                      下载
+                    </el-button>
+                  </div>
             </div>
           </div>
         </div>
@@ -229,16 +258,19 @@ import {
   Collection,
   Folder,
   Star,
+  StarFilled,
   Download,
   Search,
   FolderOpened
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getFolderList, getFileList, getFileIndexList } from "@/api/xcsc/uploadFile"
+import { getFolderList, getFileList, getFileIndexList, getCollectionList, addCollection, delCollection } from "@/api/xcsc/uploadFile"
+import useUserStore from '@/store/modules/user'
 
 const router = useRouter()
 const showSearchResults = ref(false) // 控制是否显示搜索结果
-
+const userStore = useUserStore()
+// const isFavorite = ref(false) // 收藏状态
 // 文件夹悬浮控制
 function onSubFolderMouseEnter(item) {
     item._hover = true
@@ -293,8 +325,8 @@ function getFolderData(pid) {
     console.log('===params===', params);
     getFolderList(params).then(res => {
         folderData.value = res.data
-    })
-    console.log('===folderData.value===', folderData.value)
+        console.log('===folderData.value===', folderData.value)
+    }) 
     if (pid !== 0) {
         let param = {
             folderId: pid,
@@ -307,7 +339,18 @@ function getFolderData(pid) {
         }
         getFileList(param).then(res => {
             fileListData.value = res.data
+            // 获取当前用户收藏列表并设置文件收藏状态
+            getCollectionData(userStore.id).then(() => {
+                // 提取收藏列表中的文件id
+                const favoriteFileIds = collectionList.value.map(item => item.fileId);
+                // 遍历文件列表，设置收藏状态
+                fileListData.value.forEach(file => {
+                    file.isFavorite = favoriteFileIds.includes(file.id);
+                });
+            });
+            console.log('===fileListData.value===', fileListData.value)
         })
+        
     }
 }
 
@@ -338,9 +381,21 @@ function selectFolder(item, type) {
 
 //点击面包屑
 function clickBreadcrumb(item, index) {
-    getFolderData(item.bizId)
     console.log('===item===', item);
     Object.assign(curFolderObj, item)
+    
+    // 特殊处理"我的收藏"的面包屑点击
+    if (item.bizId === 'favorite') {
+        activeSpace.value = 'favorite'
+        activeCategory.value = ''
+        folderData.value = [] // 不展示文件夹
+        showSearchResults.value = false // 确保显示文件夹视图
+        getFavoriteFiles() // 获取收藏文件并应用筛选条件
+    } else {
+        // 正常文件夹处理
+        getFolderData(item.bizId)
+    }
+    
     if (index == 0) {
         breadcrumbData.value = [{
             filePath: item.filePath,
@@ -384,6 +439,7 @@ const filterForm = reactive({
 
 // 素材数据
 const materials = ref([])
+
 // 预览图片
 function previewImg(material) {
     const $viewer = viewerApi({
@@ -408,22 +464,161 @@ const activeSpace = ref('all')
 // 总文件数
 const totalFiles = computed(() => materials.value.length)
 
+//收藏列表
+const collectionList = ref([])
+//获取当前用户收藏列表
+function getCollectionData(userId){
+  // collectionList.value = [];
+  let params = {
+        userId: userId
+    }
+    return getCollectionList(params).then(res => {
+      collectionList.value = res.data
+      console.log('===params===', params)
+      console.log('collectionList.value', collectionList.value)
+      return res.data;
+    })
+}
+// 在组件挂载时获取收藏列表，确保页面初始加载时所有文件的收藏状态正确
+onMounted(() => {
+  if (userStore.id) {
+    getCollectionData(userStore.id)
+  }
+})
+
+// 获取当前登录用户的id
+function getCurrentUserId() {
+  return userStore.id
+}
+
+// 更新文件列表中的收藏状态
+function updateFileFavoriteStatus() {
+  // 提取收藏列表中的文件id
+  const favoriteFileIds = collectionList.value.map(item => item.fileId);
+  
+  // 更新fileListData中的收藏状态
+  if (fileListData.value && fileListData.value.length > 0) {
+    fileListData.value.forEach(file => {
+      file.isFavorite = favoriteFileIds.includes(file.id);
+    });
+  }
+  
+  // 同时更新查询结果列表中的收藏状态
+  if (queryfileListData.value && queryfileListData.value.length > 0) {
+    queryfileListData.value.forEach(file => {
+      file.isFavorite = favoriteFileIds.includes(file.id);
+    });
+  }
+  
+  // 更新所有文件列表中的收藏状态
+  for (const dateKey in allFileListData) {
+    const dailyFiles = allFileListData[dateKey];
+    dailyFiles.forEach(file => {
+      file.isFavorite = favoriteFileIds.includes(file.id);
+    });
+  }
+}
+
 // 收藏操作
 const toggleFavorite = (event, material) => {
     event.stopPropagation() // 阻止事件冒泡，避免触发素材点击事件
 
     // 切换收藏状态
-    const materialIndex = materials.value.findIndex(m => m.id === material.id)
-    if (materialIndex !== -1) {
-        materials.value[materialIndex].isFavorite = !materials.value[materialIndex].isFavorite
+    material.isFavorite = !material.isFavorite
+    if(material.isFavorite){
+      // 收藏
+      let params = {
+        userId: userStore.id,
+        fileId: material.id
+      }
+      addCollection(params).then(res => {
+        // 收藏成功后，更新收藏列表
+        getCollectionData(userStore.id).then(() => {
+          // 更新当前文件列表中的收藏状态
+          updateFileFavoriteStatus();
+        })
+        
+        console.log('===res===', res)
+      })
+    }
+    else{
+      // 取消收藏
+      let params = {
+        userId: userStore.id,
+        fileId: material.id
+      }
+      console.log('===params===', params)
+      delCollection(params).then(res => {
+        // 取消收藏成功后，更新收藏列表
+        getCollectionData(userStore.id).then(() => {
+          // 更新当前文件列表中的收藏状态
+          updateFileFavoriteStatus();
+        })
+        
+        console.log('===res===', res)
+      })
+    }
+    console.log('===material.isFavorite===', material.isFavorite)
+    console.log('===material===', material)
+    // // 查找并更新queryfileListData中的素材
+    // const queryIndex = queryfileListData.value.findIndex(m => m.id === material.id)
+    // if (queryIndex !== -1) {
+    //     queryfileListData.value[queryIndex].isFavorite = material.isFavorite
+    // }
+    
 
-        // 保存到localStorage
-        try {
-            localStorage.setItem('globalMaterials', JSON.stringify(materials.value))
-        } catch (error) {
-            console.error('保存收藏状态失败:', error)
+    // // 查找并更新fileListData中的素材
+    // const fileIndex = fileListData.value.findIndex(m => m.id === material.id)
+    // console.log('===fileIndex===', fileIndex)
+    // if (fileIndex !== -1) {
+    //     fileListData.value[fileIndex].isFavorite = material.isFavorite
+    //     console.log('===fileListData.value[fileIndex]===', fileListData.value[fileIndex])
+    // }
+    // console.log('fileListData.value', fileListData.value)
+    // const target = fileListData.value.find(m => m.id === material.id);
+    // if (target) {
+    //   // 动态添加 isFavorite 属性并赋值
+    //   target.isFavorite = material.isFavorite; 
+    // }
+    // console.log('===target===', target)
+    // // 查找并更新allFileListData中的素材（按日期分组）
+    // for (const dateKey in allFileListData) {
+    //     const dailyFiles = allFileListData[dateKey]
+    //     const dailyIndex = dailyFiles.findIndex(m => m.id === material.id)
+    //     if (dailyIndex !== -1) {
+    //         dailyFiles[dailyIndex].isFavorite = material.isFavorite
+    //         break
+    //     }
+    // }
+
+    // 显示操作反馈
+    ElMessage.success(material.isFavorite ? '收藏成功' : '取消收藏')
+    
+    // 如果当前在"我的收藏"页面，取消收藏后需要更新显示的文件列表
+    if (activeSpace.value === 'favorite' && !material.isFavorite) {
+        // 从显示的文件列表中移除该文件
+        const index = fileListData.value.findIndex(file => file.id === material.id)
+        if (index !== -1) {
+            fileListData.value.splice(index, 1)
         }
     }
+
+    // 保存到localStorage用于持久化
+    // try {
+    //     let favorites = JSON.parse(localStorage.getItem('favoriteMaterials') || '[]')
+    //     if (material.isFavorite) {
+    //         // 添加收藏（避免重复）
+    //         if (!favorites.find(f => f.id === material.id)) {
+    //             favorites.push({ id: material.id, fileName: material.fileName })
+    //         }
+    //     } else {
+    //         // 移除收藏
+    //         favorites = favorites.filter(f => f.id !== material.id)
+    //     }
+    //     localStorage.setItem('favoriteMaterials', JSON.stringify(favorites))
+    // } catch (error) {
+    //     console.error('保存收藏状态失败:', error)
+    // }
 }
 
 // 下载素材
@@ -474,16 +669,128 @@ const handleDownload = async (material) => {
 // 个人空间
 const personalSpace = ref([
   { id: 'all', name: '所有文件', icon: Folder },
-  // { id: 'favorite', name: '我的收藏', icon: Star }
+  { id: 'favorite', name: '我的收藏', icon: Star }
 ])
+
+// 获取收藏文件的详细信息 - 重写版本
+const getFavoriteFiles = () => {
+    loading.value = true
+    // 清空当前文件列表
+    fileListData.value = []
+    
+    // 确保已加载收藏列表
+    getCollectionData(userStore.id).then(() => {
+        if (collectionList.value.length > 0) {
+            // 构建查询参数，模仿getALlFileListData的结构
+            let params = {
+                fileTypeList: fileTypeObj[filterForm.fileType] || null,
+                createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
+                createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
+                createBy: filterForm.createBy,
+                annotationContent: filterForm.annotationContent,
+                fileName: filterForm.fileName
+            }
+            
+            // 如果filterForm.dateRange是空的，默认获取近30天的开始时间和结束时间
+            if (!filterForm.dateRange || filterForm.dateRange.length === 0) {
+                const endDate = new Date();
+                const startDate = new Date();
+                startDate.setDate(endDate.getDate() - 30);
+                const formatDate = (date) => {
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                };
+                filterForm.dateRange = [formatDate(startDate), formatDate(endDate)];
+                params.createStartTime = filterForm.dateRange[0] + ' 00:00:00';
+                params.createEndTime = filterForm.dateRange[1] + ' 23:59:59';
+            }
+            
+            console.log('执行收藏文件查询:', params)
+            
+            // 调用getFileIndexList获取所有文件，然后根据收藏状态过滤
+            getFileIndexList(params).then(res => {
+                const allFilesData = res.data;
+                const favoriteFileIds = new Set(collectionList.value.map(item => item.fileId));
+                
+                // 按日期组织收藏文件
+                const favoriteFilesByDate = {};
+                
+                // 遍历所有文件，过滤出收藏的文件并按日期分组
+                for (const dateKey in allFilesData) {
+                    const dailyFiles = allFilesData[dateKey];
+                    const favoriteDailyFiles = dailyFiles.filter(file => {
+                        const isFavorite = favoriteFileIds.has(file.id);
+                        file.isFavorite = isFavorite;
+                        return isFavorite;
+                    });
+                    
+                    if (favoriteDailyFiles.length > 0) {
+                        favoriteFilesByDate[dateKey] = favoriteDailyFiles;
+                    }
+                }
+                
+                // 转换为平面数组用于显示
+                const favoriteFiles = [];
+                for (const dateKey in favoriteFilesByDate) {
+                    favoriteFilesByDate[dateKey].forEach(file => {
+                        favoriteFiles.push(file);
+                    });
+                }
+                
+                // 设置文件列表数据
+                fileListData.value = favoriteFiles;
+                console.log('显示的收藏文件:', favoriteFiles);
+                loading.value = false;
+            }).catch(error => {
+                console.error('获取文件列表失败:', error);
+                loading.value = false;
+            });
+        } else {
+            loading.value = false;
+        }
+    }).catch(error => {
+        console.error('获取收藏文件失败:', error);
+        loading.value = false;
+    });
+}
 
 // 点击个人空间
 const handleSpaceClick = (spaceId) => {
+    // 重置搜索栏
+    Object.assign(filterForm, {
+      fileType: '',
+      dateRange: [],
+      createBy: '',
+      annotationContent: '',
+      fileName: ''
+    })
     activeSpace.value = spaceId
     activeCategory.value = '' // 清空板块分类选中状态
+    folderData.value = [] // 不展示文件夹
+    showSearchResults.value = false // 确保显示文件夹视图而不是搜索结果
+    
     if (activeSpace.value == 'all') {
-        folderData.value = [] // 不展示文件夹
         getALlFileListData()
+    } else if (activeSpace.value == 'favorite') {
+        // 显示我的收藏
+        // breadcrumbData.value = [{ filePath: '我的收藏', bizId: 'favorite' }]
+        breadcrumbData.value = []
+        
+        // 确保已经加载了所有文件数据，以便能够应用筛选条件
+        // 如果allFileListData为空，先加载所有文件
+        // if (Object.keys(allFileListData).length === 0) {
+        //     // 使用当前的筛选条件加载所有文件
+        //     getALlFileListData().then(() => {
+        //         // 然后获取收藏文件并应用筛选
+        //         getFavoriteFiles()
+        //     })
+        // } else {
+        //     // 直接获取收藏文件并应用筛选
+        //     getFavoriteFiles()
+        // }
+        getFavoriteFiles()
     }
 }
 
@@ -499,6 +806,8 @@ function getALlFileListData() {
         fileTypeList: fileTypeObj[filterForm.fileType] || null,
         createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
         createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
+        // createStartTime: filterForm.dateRange && filterForm.dateRange.length === 2 ? filterForm.dateRange[0] + ' 00:00:00' : null,
+        // createEndTime: filterForm.dateRange && filterForm.dateRange.length === 2 ? filterForm.dateRange[1] + ' 23:59:59' : null,
         createBy: filterForm.createBy,
         annotationContent: filterForm.annotationContent,
         fileName: filterForm.fileName
@@ -524,11 +833,33 @@ function getALlFileListData() {
             delete allFileListData[key];
         });
         Object.assign(allFileListData, res.data)
+        console.log("===allFileListData===",allFileListData)
+        
+        // 获取当前用户收藏列表并设置文件收藏状态
+        getCollectionData(userStore.id).then(() => {
+            // 提取收藏列表中的文件id
+            const favoriteFileIds = collectionList.value.map(item => item.fileId);
+            // 遍历所有文件列表，设置收藏状态
+            for (const dateKey in allFileListData) {
+                const dailyFiles = allFileListData[dateKey];
+                dailyFiles.forEach(file => {
+                    file.isFavorite = favoriteFileIds.includes(file.id);
+                });
+            }
+        });
     })
 }
 
 // 点击板块分类
 const handleCategoryClick = (category) => {
+    // 重置搜索栏
+    Object.assign(filterForm, {
+      fileType: '',
+      dateRange: [],
+      createBy: '',
+      annotationContent: '',
+      fileName: ''
+    })
     activeCategory.value = category // 设置当前选中的分类
     activeSpace.value = '' // 清空个人空间选中状态
     console.log('===activeCategory===', category)
@@ -550,9 +881,14 @@ const handleCategoryClick = (category) => {
 
 // 查询处理
 const handleQuery = () => {
+  showSearchResults.value = false; // 确保在收藏模块中不进入搜索结果视图
   if (activeSpace.value == 'all') {
     folderData.value = [] // 不展示文件夹
     getALlFileListData()
+  } else if (activeSpace.value == 'favorite') {
+    // 处理收藏模块的查询
+    folderData.value = [] // 不展示文件夹
+    getFavoriteFiles() // 重新获取并应用筛选条件
   } else {
     const pid = getCategoryPid(activeCategory.value)
     // getFolderData(pid)
@@ -586,6 +922,15 @@ function getQueryData(pid) {
     getFileList(param).then(res => {
       queryfileListData.value = res.data
       showSearchResults.value = true
+      // 获取当前用户收藏列表并设置文件收藏状态
+      getCollectionData(userStore.id).then(() => {
+          // 提取收藏列表中的文件id
+          const favoriteFileIds = collectionList.value.map(item => item.fileId);
+          // 遍历文件列表，设置收藏状态
+          queryfileListData.value.forEach(file => {
+              file.isFavorite = favoriteFileIds.includes(file.id);
+          });
+      });
     })
   }
 }
@@ -633,6 +978,10 @@ const handleReset = () => {
   if (activeSpace.value == 'all') {
     folderData.value = [] // 不展示文件夹
     getALlFileListData()
+  } else if (activeSpace.value == 'favorite') {
+    // 处理收藏模块的重置
+    folderData.value = [] // 不展示文件夹
+    getFavoriteFiles() // 重新获取所有收藏文件（无筛选）
   } else {
     const pid = getCategoryPid(activeCategory.value)
     getFolderData(pid)
@@ -646,6 +995,7 @@ const handleAISearch = () => {
 
 // 点击素材项
 const handleMaterialClick = (material) => {
+  console.log('点击素材:', material)
   // 跳转到预览界面
   router.push({ name: 'MaterialPreview', params: { id: material.id } })
 }
@@ -875,12 +1225,12 @@ onBeforeUnmount(() => {
     padding: 0 12px 12px;
   }
 
-  .favorite-btn {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+  // .favorite-btn {
+  //   flex: 1;
+  //   display: flex;
+  //   align-items: center;
+  //   justify-content: center;
+  // }
 
   // .download-btn {
   //   width: 80px !important;
@@ -1095,11 +1445,14 @@ onBeforeUnmount(() => {
     text-align: center
   }
 
+  .material-actions {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 12px 12px;
+  }
+
   .download-btn {
-    position: absolute;
-    bottom: 8px;
-    right: 12px;
-    margin-top: -4px;
+    width: 45%;
     background-color: #409eff;
     color: white;
     border: none;
@@ -1109,6 +1462,7 @@ onBeforeUnmount(() => {
     font-size: 12px;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
     height: 24px;
 
@@ -1116,14 +1470,48 @@ onBeforeUnmount(() => {
       background-color: #66b1ff;
     }
   }
+  
 
+  .favorite-btn {
+    width: 48%;
+    background-color: #f0f2f5;
+    color: #606266;
+    border: 1px solid #dcdfe6;
+    border-radius: 4px;
+    padding: 6px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 24px;
+
+    &:hover {
+      background-color: #e6f7ff;
+      border-color: #91d5ff;
+      color: #1890ff;
+      // background-color: #fff7e6;
+      // border-color: #ffd591;
+      // color: #fa8c16;
+    }
+    
+    &.favorited {
+      // background-color: #fff2e8;
+      // border-color: #ffbb96;
+      // color: #fa541c;
+      background-color: #fff7e6;
+      border-color: #ffd591;
+      color: #fa8c16;
+    }
+  }
+  
   :deep(.el-button) {
     padding: 6px 8px;
     font-size: 12px;
     height: 24px;
   }
-  }
-
+}
 .material-info {
   position: absolute;
   left: 0;

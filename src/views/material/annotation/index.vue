@@ -247,6 +247,7 @@
           {{ uploadType === 'file' ? '点击或拖拽文件到此处上传' : '点击或拖拽文件夹到此处上传' }}
           <div class="el-upload__tip"> 支持图片：jpeg / jpg / png / bmp / gif；视频：mp4 / mov / avi / mkv / flv；文档：docx /
             pdf / pptx
+            <br>单个文件大小不超过50MB，总文件大小不超过200MB
           </div>
         </div>
       </el-upload>

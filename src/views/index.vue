@@ -687,7 +687,7 @@ const getFavoriteFiles = () => {
                 createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
                 createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
                 createBy: filterForm.createBy,
-                annotationContent: filterForm.annotationContent,
+                keyWords: filterForm.annotationContent,
                 fileName: filterForm.fileName
             }
             
@@ -809,7 +809,7 @@ function getALlFileListData() {
         // createStartTime: filterForm.dateRange && filterForm.dateRange.length === 2 ? filterForm.dateRange[0] + ' 00:00:00' : null,
         // createEndTime: filterForm.dateRange && filterForm.dateRange.length === 2 ? filterForm.dateRange[1] + ' 23:59:59' : null,
         createBy: filterForm.createBy,
-        annotationContent: filterForm.annotationContent,
+        keyWords: filterForm.annotationContent,
         fileName: filterForm.fileName
     }
     // 如果filterForm.dateRange是空的，默认获取近30天的开始时间和结束时间
@@ -913,7 +913,7 @@ function getQueryData(pid) {
       createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
       createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
       createBy: filterForm.createBy,
-      annotationContent: filterForm.annotationContent,
+      keyWords: filterForm.annotationContent,
       fileName: filterForm.fileName
       
     }
@@ -1331,7 +1331,7 @@ onBeforeUnmount(() => {
     flex-wrap: wrap;
     gap: 16px;
     margin-top: 16px;
-    width: 1500px;
+    width: 1335px;
 
     .date {
       font-size: 14px;

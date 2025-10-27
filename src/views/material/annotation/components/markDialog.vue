@@ -321,6 +321,7 @@ const handleAIAutoTagging = () => {
     autoTagForm.colorTone = ''
     autoTagForm.shootingAngle = ''
     autoTagForm.materialDescription = ''
+    manualTagForm.personNames = ''
 
     let params = {
         id: currentMaterial.id,
@@ -342,6 +343,7 @@ const handleAIAutoTagging = () => {
         console.log("JSON.parse(res.data[0].annotationContent)",res.data[0].annotationContent)
         emit("updateFileList"); //状态改变，更新文件列表
         Object.assign(autoTagForm, JSON.parse(res.data[0].annotationContent))
+        manualTagForm.personNames = res.data[0].personNames
     })
 
 }

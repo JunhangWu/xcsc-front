@@ -152,7 +152,7 @@
             <div class="tag-dimension">
               <span class="dimension-label">人物姓名：</span>
               <div class="dimension-values">
-                <el-tag v-for="(tag, index) in manualTagForm.properNouns.split(',')"  :key="index" size="small" type="success"
+                <el-tag v-for="(tag, index) in manualTagForm.personNames.split(',')"  :key="index" size="small" type="success"
                   effect="plain">{{ tag.trim() }}</el-tag>
                 <!-- <el-tag size="small" type="success" effect="plain">{{ manualTagForm.personNames }}</el-tag> -->
               </div>

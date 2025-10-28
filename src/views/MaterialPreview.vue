@@ -345,7 +345,8 @@ function getFileType(filePath) {
 //获取文件路径
 function getFilePath(path) {
   if (!path) return '';
-  const prefix = 'xcsc/';
+  // const prefix = 'xcsc/';
+  const prefix = material.minioPath.substring(28,32)
   const startIndex = path.indexOf(prefix) + prefix.length;
   const result = path.substring(startIndex);
   return result.replace("/" + material.fileName, "");

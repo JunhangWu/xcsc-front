@@ -107,7 +107,7 @@
                   </el-icon>
                 </div>
                 <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
-                <div class="material-tags">
+                <div class="material-tags" v-if="material.annotationContent !== null">
                   <el-tag v-for="tag in JSON.parse(material.annotationContent).sceneCategory" :key="tag" type="success" size="small">{{ tag }}</el-tag>
                   <el-tag v-for="tag in JSON.parse(material.annotationContent).activityEvent" :key="tag" type="success" size="small">{{ tag }}</el-tag>
                 </div>
@@ -199,7 +199,7 @@
                     </el-icon>
                   </div>
                   <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
-                  <div class="material-tags">
+                  <div class="material-tags" v-if="material.annotationContent !== null">
                     <el-tag v-for="tag in JSON.parse(material.annotationContent).sceneCategory" :key="tag" type="success" size="small">{{ tag }}</el-tag>
                     <el-tag v-for="tag in JSON.parse(material.annotationContent).activityEvent" :key="tag" type="success" size="small">{{ tag }}</el-tag>
                   </div>
@@ -235,7 +235,7 @@
                 </el-icon>
               </div>
               <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
-              <div class="material-tags">
+              <div class="material-tags" v-if="material.annotationContent !== null">
                 <el-tag v-for="tag in JSON.parse(material.annotationContent).sceneCategory" :key="tag" type="success" size="small">{{ tag }}</el-tag>
                 <el-tag v-for="tag in JSON.parse(material.annotationContent).activityEvent" :key="tag" type="success" size="small">{{ tag }}</el-tag>
               </div>
@@ -1260,7 +1260,7 @@ onBeforeUnmount(() => {
   position: relative;
   aspect-ratio: 1 / 1;
   width: 255px;
-  height: 300px;
+  height: 305px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1362,7 +1362,7 @@ onBeforeUnmount(() => {
     margin: 0;
     position: relative;
     width: 255px;
-    height: 300px;
+    height: 305px;
     border-radius: 8px;
     transition: all 0.3s ease;
     display: flex;
@@ -1449,8 +1449,8 @@ onBeforeUnmount(() => {
     font-size: 15px;
     font-weight: 500;
     color: #303133;
-    margin-top: 8px;
-    margin-bottom: 8px;
+    margin-top: 6px;
+    margin-bottom: 4px;
     margin-left: 6px;
     margin-right: 6px;
     overflow: hidden;

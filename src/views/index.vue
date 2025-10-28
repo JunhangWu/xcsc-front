@@ -107,17 +107,21 @@
                   </el-icon>
                 </div>
                 <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
-                  <div class="material-actions">
-                    <el-button size="small" @click.stop="toggleFavorite($event, material)" 
-                      :class="['favorite-btn', { favorited: material.isFavorite }]"
-                      :icon="material.isFavorite ? StarFilled : Star">
-                      {{ material.isFavorite ? '已收藏' : '收藏' }}
-                    </el-button>
-                    <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
-                      :icon="Download">
-                      下载
-                    </el-button>
-                  </div>
+                <div class="material-tags">
+                  <el-tag v-for="tag in JSON.parse(material.annotationContent).sceneCategory" :key="tag" type="success" size="small">{{ tag }}</el-tag>
+                  <el-tag v-for="tag in JSON.parse(material.annotationContent).activityEvent" :key="tag" type="success" size="small">{{ tag }}</el-tag>
+                </div>
+                <div class="material-actions">
+                  <el-button size="small" @click.stop="toggleFavorite($event, material)" 
+                    :class="['favorite-btn', { favorited: material.isFavorite }]"
+                    :icon="material.isFavorite ? StarFilled : Star">
+                    {{ material.isFavorite ? '已收藏' : '收藏' }}
+                  </el-button>
+                  <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
+                    :icon="Download">
+                    下载
+                  </el-button>
+                </div>
               </div>
             </div>
           </div>
@@ -195,6 +199,10 @@
                     </el-icon>
                   </div>
                   <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
+                  <div class="material-tags">
+                    <el-tag v-for="tag in JSON.parse(material.annotationContent).sceneCategory" :key="tag" type="success" size="small">{{ tag }}</el-tag>
+                    <el-tag v-for="tag in JSON.parse(material.annotationContent).activityEvent" :key="tag" type="success" size="small">{{ tag }}</el-tag>
+                  </div>
                   <div class="material-actions">
                     <el-button size="small" @click.stop="toggleFavorite($event, material)" 
                       :class="['favorite-btn', { favorited: material.isFavorite }]"
@@ -227,17 +235,21 @@
                 </el-icon>
               </div>
               <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
-                  <div class="material-actions">
-                    <el-button size="small" @click.stop="toggleFavorite($event, material)" 
-                      :class="['favorite-btn', { favorited: material.isFavorite }]"
-                      :icon="material.isFavorite ? StarFilled : Star">
-                      {{ material.isFavorite ? '已收藏' : '收藏' }}
-                    </el-button>
-                    <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
-                      :icon="Download">
-                      下载
-                    </el-button>
-                  </div>
+              <div class="material-tags">
+                <el-tag v-for="tag in JSON.parse(material.annotationContent).sceneCategory" :key="tag" type="success" size="small">{{ tag }}</el-tag>
+                <el-tag v-for="tag in JSON.parse(material.annotationContent).activityEvent" :key="tag" type="success" size="small">{{ tag }}</el-tag>
+              </div>
+              <div class="material-actions">
+                <el-button size="small" @click.stop="toggleFavorite($event, material)" 
+                  :class="['favorite-btn', { favorited: material.isFavorite }]"
+                  :icon="material.isFavorite ? StarFilled : Star">
+                  {{ material.isFavorite ? '已收藏' : '收藏' }}
+                </el-button>
+                <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
+                  :icon="Download">
+                  下载
+                </el-button>
+              </div>
             </div>
           </div>
         </div>
@@ -1247,8 +1259,8 @@ onBeforeUnmount(() => {
 .subFolder {
   position: relative;
   aspect-ratio: 1 / 1;
-  width: 250px;
-  height: 250px;
+  width: 255px;
+  height: 300px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1304,7 +1316,7 @@ onBeforeUnmount(() => {
 
   .subFolderName {
     text-align: center;
-    font-size: 14px;
+    font-size: 15px;
     color: #303133;
     padding: 0 8px;
     overflow: hidden;
@@ -1331,7 +1343,7 @@ onBeforeUnmount(() => {
     flex-wrap: wrap;
     gap: 16px;
     margin-top: 16px;
-    width: 1335px;
+    width: 1386px;
 
     .date {
       font-size: 14px;
@@ -1349,8 +1361,8 @@ onBeforeUnmount(() => {
 .material-item {
     margin: 0;
     position: relative;
-    width: 250px;
-    height: 250px;
+    width: 255px;
+    height: 300px;
     border-radius: 8px;
     transition: all 0.3s ease;
     display: flex;
@@ -1379,8 +1391,7 @@ onBeforeUnmount(() => {
     img {
       width: 95%;
       height: 95%;
-      // margin-top: 6px;
-      contain: content;
+      object-fit: fill;
       transition: transform 0.3s;
       cursor: pointer;
     }
@@ -1397,6 +1408,7 @@ onBeforeUnmount(() => {
       video {
         width: 100%;
         height: 100%;
+        object-fit: fill;
       }
 
       .file-icon {
@@ -1425,17 +1437,19 @@ onBeforeUnmount(() => {
     }
   }
 
-  .material-details {
-      padding: 8px 12px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
+  // .material-details {
+  //     padding: 8px 12px;
+  //     display: flex;
+  //     flex-direction: column;
+  //     justify-content: space-between;
+  //     // flex: 1;
+  //   }
 
   .fileName {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 500;
     color: #303133;
+    margin-top: 8px;
     margin-bottom: 8px;
     margin-left: 6px;
     margin-right: 6px;
@@ -1446,11 +1460,12 @@ onBeforeUnmount(() => {
     text-align: center
   }
 
-  .material-actions {
-    display: flex;
-    justify-content: space-between;
-    padding: 0 12px 12px;
-  }
+  // .material-actions {
+  //   display: flex;
+  //   justify-content: space-between;
+  //   padding: 0 12px 12px;
+  //   // margin-top: auto;
+  // }
 
   .download-btn {
     width: 45%;
@@ -1613,11 +1628,18 @@ onBeforeUnmount(() => {
 
 /* 素材标签样式 */
 .material-tags {
+  height: 60px;
   margin-top: 8px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   padding: 0 12px 12px;
+  
+  :deep(.el-tag) {
+    background-color: #ffffff;
+    border-color: #67c23a;
+    color: #67c23a;
+  }
 }
 
 /* 素材操作区样式 */
@@ -1625,6 +1647,7 @@ onBeforeUnmount(() => {
   padding: 0 12px 12px;
   display: flex;
   gap: 10px;
+  margin-top: auto;
 }
 
 .favorite-btn {

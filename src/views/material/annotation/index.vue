@@ -825,7 +825,7 @@ function showMaterialDetail(material) {
 
     .folderName {
       text-align: center;
-      font-size: 16px;
+      font-size: 15px;
       color: #303133;
       padding: 0 8px;
       overflow: hidden;
@@ -948,8 +948,8 @@ function showMaterialDetail(material) {
 .subFolder {
   position: relative;
   aspect-ratio: 1 / 1;
-  width: 250px;
-  height: 250px;
+  width: 255px;
+  height: 255px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1005,7 +1005,7 @@ function showMaterialDetail(material) {
 
   .subFolderName {
     text-align: center;
-    font-size: 16px;
+    font-size: 15px;
     color: #303133;
     padding: 0 8px;
     overflow: hidden;
@@ -1018,8 +1018,8 @@ function showMaterialDetail(material) {
 .material-item {
     margin: 0;
     position: relative;
-    width: 250px;
-    height: 250px;
+    width: 255px;
+    height: 255px;
     border-radius: 8px;
     transition: all 0.3s ease;
     display: flex;
@@ -1105,7 +1105,7 @@ function showMaterialDetail(material) {
     }
 
   .fileName {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 500;
     color: #303133;
     margin-bottom: 8px;

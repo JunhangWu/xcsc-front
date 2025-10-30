@@ -12,6 +12,8 @@
               <component :is="item.icon" />
             </el-icon>
             <span>{{ item.name }}</span>
+            <!-- <span class="space-name">{{ item.name }}</span> -->
+            <!-- <span class="file-count">{{ item.id === 'all' ? totalAllFiles : totalFavoriteFiles }}</span> -->
           </div>
         </div>
       </div>
@@ -23,6 +25,8 @@
           <div v-for="category in categories.filePath" :key="category"
             :class="['category-item', { active: activeCategory === category }]" @click="handleCategoryClick(category)">
             {{ category }}
+            <!-- <span class="category-name">{{ category }}</span> -->
+            <!-- <span class="file-count">{{ getCategoryFileCount(category) }}</span> -->
           </div>
         </div>
       </div>
@@ -106,7 +110,7 @@
                     <Document />
                   </el-icon>
                 </div>
-                <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
+                <div class="fileName" :title="material.fileName">{{ material.fileName }}</div>
                 <div class="material-tags" v-if="material.annotationContent !== null">
                   <el-tag v-for="tag in JSON.parse(material.annotationContent).sceneCategory" :key="tag" type="success" size="small">{{ tag }}</el-tag>
                   <el-tag v-for="tag in JSON.parse(material.annotationContent).activityEvent" :key="tag" type="success" size="small">{{ tag }}</el-tag>
@@ -151,20 +155,33 @@
           </div>
         </div>
 
-        <!-- 素材列表区 -->
+        <!-- 文件数量信息 -->
+        <div class="file-info" v-if="!showSearchResults">
+          <template v-if="activeSpace === 'all'">
+            共<span class="file-count-text">&nbsp;{{ totalAllFiles }}&nbsp;</span>个文件
+          </template>
+          <template v-else-if="activeSpace === 'favorite'">
+            共<span class="file-count-text">&nbsp;{{ fileListData.length }}&nbsp;</span>个文件
+          </template>
+          <template v-else-if="activeCategory">
+            共<span class="file-count-text">&nbsp;{{ fileListData.length }}&nbsp;</span>个文件
+          </template>
+        </div>
+        
+      <!-- 素材列表区 -->
         <div class="material-list">
           <div v-if="loading" class="loading-container">
             <el-loading-text>正在加载素材...</el-loading-text>
           </div>
-          <!-- <div v-else-if="folderData.length == 0 && fileListData.length == 0 && Object.keys(allFileListData).length == 0"
-            class="empty-state">
-            <el-empty description="暂无内容" />
-          </div> -->
           <div v-else-if="activeSpace == 'all' && Object.keys(allFileListData).length == 0"
             class="empty-state">
             <el-empty description="暂无内容" />
           </div>
           <div v-else-if="activeSpace == '' && folderData.length == 0 && fileListData == 0"
+            class="empty-state">
+            <el-empty description="暂无内容" />
+          </div>
+          <div v-else-if="activeSpace == 'favorite' && folderData.length == 0 && fileListData == 0"
             class="empty-state">
             <el-empty description="暂无内容" />
           </div>
@@ -198,7 +215,7 @@
                       <Document />
                     </el-icon>
                   </div>
-                  <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
+                  <div class="fileName" :title="material.fileName">{{ material.fileName }}</div>
                   <div class="material-tags" v-if="material.annotationContent !== null">
                     <el-tag v-for="tag in JSON.parse(material.annotationContent).sceneCategory" :key="tag" type="success" size="small">{{ tag }}</el-tag>
                     <el-tag v-for="tag in JSON.parse(material.annotationContent).activityEvent" :key="tag" type="success" size="small">{{ tag }}</el-tag>
@@ -234,7 +251,7 @@
                   <Document />
                 </el-icon>
               </div>
-              <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
+              <div class="fileName" :title="material.fileName">{{ material.fileName }}</div>
               <div class="material-tags" v-if="material.annotationContent !== null">
                 <el-tag v-for="tag in JSON.parse(material.annotationContent).sceneCategory" :key="tag" type="success" size="small">{{ tag }}</el-tag>
                 <el-tag v-for="tag in JSON.parse(material.annotationContent).activityEvent" :key="tag" type="success" size="small">{{ tag }}</el-tag>
@@ -474,7 +491,83 @@ function downloadFile(material) {
 const activeSpace = ref('all')
 
 // 总文件数
-const totalFiles = computed(() => materials.value.length)
+// const totalFiles = computed(() => materials.value.length)
+// 计算所有文件的总数
+const totalAllFiles = computed(() => {
+  let count = 0;
+  for (const dateKey in allFileListData) {
+    if (allFileListData[dateKey] && Array.isArray(allFileListData[dateKey])) {
+      count += allFileListData[dateKey].length;
+    }
+  }
+  return count;
+});
+
+// 计算收藏文件的总数
+const totalFavoriteFiles = computed(() => {
+  if (activeSpace.value === 'favorite') {
+    return fileListData.value.length;
+  }
+  return collectionList.value.length;
+});
+
+// 存储各板块的文件数量
+const categoryFileCounts = ref({});
+
+// 获取指定板块的文件数量
+const getCategoryFileCount = (category) => {
+  return categoryFileCounts.value[category] || 0;
+};
+
+// 更新板块文件数量
+function updateCategoryFileCounts() {
+  // 重置计数
+  categoryFileCounts.value = {};
+  
+  // 遍历所有板块
+  if (categories.filePath && Array.isArray(categories.filePath)) {
+    categories.filePath.forEach(category => {
+      const pid = categoryMap.value[category];
+      if (pid) {
+        // 为每个板块调用API获取文件数量
+        let params = {
+          folderId: pid,
+          // 不设置筛选条件，获取该板块下的所有文件
+          fileTypeList: null,
+          createStartTime: null,
+          createEndTime: null,
+          createBy: '',
+          annotationContent: '',
+          fileName: ''
+        };
+        
+        getFileList(params).then(res => {
+          // 存储该板块的文件数量
+          categoryFileCounts.value[category] = res.data.length;
+          console.log(`板块 ${category} 的文件数量: ${res.data.length}`);
+        }).catch(error => {
+          console.error(`获取板块 ${category} 文件数量失败:`, error);
+          categoryFileCounts.value[category] = 0;
+        });
+      }
+    });
+  }
+}
+
+// 在组件挂载和切换空间时调用此方法来更新板块文件数量
+function initCategoryFileCounts() {
+  // 延迟执行，确保categories已经加载完成
+  setTimeout(() => {
+    updateCategoryFileCounts();
+  }, 500);
+}
+
+// 监听categories变化，自动更新文件数量
+// const unwatchCategories = watch(() => categories.filePath, () => {
+//   if (categories.filePath && categories.filePath.length > 0) {
+//     updateCategoryFileCounts();
+//   }
+// }, { deep: true });
 
 //收藏列表
 const collectionList = ref([])
@@ -496,6 +589,8 @@ onMounted(() => {
   if (userStore.id) {
     getCollectionData(userStore.id)
   }
+  // 初始化板块文件数量
+  // initCategoryFileCounts();
 })
 
 // 获取当前登录用户的id
@@ -615,22 +710,6 @@ const toggleFavorite = (event, material) => {
         }
     }
 
-    // 保存到localStorage用于持久化
-    // try {
-    //     let favorites = JSON.parse(localStorage.getItem('favoriteMaterials') || '[]')
-    //     if (material.isFavorite) {
-    //         // 添加收藏（避免重复）
-    //         if (!favorites.find(f => f.id === material.id)) {
-    //             favorites.push({ id: material.id, fileName: material.fileName })
-    //         }
-    //     } else {
-    //         // 移除收藏
-    //         favorites = favorites.filter(f => f.id !== material.id)
-    //     }
-    //     localStorage.setItem('favoriteMaterials', JSON.stringify(favorites))
-    // } catch (error) {
-    //     console.error('保存收藏状态失败:', error)
-    // }
 }
 
 // 下载素材
@@ -804,6 +883,11 @@ const handleSpaceClick = (spaceId) => {
         // }
         getFavoriteFiles()
     }
+    
+    // 如果切换到板块分类视图，更新板块文件数量
+    // if (!spaceId) {
+    //     updateCategoryFileCounts();
+    // }
 }
 
 // 获取所有文件
@@ -1123,6 +1207,13 @@ onBeforeUnmount(() => {
       border-radius: 4px;
       cursor: pointer;
       transition: all 0.2s;
+      
+      .space-name {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
 
       .el-icon {
         margin-right: 8px;
@@ -1133,6 +1224,16 @@ onBeforeUnmount(() => {
       span {
         font-size: 14px;
         color: #606266;
+        // flex: 1;
+      }
+
+      .file-count {
+        font-size: 12px;
+        color: #909399;
+        background: #f0f2f5;
+        padding: 2px 8px;
+        border-radius: 10px;
+        margin-left: auto;
       }
 
       &:hover {
@@ -1141,6 +1242,11 @@ onBeforeUnmount(() => {
 
         .el-icon,
         span {
+          color: #409eff;
+        }
+        
+        .file-count {
+          background: #e6f7ff;
           color: #409eff;
         }
       }
@@ -1153,12 +1259,17 @@ onBeforeUnmount(() => {
         span {
           color: #fff;
         }
+        
+        .file-count {
+          background: rgba(255, 255, 255, 0.2);
+          color: #fff;
+        }
       }
     }
   }
 
   .category-list {
-    height: calc(100vh - 270px);
+    height: calc(100vh - 300px);
     overflow-y: auto;
 
     .category-item {
@@ -1173,9 +1284,31 @@ onBeforeUnmount(() => {
       color: #606266;
       background: transparent;
 
+      .category-name {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .file-count {
+        font-size: 12px;
+        color: #909399;
+        background: #f0f2f5;
+        padding: 2px 8px;
+        border-radius: 10px;
+        margin-left: 8px;
+        flex-shrink: 0;
+      }
+
       &:hover {
         background: #ecf5ff;
         color: #409eff;
+        
+        .file-count {
+          background: #e6f7ff;
+          color: #409eff;
+        }
       }
 
       // 确保分类项垂直排列，不换行
@@ -1187,6 +1320,11 @@ onBeforeUnmount(() => {
       &.active {
         background: #409eff;
         color: #fff;
+        
+        .file-count {
+          background: rgba(255, 255, 255, 0.2);
+          color: #fff;
+        }
       }
     }
   }
@@ -1217,9 +1355,19 @@ onBeforeUnmount(() => {
   }
 
   .file-info {
-    margin-bottom: 20px;
+    // margin-bottom: 20px;
     font-size: 14px;
     color: #606266;
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    // background: #f8f9fa;
+    border-radius: 4px;
+    
+    .file-count-text {
+      font-weight: 500;
+      // color: #409eff;
+    }
   }
 
   .material-list {
@@ -1342,7 +1490,7 @@ onBeforeUnmount(() => {
     display: flex;
     flex-wrap: wrap;
     gap: 16px;
-    margin-top: 16px;
+    // margin-top: 16px;
     width: 1386px;
 
     .date {

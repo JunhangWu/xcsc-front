@@ -59,12 +59,15 @@
             <div v-for="material in queryfileListData" :key="material.id" class="material-item"
               @mouseenter="onSubFolderMouseEnter(material)" @mouseleave="onSubFolderMouseLeave(material)">
                 <span class="subFolder-actions">
-                  <el-icon class="action-icon" @click.stop="deleteFile(material)" v-show="material._hover" style="color: #f56c6c;">
+                  <el-icon class="action-icon" @click.stop="editFile(material)" title="重命名" v-show="material._hover" style="color: #409eff;">
+                    <Edit />
+                  </el-icon>
+                  <el-icon class="action-icon" @click.stop="deleteFile(material)" title="删除" v-show="material._hover" style="color: #f56c6c;">
                     <Delete />
                   </el-icon>
                 </span>
               <div class="material-thumb">
-                <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
+                <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="material.fileName"
                   @click="previewImg(material)" />
                 <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="previewVideo(material)">
                   <el-icon class="file-icon">
@@ -79,7 +82,7 @@
               </div>
               
               <div class="material-details">
-                <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
+                <div class="fileName" :title="material.fileName">{{ material.fileName }}</div>
                 <div class="file-status">
                   <el-tag :type="getStatusTagType(material.annotationStatus)" size="medium">
                     {{ getStatusText(material.annotationStatus) }}
@@ -152,11 +155,11 @@
             <div class="subFolder" v-for="(item, index) in folderData" :key="index"
               @mouseenter="onSubFolderMouseEnter(item)" @mouseleave="onSubFolderMouseLeave(item)">
               <span class="subFolder-actions">
-                <el-icon class="action-icon" @click.stop="editFolder(item)" v-show="item._hover"
+                <el-icon class="action-icon" @click.stop="editFolder(item)" title="重命名" v-show="item._hover"
                   style="color: #409eff;">
                   <Edit />
                 </el-icon>
-                <el-icon class="action-icon" @click.stop="deleteFolder(item)" v-show="item._hover"
+                <el-icon class="action-icon" @click.stop="deleteFolder(item)" title="删除" v-show="item._hover"
                   style="color: #f56c6c;">
                   <Delete />
                 </el-icon>
@@ -170,12 +173,15 @@
             <div v-for="material in fileListData" :key="material.id" class="material-item"
               @mouseenter="onSubFolderMouseEnter(material)" @mouseleave="onSubFolderMouseLeave(material)">
                 <span class="subFolder-actions">
-                  <el-icon class="action-icon" @click.stop="deleteFile(material)" v-show="material._hover" style="color: #f56c6c;">
+                  <el-icon class="action-icon" @click.stop="editFile(material)" title="重命名" v-show="material._hover" style="color: #409eff;">
+                    <Edit />
+                  </el-icon>
+                  <el-icon class="action-icon" @click.stop="deleteFile(material)" title="删除" v-show="material._hover" style="color: #f56c6c;">
                     <Delete />
                   </el-icon>
                 </span>
               <div class="material-thumb">
-                <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
+                <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="material.fileName"
                   @click="previewImg(material)" />
                 <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="previewVideo(material)">
                   <el-icon class="file-icon">
@@ -190,7 +196,7 @@
               </div>
               
               <div class="material-details">
-                <div class="fileName" :title="getFileName(material.minioPath)">{{ getFileName(material.minioPath) }}</div>
+                <div class="fileName" :title="material.fileName">{{ material.fileName }}</div>
                 <div class="file-status">
                   <!-- 待标注:0  AI标注:1  人工修改:2-->
                   <el-tag :type="getStatusTagType(material.annotationStatus)" size="medium">
@@ -225,10 +231,10 @@
         style="max-width: 100%; max-height: 50vh; width: auto; height: auto; display: block; object-fit: contain;margin: 0 auto;"></video>
     </el-dialog>
 
-    <!-- 新增文件夹 -->
-    <el-dialog v-model="addFolderDialogVisible" title="请输入文件夹名称" width="500" :before-close="handleAddFolderClose"
+    <!-- 新增文件夹/编辑文件名 -->
+    <el-dialog v-model="addFolderDialogVisible" :title="getDialogTitle" width="500" :before-close="handleAddFolderClose"
       :close-on-click-modal="false" style="margin-top: 30vh;">
-      <el-input v-model="folderName" placeholder="请输入文件夹名称" @keyup.enter="handleAddFolderConfirm" />
+      <el-input v-model="getInputModel" :placeholder="getDialogPlaceholder" @keyup.enter="handleAddFolderConfirm" />
       <template #footer>
         <div class="dialogFoot">
           <el-button @click="handleAddFolderClose">取消</el-button>
@@ -266,12 +272,12 @@
 
 <script setup name="MaterialAnnotation">
 const { proxy } = getCurrentInstance();
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { api as viewerApi } from "v-viewer";
 import { parseTime, } from '@/utils/common'
 import { Search, VideoCamera, Document, Check, Edit, VideoPlay, Back, ArrowRight, FolderAdd, FolderOpened, Upload, UploadFilled, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile } from "@/api/xcsc/uploadFile"
+import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile, updateFile } from "@/api/xcsc/uploadFile"
 import MarkDialog from './components/markDialog.vue'
 import download from '../../../plugins/download';
 // 搜索和筛选
@@ -398,11 +404,44 @@ function getQueryData() {
 
 
 //新建文件夹
-const handleFolderType = ref('add') // add edit
+const handleFolderType = ref('add') // add edit edit_file
 const addFolderDialogVisible = ref(false)
 const folderName = ref('')
+// 编辑文件名
+const editFileName = ref('')
+const editFileObj = reactive({})
+
+// 获取对话框标题
+const getDialogTitle = computed(() => {
+  if (handleFolderType.value === 'add') return '请输入文件夹名称'
+  if (handleFolderType.value === 'edit') return '请输入文件夹名称'
+  if (handleFolderType.value === 'edit_file') return '请输入文件名称'
+  return '请输入名称'
+})
+
+// 获取输入模型
+const getInputModel = computed({
+  get: () => {
+    if (handleFolderType.value === 'edit_file') return editFileName.value
+    return folderName.value
+  },
+  set: (val) => {
+    if (handleFolderType.value === 'edit_file') {
+      editFileName.value = val
+    } else {
+      folderName.value = val
+    }
+  }
+})
+
+// 获取对话框占位符
+const getDialogPlaceholder = computed(() => {
+  if (handleFolderType.value === 'edit_file') return '请输入文件名称'
+  return '请输入文件夹名称'
+})
 function handleAddFolderClose() {
   folderName.value = ''
+  editFileName.value = ''
   addFolderDialogVisible.value = false
 }
 function handleAddFolder() {
@@ -410,7 +449,50 @@ function handleAddFolder() {
   handleFolderType.value = 'add'
 }
 function handleAddFolderConfirm() {
+  // 验证输入不为空
+  const inputValue = getInputModel.value.trim()
+  if (!inputValue) {
+    ElMessage.warning('名称不能为空')
+    return
+  }
+  
   addFolderDialogVisible.value = false
+  
+  // 处理编辑文件名称
+  if (handleFolderType.value === 'edit_file') {
+    // 保留文件扩展名
+    const originalName = getFileName(editFileObj.minioPath || editFileName.value)
+    const dotIndex = originalName.lastIndexOf('.')
+    if (dotIndex > -1) {
+      const ext = originalName.substring(dotIndex)
+      // 确保新文件名包含扩展名
+      if (!inputValue.endsWith(ext)) {
+        editFileName.value = inputValue + ext
+      }
+    }
+    
+    const params = {
+      id: editFileObj.id,
+      fileName: editFileName.value.trim()
+    }
+    
+    updateFile(params).then(res => {
+      ElMessage.success('文件名修改成功')
+      editFileName.value = ''
+      // 刷新文件列表
+      if (showSearchResults.value) {
+        getQueryData()
+      } else {
+        getFolderData(curFolderObj.bizId)
+      }
+    }).catch(err => {
+      ElMessage.error('文件名修改失败')
+      console.error('修改文件名失败:', err)
+    })
+    return
+  }
+  
+  // 处理文件夹相关操作
   let params = {
     filePath: folderName.value,
   }
@@ -421,7 +503,7 @@ function handleAddFolderConfirm() {
       folderName.value = ''
       getFolderData(curFolderObj.bizId)
     })
-  } else {
+  } else if (handleFolderType.value == 'edit') {
     params.id = editOrDeleteFolderObj.id
     updateFolder(params).then(res => {
       ElMessage.success('修改成功')
@@ -437,6 +519,16 @@ function editFolder(item) {
   handleFolderType.value = 'edit'
   editOrDeleteFolderObj.id = item.id
   folderName.value = item.filePath
+}
+// 编辑文件
+function editFile(item) {
+  addFolderDialogVisible.value = true
+  handleFolderType.value = 'edit_file'
+  editFileObj.id = item.id
+  editFileObj.minioPath = item.minioPath
+  // 从minioPath中提取文件名
+  const fileName = item.fileName
+  editFileName.value = fileName
 }
 //  删除文件夹
 function deleteFolder(item) {
@@ -708,6 +800,7 @@ function previewImg(material) {
     options: {
       toolbar: true,
       initialViewIndex: 0,
+      title: (image) => `${material.fileName}`,
     },
     images: [material.minioPath],
   });
@@ -720,7 +813,7 @@ const videoDialogTitle = ref('')
 function previewVideo(material) {
   videoDialogVisible.value = true
   videoFilePath.value = material.minioPath
-  videoDialogTitle.value = getFileName(material.minioPath)
+  videoDialogTitle.value = material.fileName
 }
 
 //下载文件
@@ -765,6 +858,8 @@ function showMaterialDetail(material) {
   top: 8px;
   right: 8px;
   z-index: 10;
+  display: flex;
+  gap: 4px;
 }
 
 .action-icon {

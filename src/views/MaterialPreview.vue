@@ -30,7 +30,7 @@
 
       <!-- 文件名称 -->
       <div class="name-section">
-        <h2 class="material-name">{{ material.name }}</h2>
+        <h2 class="material-name">{{ material.fileName }}</h2>
       </div>
 
       <!-- 元数据信息 -->
@@ -69,7 +69,7 @@
       <div class="tags-section">
         <!-- 自动标签 -->
         <div class="tag-category">
-          <h3 class="section-title2">自动标签</h3>
+          <h3 class="section-title2">智能标签</h3>
           <div class="tag-items">
             <div class="tag-dimension">
               <span class="dimension-label">场景分类：</span>
@@ -133,7 +133,7 @@
 
         <!-- 人工标签 -->
         <div class="tag-category">
-          <h3 class="section-title2">人工标签</h3>
+          <h3 class="section-title2">基础标签</h3>
           <div class="tag-items">
             <div class="tag-dimension">
               <span class="dimension-label">时间信息：</span>
@@ -342,14 +342,20 @@ function getFileType(filePath) {
   }
   return 'other'
 }
+// 获取文件名
+function getFileName(path) {
+    if (!path) return '';
+    const idx = path.lastIndexOf('/');
+    return idx !== -1 ? path.substring(idx + 1) : path;
+}
 //获取文件路径
 function getFilePath(path) {
   if (!path) return '';
   // const prefix = 'xcsc/';
-  const prefix = material.minioPath.substring(28,32)
+  const prefix = path.substring(28,32)
   const startIndex = path.indexOf(prefix) + prefix.length;
   const result = path.substring(startIndex);
-  return result.replace("/" + material.fileName, "");
+  return result.replace("/" + getFileName(path), "");
 }
 // 格式化文件大小
 const formatFileSize = (bytes) => {
@@ -670,7 +676,7 @@ onMounted(async () => {
 }
 
 .name-section {
-  margin-bottom: 32px;
+  margin-bottom: 22px;
   padding-bottom: 20px;
   border-bottom: 1px solid #e4e7ed;
 }

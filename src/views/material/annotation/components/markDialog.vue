@@ -25,7 +25,7 @@
 
                 <!-- 素材基本信息 -->
                 <div class="material-basic-info">
-                    <h1 class="material-title">{{ currentMaterial.fileName || '未命名素材' }}</h1>
+                    <h1 class="material-title">{{ currentMaterial.fileName }}</h1>
                     <div class="metadata-section">
                         <div class="metadata-grid">
                             <div class="metadata-item">
@@ -60,12 +60,13 @@
 
             <!-- 2. 标注信息区域 -->
             <div class="annotation-info">
-                <h3>标注信息</h3>
+                <!-- <h3>标注信息</h3> -->
                 <el-tabs v-model="tabActiveName" class="demo-tabs">
-                    <el-tab-pane label="标签信息" name="autoLabel">
+                    <el-tab-pane label="智能标签" name="autoLabel">
                         <!-- 标签信息部分 -->
+                         
                         <div class="annotation-section">
-                            <div style="margin-bottom: 20px; display: flex; justify-content: flex-end;">
+                            <div style="margin-bottom: 5px; display: flex; justify-content: flex-end;">
                                 <el-button @click="handleAIAutoTagging" :type="isAIAutoTagging ? 'default' : 'primary'"
                                     :disabled="isAIAutoTagging">
                                     {{ isAIAutoTagging ? '标注中...' : 'AI标注' }}
@@ -73,27 +74,28 @@
                                 <!-- v-if="currentMaterial.annotationStatus == 0" -->
                                 <!-- <el-tag :type="primary" v-else>AI已标注</el-tag> -->
                             </div>
+                            <div class="annotation-tip">（多个标签请用英文逗号分隔）</div>
                             <el-form :model="autoTagForm" label-width="120px">
                                 <el-form-item label="场景分类">
-                                    <el-input v-model="autoTagForm.sceneCategory" placeholder="请输入场景分类，多个用英文逗号分隔" />
+                                    <el-input v-model="autoTagForm.sceneCategory" placeholder="请输入场景分类" />
                                 </el-form-item>
                                 <el-form-item label="人物行为">
-                                    <el-input v-model="autoTagForm.characterBehavior" placeholder="请输入人物行为，多个用英文逗号分隔" />
+                                    <el-input v-model="autoTagForm.characterBehavior" placeholder="请输入人物行为" />
                                 </el-form-item>
                                 <el-form-item label="核心物体">
-                                    <el-input v-model="autoTagForm.coreObjects" placeholder="请输入核心物体，多个用英文逗号分隔" />
+                                    <el-input v-model="autoTagForm.coreObjects" placeholder="请输入核心物体" />
                                 </el-form-item>
                                 <el-form-item label="活动事件">
-                                    <el-input v-model="autoTagForm.activityEvent" placeholder="请输入活动事件描述，多个用英文逗号分隔" />
+                                    <el-input v-model="autoTagForm.activityEvent" placeholder="请输入活动事件描述" />
                                 </el-form-item>
                                 <el-form-item label="文本信息">
-                                    <el-input v-model="autoTagForm.textInfo" placeholder="请输入识别到的文本信息，多个用英文逗号分隔" />
+                                    <el-input v-model="autoTagForm.textInfo" placeholder="请输入识别到的文本信息" />
                                 </el-form-item>
                                 <el-form-item label="颜色色调">
-                                    <el-input v-model="autoTagForm.colorTone" placeholder="请输入颜色色调，多个用英文逗号分隔" />
+                                    <el-input v-model="autoTagForm.colorTone" placeholder="请输入颜色色调" />
                                 </el-form-item>
                                 <el-form-item label="拍摄角度">
-                                    <el-input v-model="autoTagForm.shootingAngle" placeholder="请输入拍摄角度，多个用英文逗号分隔" />
+                                    <el-input v-model="autoTagForm.shootingAngle" placeholder="请输入拍摄角度" />
                                 </el-form-item>
                                 <el-form-item label="素材描述">
                                     <el-input v-model="autoTagForm.materialDescription" type="textarea"
@@ -102,8 +104,9 @@
                             </el-form>
                         </div>
                     </el-tab-pane>
-                    <el-tab-pane label="基本信息" name="artificialLabel">
+                    <el-tab-pane label="基础标签" name="artificialLabel">
                         <!-- 基本信息部分 -->
+                        <div class="annotation-tip">（多个标签请用英文逗号分隔）</div>
                         <div class="annotation-section">
                             <el-form :model="manualTagForm" label-width="120px">
                                 <el-form-item label="事件时间">
@@ -111,19 +114,19 @@
                                         placeholder="选择日期时间" value-format="YYYY-MM-DD HH:mm:ss"></el-date-picker>
                                 </el-form-item>
                                 <el-form-item label="地点信息">
-                                    <el-input v-model="manualTagForm.locationInfo" placeholder="请输入地点信息，多个用英文逗号分隔" />
+                                    <el-input v-model="manualTagForm.locationInfo" placeholder="请输入地点信息" />
                                 </el-form-item>
                                 <el-form-item label="人物姓名">
-                                    <el-input v-model="manualTagForm.personNames" placeholder="请输入人物姓名，多个用英文逗号分隔" />
+                                    <el-input v-model="manualTagForm.personNames" placeholder="请输入人物姓名" />
                                 </el-form-item>
                                 <el-form-item label="建筑名称">
-                                    <el-input v-model="manualTagForm.buildingNames" placeholder="请输入建筑名称，多个用英文逗号分隔" />
+                                    <el-input v-model="manualTagForm.buildingNames" placeholder="请输入建筑名称" />
                                 </el-form-item>
                                 <el-form-item label="相关主题">
-                                    <el-input v-model="manualTagForm.relatedThemes" placeholder="请输入相关主题，多个用英文逗号分隔" />
+                                    <el-input v-model="manualTagForm.relatedThemes" placeholder="请输入相关主题" />
                                 </el-form-item>
                                 <el-form-item label="专有名词">
-                                    <el-input v-model="manualTagForm.properNouns" placeholder="请输入专有名词，多个用英文逗号分隔" />
+                                    <el-input v-model="manualTagForm.properNouns" placeholder="请输入专有名词" />
                                 </el-form-item>
                             </el-form>
                         </div>
@@ -613,5 +616,10 @@ defineExpose({
             }
         }
     }
+}
+.annotation-tip {
+  margin-bottom: 15px;
+  color: #b0b2bb;
+  font-size: 14px;
 }
 </style>

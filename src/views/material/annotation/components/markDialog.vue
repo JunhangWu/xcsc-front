@@ -155,7 +155,7 @@
         <template #footer>
             <span class="dialog-footer">
                 <el-button @click="handleClose">关闭</el-button>
-                <el-button type="primary" @click="saveAnnotation">保存标注</el-button>
+                <el-button type="primary" @click="saveAnnotation" :disabled="isSaveAnnotationDisabled">保存标注</el-button>
             </span>
         </template>
     </el-dialog>
@@ -179,7 +179,7 @@ const newSupplementTag = ref('')
 
 // AI标注状态
 const isAIAutoTagging = ref(false)
-
+const isSaveAnnotationDisabled = ref(false);// 确认按钮是否禁用
 // 标注信息 - 标签信息（8个维度）
 const autoTagForm = reactive({
     sceneCategory: '', // 场景分类
@@ -318,6 +318,7 @@ const handleAIAutoTagging = () => {
     }
     // 设置标注状态为进行中
     isAIAutoTagging.value = true
+    isSaveAnnotationDisabled.value = true // 标注过程中，确认按钮禁用
 
     // 清空现有数据，准备填充新的AI生成数据
     autoTagForm.sceneCategory = ''
@@ -337,8 +338,9 @@ const handleAIAutoTagging = () => {
         AIMark(params).then(res => {
             dialogLoading.value = false
             isAIAutoTagging.value = false
+            isSaveAnnotationDisabled.value = false // 标注完成后，启用确认按钮
             if(res.data[0].annotationContent == null){
-                ElMessage.error('AI自动标注失败,请检查服务是否开启！')
+                ElMessage.error('AI自动标注失败！')
             }
             else{
                 ElMessage.success('AI自动标注成功！')
@@ -351,6 +353,13 @@ const handleAIAutoTagging = () => {
                 Object.assign(autoTagForm, JSON.parse(res.data[0].annotationContent))
                 manualTagForm.personNames = res.data[0].personNames
             }
+        }).catch(error => {
+            // 处理错误情况，确保状态被正确重置
+            dialogLoading.value = false
+            isAIAutoTagging.value = false
+            isSaveAnnotationDisabled.value = false
+            console.error('AI自动标注发生错误:', error)
+            ElMessage.error('AI自动标注过程中发生错误！')
         })
     // }
     // dialogLoading.value = false
@@ -418,7 +427,7 @@ const formatFileSize = (size) => {
 function open(material) {
     console.log('===material===', material)
     Object.assign(currentMaterial, material)
-
+    tabActiveName.value = 'autoLabel'
     if (material && material.annotationContent) {
         try {
             Object.assign(autoTagForm, JSON.parse(material.annotationContent))
@@ -458,6 +467,9 @@ const hasUnsavedChanges = () => {
         if (manualTagForm[key] && manualTagForm[key].toString().trim() !== '') return true;
     }
 
+    // 检查补充标签是否有数据
+    if (supplementTags.value && supplementTags.value.length > 0) return true;
+
     return false;
 }
 
@@ -483,6 +495,9 @@ const handleClose = () => {
             Object.keys(manualTagForm).forEach(key => {
                 manualTagForm[key] = ''
             })
+            // 清空补充标签
+            supplementTags.value = []
+            newSupplementTag.value = ''
         }).catch(() => {
             // 用户取消关闭
             ElMessage.info('已取消关闭')
@@ -501,6 +516,9 @@ const handleClose = () => {
         Object.keys(manualTagForm).forEach(key => {
             manualTagForm[key] = ''
         })
+        // 清空补充标签
+        supplementTags.value = []
+        newSupplementTag.value = ''
     }
 }
 defineExpose({

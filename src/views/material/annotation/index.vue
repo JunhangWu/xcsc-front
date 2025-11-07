@@ -62,7 +62,7 @@
                   <el-icon class="action-icon" @click.stop="editFile(material)" title="重命名" v-show="material._hover" style="color: #409eff;">
                     <Edit />
                   </el-icon>
-                  <el-icon class="action-icon" @click.stop="deleteFile(material)" title="删除" v-show="material._hover" style="color: #f56c6c;">
+                  <el-icon class="action-icon" @click.stop="deleteFileinQuery(material)" title="删除" v-show="material._hover" style="color: #f56c6c;">
                     <Delete />
                   </el-icon>
                 </span>
@@ -257,6 +257,20 @@
           </div>
         </div>
       </el-upload>
+        
+        <!-- 上传进度条 -->
+        <div v-if="showProgress" class="upload-progress-container" style="margin-top: 20px;">
+          <el-progress 
+            :percentage="uploadProgress" 
+            :status="uploadProgress === 100 ? 'success' : 'primary'"
+            :stroke-width="16"
+            :text-inside="true"
+          ></el-progress>
+          <div class="progress-text" style="margin-top: 8px; text-align: center; color: #606266;">
+            正在上传中，请稍候...
+          </div>
+        </div>
+        
       <template #footer>
         <div class="dialogFoot">
           <el-button @click="cancelUpload" :disabled="isUploading">取消</el-button>
@@ -390,7 +404,7 @@ getFolderData(0)
 // 获取文件列表数据
 const queryfileListData = ref([])//文件列表
 function getQueryData() {
-  loading.value = true
+  // loading.value = true
   let params = {
     fileName: searchKeyword.value,
     annotationStatus: statusFilter.value,
@@ -473,6 +487,26 @@ function handleAddFolderConfirm() {
       }
     }
     
+    // 检查当前目录下是否已存在同名文件
+    let fileExists = false
+    // if (showSearchResults.value) {
+    //   // 在搜索结果视图中检查
+    //   fileExists = queryfileListData.value.some(file => 
+    //     file.fileName === editFileName.value.trim() && file.id !== editFileObj.id
+    //   )
+    // } else {
+      // 在普通视图中检查
+      fileExists = fileListData.value.some(file => 
+        file.fileName === editFileName.value.trim() && file.id !== editFileObj.id
+      )
+    // }
+    
+    if (fileExists) {
+      ElMessage.error('当前目录下已存在同名文件，请更换名称！')
+      addFolderDialogVisible.value = true // 保持对话框打开
+      return
+    }
+    
     const params = {
       id: editFileObj.id,
       fileName: editFileName.value.trim()
@@ -499,6 +533,14 @@ function handleAddFolderConfirm() {
     filePath: folderName.value,
   }
   if (handleFolderType.value == 'add') {
+    // 检查当前目录下是否已存在同名文件夹
+    const folderExists = folderData.value.some(folder => folder.filePath === folderName.value.trim())
+    if (folderExists) {
+      ElMessage.error('当前目录下已存在同名文件夹，请更换名称！')
+      addFolderDialogVisible.value = true // 保持对话框打开
+      return
+    }
+    
     params.pid = curFolderObj.bizId
     addFolder(params).then(res => {
       ElMessage.success('新增成功')
@@ -506,6 +548,16 @@ function handleAddFolderConfirm() {
       getFolderData(curFolderObj.bizId)
     })
   } else if (handleFolderType.value == 'edit') {
+    // 检查当前目录下是否已存在同名文件夹
+    const folderExists = folderData.value.some(folder => 
+      folder.filePath === folderName.value.trim() && folder.id !== editOrDeleteFolderObj.id
+    )
+    if (folderExists) {
+      ElMessage.error('当前目录下已存在同名文件夹，请更换名称！')
+      addFolderDialogVisible.value = true // 保持对话框打开
+      return
+    }
+    
     params.id = editOrDeleteFolderObj.id
     updateFolder(params).then(res => {
       ElMessage.success('修改成功')
@@ -555,6 +607,8 @@ const uploadType = ref('file')// 上传类型
 const fileList = ref([])// 文件列表
 const isConfirmDisabled = ref(false);// 确认按钮是否禁用
 const isUploading = ref(false); // 上传中状态
+const uploadProgress = ref(0); // 上传进度（0-100）
+const showProgress = ref(false); // 是否显示进度条
 function uploadFile() {
   fileList.value = []
   uploadDialogVisible.value = true
@@ -562,6 +616,8 @@ function uploadFile() {
 function cancelUpload() {
   fileList.value = []
   uploadDialogVisible.value = false
+  uploadProgress.value = 0
+  showProgress.value = false
 }
 function confirmUpload() {
   // 再次检查所有文件总大小不超过500MB
@@ -575,17 +631,17 @@ function confirmUpload() {
   
   // 设置上传中状态
   isUploading.value = true;
+  uploadProgress.value = 0;
+  showProgress.value = true;
   
   let formData = new FormData();
   // files 是多个文件的数组集合，用于上传的文件流
   let files = fileList.value.map(item => item.raw || item.originFileObj || item); // 兼容不同上传组件的文件对象
   files.forEach((file, index) => {
-    // console.log('====file==', file);
     formData.append("files", file);
     formData.append("eventTimes", parseTime(file.lastModifiedDate) || '');
   });
   let folderPath = ''
-  console.log('===curFolderObj===', curFolderObj);
   formData.append("folderId", curFolderObj.bizId);
   breadcrumbData.value.forEach((item, idx) => {
     folderPath += item.filePath
@@ -594,15 +650,35 @@ function confirmUpload() {
     }
   })
   formData.append("folderPath", folderPath);
-  console.log('===formData===', formData);
-  uploadFiles(formData).then(res => {
-    ElMessage.success(`上传成功！`)
-    getFolderData(curFolderObj.bizId)
+  
+  // 配置上传进度监听
+  const config = {
+    onUploadProgress: (progressEvent) => {
+      if (progressEvent.total) {
+        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        uploadProgress.value = percentCompleted;
+      }
+    }
+  };
+  
+  uploadFiles(formData, config).then(res => {
+    // 完成上传，进度设为100%
+    uploadProgress.value = 100;
+    
+    // 延迟显示成功消息，让用户看到100%的进度
+    setTimeout(() => {
+      ElMessage.success(`上传成功！`)
+      getFolderData(curFolderObj.bizId)
+    }, 300);
   }).finally(() => {
     // 无论成功失败，都重置上传状态
-    isUploading.value = false;
-    uploadDialogVisible.value = false;
-    fileList.value = [];
+    setTimeout(() => {
+      isUploading.value = false;
+      uploadDialogVisible.value = false;
+      fileList.value = [];
+      uploadProgress.value = 0;
+      showProgress.value = false;
+    }, 700);
   })
 }
 // 支持的文件格式
@@ -797,6 +873,15 @@ function deleteFile(item) {
     return delFile(item.id);
   }).then(() => {
     getFolderData(curFolderObj.bizId)
+    proxy.$modal.msgSuccess("删除成功");
+  }).catch(() => { });
+}
+// 搜索结果中删除文件
+function deleteFileinQuery(item) {
+  proxy.$modal.confirm('是否确认删除文件名为"' + item.fileName + '"的文件?').then(function () {
+    return delFile(item.id);
+  }).then(() => {
+    getQueryData()
     proxy.$modal.msgSuccess("删除成功");
   }).catch(() => { });
 }

@@ -292,7 +292,7 @@ import {
   Search,
   FolderOpened
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { getFolderList, getFileList, getFileIndexList, getCollectionList, addCollection, delCollection } from "@/api/xcsc/uploadFile"
 import useUserStore from '@/store/modules/user'
 
@@ -630,10 +630,52 @@ function updateFileFavoriteStatus() {
 const toggleFavorite = (event, material) => {
     event.stopPropagation() // 阻止事件冒泡，避免触发素材点击事件
 
-    // 切换收藏状态
-    material.isFavorite = !material.isFavorite
     if(material.isFavorite){
+      // 取消收藏 - 显示确认对话框
+      ElMessageBox.confirm(
+        '确定要取消收藏该素材吗？',
+        '取消收藏确认',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }
+      ).then(() => {
+        // 用户确认取消收藏
+        material.isFavorite = false
+        let params = {
+          userId: userStore.id,
+          fileId: material.id
+        }
+        console.log('===params===', params)
+        delCollection(params).then(res => {
+          // 取消收藏成功后，更新收藏列表
+          getCollectionData(userStore.id).then(() => {
+            // 更新当前文件列表中的收藏状态
+            updateFileFavoriteStatus();
+          })
+          
+          console.log('===res===', res)
+          
+          // 显示操作反馈
+          ElMessage.success('取消收藏')
+          
+          // 如果当前在"我的收藏"页面，取消收藏后需要更新显示的文件列表
+          if (activeSpace.value === 'favorite') {
+              // 从显示的文件列表中移除该文件
+              const index = fileListData.value.findIndex(file => file.id === material.id)
+              if (index !== -1) {
+                  fileListData.value.splice(index, 1)
+              }
+          }
+        })
+      }).catch(() => {
+        // 用户取消操作，不做任何处理
+        console.log('用户取消了取消收藏操作')
+      })
+    } else {
       // 收藏
+      material.isFavorite = true
       let params = {
         userId: userStore.id,
         fileId: material.id
@@ -646,70 +688,13 @@ const toggleFavorite = (event, material) => {
         })
         
         console.log('===res===', res)
-      })
-    }
-    else{
-      // 取消收藏
-      let params = {
-        userId: userStore.id,
-        fileId: material.id
-      }
-      console.log('===params===', params)
-      delCollection(params).then(res => {
-        // 取消收藏成功后，更新收藏列表
-        getCollectionData(userStore.id).then(() => {
-          // 更新当前文件列表中的收藏状态
-          updateFileFavoriteStatus();
-        })
         
-        console.log('===res===', res)
+        // 显示操作反馈
+        ElMessage.success('收藏成功')
       })
     }
     console.log('===material.isFavorite===', material.isFavorite)
     console.log('===material===', material)
-    // // 查找并更新queryfileListData中的素材
-    // const queryIndex = queryfileListData.value.findIndex(m => m.id === material.id)
-    // if (queryIndex !== -1) {
-    //     queryfileListData.value[queryIndex].isFavorite = material.isFavorite
-    // }
-    
-
-    // // 查找并更新fileListData中的素材
-    // const fileIndex = fileListData.value.findIndex(m => m.id === material.id)
-    // console.log('===fileIndex===', fileIndex)
-    // if (fileIndex !== -1) {
-    //     fileListData.value[fileIndex].isFavorite = material.isFavorite
-    //     console.log('===fileListData.value[fileIndex]===', fileListData.value[fileIndex])
-    // }
-    // console.log('fileListData.value', fileListData.value)
-    // const target = fileListData.value.find(m => m.id === material.id);
-    // if (target) {
-    //   // 动态添加 isFavorite 属性并赋值
-    //   target.isFavorite = material.isFavorite; 
-    // }
-    // console.log('===target===', target)
-    // // 查找并更新allFileListData中的素材（按日期分组）
-    // for (const dateKey in allFileListData) {
-    //     const dailyFiles = allFileListData[dateKey]
-    //     const dailyIndex = dailyFiles.findIndex(m => m.id === material.id)
-    //     if (dailyIndex !== -1) {
-    //         dailyFiles[dailyIndex].isFavorite = material.isFavorite
-    //         break
-    //     }
-    // }
-
-    // 显示操作反馈
-    ElMessage.success(material.isFavorite ? '收藏成功' : '取消收藏')
-    
-    // 如果当前在"我的收藏"页面，取消收藏后需要更新显示的文件列表
-    if (activeSpace.value === 'favorite' && !material.isFavorite) {
-        // 从显示的文件列表中移除该文件
-        const index = fileListData.value.findIndex(file => file.id === material.id)
-        if (index !== -1) {
-            fileListData.value.splice(index, 1)
-        }
-    }
-
 }
 
 // 下载素材
@@ -1661,12 +1646,12 @@ onBeforeUnmount(() => {
     height: 24px;
 
     &:hover {
-      background-color: #e6f7ff;
-      border-color: #91d5ff;
-      color: #1890ff;
-      // background-color: #fff7e6;
-      // border-color: #ffd591;
-      // color: #fa8c16;
+      // background-color: #e6f7ff;
+      // border-color: #91d5ff;
+      // color: #1890ff;
+      background-color: #fff7e6;
+      border-color: #ffd591;
+      color: #fa8c16;
     }
     
     &.favorited {

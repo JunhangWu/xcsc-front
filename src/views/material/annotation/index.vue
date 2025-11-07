@@ -253,14 +253,16 @@
           {{ uploadType === 'file' ? '点击或拖拽文件到此处上传' : '点击或拖拽文件夹到此处上传' }}
           <div class="el-upload__tip"> 支持图片：jpeg / jpg / png / bmp / gif；视频：mp4 / mov / avi / mkv / flv；文档：docx /
             pdf / pptx
-            <br>单个文件大小不超过50MB，总文件大小不超过200MB
+            <br>单个文件大小不超过100MB，总文件大小不超过500MB
           </div>
         </div>
       </el-upload>
       <template #footer>
         <div class="dialogFoot">
-          <el-button @click="cancelUpload">取消</el-button>
-          <el-button type="primary" @click="confirmUpload" :disabled="isConfirmDisabled">确认</el-button>
+          <el-button @click="cancelUpload" :disabled="isUploading">取消</el-button>
+          <el-button type="primary" @click="confirmUpload" :disabled="isConfirmDisabled || isUploading" :loading="isUploading">
+            {{ isUploading ? '上传中...' : '确认' }}
+          </el-button>
         </div>
       </template>
     </el-dialog>
@@ -552,6 +554,7 @@ const uploadDialogVisible = ref(false)
 const uploadType = ref('file')// 上传类型
 const fileList = ref([])// 文件列表
 const isConfirmDisabled = ref(false);// 确认按钮是否禁用
+const isUploading = ref(false); // 上传中状态
 function uploadFile() {
   fileList.value = []
   uploadDialogVisible.value = true
@@ -561,8 +564,19 @@ function cancelUpload() {
   uploadDialogVisible.value = false
 }
 function confirmUpload() {
+  // 再次检查所有文件总大小不超过500MB
+  const totalSize = fileList.value.reduce((sum, f) => sum + ((f.raw || f.originFileObj || f).size || 0), 0);
+  const maxTotalSize = 500 * 1024 * 1024; // 500MB
+  if (totalSize > maxTotalSize) {
+    const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+    ElMessage.error(`所有文件总大小（${totalSizeMB}MB）超过限制（500MB）`);
+    return;
+  }
+  
+  // 设置上传中状态
+  isUploading.value = true;
+  
   let formData = new FormData();
-  // debugger
   // files 是多个文件的数组集合，用于上传的文件流
   let files = fileList.value.map(item => item.raw || item.originFileObj || item); // 兼容不同上传组件的文件对象
   files.forEach((file, index) => {
@@ -576,7 +590,7 @@ function confirmUpload() {
   breadcrumbData.value.forEach((item, idx) => {
     folderPath += item.filePath
     if (idx !== breadcrumbData.value.length - 1) {
-      folderPath += '/'
+      folderPath += '/'  
     }
   })
   formData.append("folderPath", folderPath);
@@ -584,9 +598,12 @@ function confirmUpload() {
   uploadFiles(formData).then(res => {
     ElMessage.success(`上传成功！`)
     getFolderData(curFolderObj.bizId)
+  }).finally(() => {
+    // 无论成功失败，都重置上传状态
+    isUploading.value = false;
+    uploadDialogVisible.value = false;
+    fileList.value = [];
   })
-  uploadDialogVisible.value = false
-  fileList.value = []
 }
 // 支持的文件格式
 const supportedFormats = {
@@ -674,10 +691,20 @@ const handleFileChange = (file, fileList) => {
   fileList.forEach(f => {
     f.status = isSupportedFormat(f.name) ? 'success' : 'error'
   })
-  // 检查文件大小（可选，可根据需要添加）
+  // 检查单个文件大小
   const maxSize = 100 * 1024 * 1024 // 100MB
   if (file.size > maxSize) {
     ElMessage.error(`文件 ${file.name} 大小超过限制（100MB）`)
+    hasUploadError = true;
+    return false
+  }
+  
+  // 检查所有文件总大小不超过500MB
+  const totalSize = fileList.reduce((sum, f) => sum + (f.size || 0), 0);
+  const maxTotalSize = 500 * 1024 * 1024; // 500MB
+  if (totalSize > maxTotalSize) {
+    const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+    ElMessage.error(`所有文件总大小（${totalSizeMB}MB）超过限制（500MB）`)
     hasUploadError = true;
     return false
   }

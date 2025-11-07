@@ -13,11 +13,12 @@
           style="max-width: 100%; max-height: 600px; width: auto; height: auto; display: block; object-fit: contain;"></video>
       </div>
       <div v-else class="file-preview">
-        <el-icon class="file-icon">
-          <Document v-if="getFileType(material.minioPath) === 'document'" />
-          <Collection v-else-if="getFileType(material.minioPath) === 'ppt'" />
-        </el-icon>
-        <p class="file-text">无法在线预览该类型文件</p>
+        <!-- <el-icon class="file-icon"> -->
+          <!-- <Document v-if="getFileType(material.minioPath) === 'document'" />
+          <Collection v-else-if="getFileType(material.minioPath) === 'ppt'" /> -->
+          <el-link type="primary" :href="material.minioPath" target="_blank">{{ material.fileName}}</el-link>
+        <!-- </el-icon> -->
+        <!-- <p class="file-text">无法在线预览该类型文件</p> -->
       </div>
     </div>
 
@@ -557,7 +558,12 @@ const getRealResolution = (imageUrl) => {
     img.src = imageUrl;
   });
 }
-
+//预览文件
+function downloadFile(material) {
+  if (material && material.minioPath) {
+    window.open(material.minioPath, '_blank');
+  }
+}
 // 组件挂载时获取素材数据
 onMounted(async () => {
   // 从路由参数中获取素材ID

@@ -17,7 +17,7 @@
                     <template v-else>
                         <div class="preview-file">
                             <!-- 文件名称 -->
-                            <el-link type="primary" :href="currentMaterial.minioPath">{{ currentMaterial.fileName
+                            <el-link type="primary" :href="currentMaterial.minioPath" target="_blank">{{ currentMaterial.fileName
                                 }}</el-link>
                         </div>
                     </template>
@@ -312,6 +312,10 @@ const removeSupplementTag = (tag) => {
 // AI自动标注处理函数
 const emit = defineEmits(["updateFileList"]);
 const handleAIAutoTagging = () => {
+    if(getFileTypeText(currentMaterial.minioPath) == '文档'){
+        ElMessage.warning('该类型素材暂时无法标注！')
+        return
+    }
     // 设置标注状态为进行中
     isAIAutoTagging.value = true
 
@@ -330,25 +334,27 @@ const handleAIAutoTagging = () => {
         id: currentMaterial.id,
     }
     dialogLoading.value = true
-    AIMark(params).then(res => {
-        dialogLoading.value = false
-        isAIAutoTagging.value = false
-        if(res.data[0].annotationContent == "null"){
-            ElMessage.error('AI自动标注失败！')
-            return
-        }
-        // else{
-        //     ElMessage.success('AI自动标注成功！')
-        // }
-        ElMessage.success('AI自动标注成功！')
-        // ElMessage.error('AI自动标注失败！')
-        // console.log("JSON.parse(res.data[0].annotationContent)",res.data[0])
-        console.log("JSON.parse(res.data[0].annotationContent)",res.data[0].annotationContent)
-        emit("updateFileList"); //状态改变，更新文件列表
-        Object.assign(autoTagForm, JSON.parse(res.data[0].annotationContent))
-        manualTagForm.personNames = res.data[0].personNames
-    })
-
+        AIMark(params).then(res => {
+            dialogLoading.value = false
+            isAIAutoTagging.value = false
+            if(res.data[0].annotationContent == null){
+                ElMessage.error('AI自动标注失败,请检查服务是否开启！')
+            }
+            else{
+                ElMessage.success('AI自动标注成功！')
+            
+            // ElMessage.success('AI自动标注成功！')
+            // ElMessage.error('AI自动标注失败！')
+            // console.log("JSON.parse(res.data[0].annotationContent)",res.data[0])
+                console.log("JSON.parse(res.data[0].annotationContent)",res.data[0].annotationContent)
+                emit("updateFileList"); //状态改变，更新文件列表
+                Object.assign(autoTagForm, JSON.parse(res.data[0].annotationContent))
+                manualTagForm.personNames = res.data[0].personNames
+            }
+        })
+    // }
+    // dialogLoading.value = false
+    // isAIAutoTagging.value = false
 }
 // 获取文件类型文本
 const getFileTypeText = (filePath) => {
@@ -360,13 +366,14 @@ const getFileTypeText = (filePath) => {
     const typeMap = {
         '图片': ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'svg', 'heic'],
         '视频': ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm'],
-        '音频': ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'],
-        'PDF文档': ['pdf'],
-        'Word文档': ['doc', 'docx'],
-        'Excel文档': ['xls', 'xlsx'],
-        'PPT文档': ['ppt', 'pptx'],
-        '压缩文件': ['zip', 'rar', '7z', 'tar', 'gz'],
-        '文本': ['txt', 'md', 'csv', 'json', 'xml']
+        // '音频': ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'],
+        // 'PDF文档': ['pdf'],
+        // 'Word文档': ['doc', 'docx'],
+        // 'Excel文档': ['xls', 'xlsx'],
+        // 'PPT文档': ['ppt', 'pptx'],
+        // '压缩文件': ['zip', 'rar', '7z', 'tar', 'gz'],
+        // '文本': ['txt', 'md', 'csv', 'json', 'xml'],
+        '文档': ['doc', 'docx', 'ppt', 'pptx', 'pdf']
     };
     for (const [type, exts] of Object.entries(typeMap)) {
         if (exts.includes(ext.toLowerCase())) {

@@ -35,11 +35,12 @@ export function delFolder(id) {
 }
 
 // 上传文件
-export function uploadFiles(data) {
+export function uploadFiles(data, config = {}) {
     return request({
         url: '/file/uploads',
         method: 'post',
-        data: data
+        data: data,
+        ...config
     })
 }
 // 文件列表

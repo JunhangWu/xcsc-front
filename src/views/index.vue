@@ -196,7 +196,7 @@
             </div>
             <!-- 文件列表 -所有文件 -->
             <div class="allFileList" v-if="activeSpace == 'all'">
-              <div class="everydayBox" v-for="(everydayData, index) in Object.keys(allFileListData)" :key="index">
+              <div class="everydayBox" v-for="(everydayData, index) in getSortedDates()" :key="index">
                 <div class="date" style=" font-size: 16px;font-weight: 600;color: #303133;padding: 10px 0;border-bottom: 1px solid #ebeef5;width: 100%; margin-bottom: 16px;
                 ">{{ everydayData }}</div>
                 <div v-for="material in allFileListData[everydayData]" :key="material.id" class="material-item">
@@ -1124,6 +1124,14 @@ const isSupportedFormat = (filename) => {
   return Object.values(supportedFormats).flat().includes(ext)
 }
 
+// 获取按日期倒序排序的日期键数组
+const getSortedDates = () => {
+  return Object.keys(allFileListData).sort((a, b) => {
+    // 将日期字符串转换为Date对象进行比较，确保最新的日期排在前面
+    return new Date(b) - new Date(a);
+  });
+}
+
 
 // 定时检查同步（每5秒）
 let syncInterval = null
@@ -1491,7 +1499,8 @@ onBeforeUnmount(() => {
     flex-wrap: wrap;
     gap: 16px;
     // margin-top: 16px;
-    width: 1386px;
+    // width: 1386px;
+    width: 100%;
 
     .date {
       font-size: 14px;
@@ -1776,12 +1785,15 @@ onBeforeUnmount(() => {
 
 /* 素材标签样式 */
 .material-tags {
-  height: 60px;
+  height: 50px;
   margin-top: 8px;
+  margin-bottom: 6px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   padding: 0 12px 12px;
+  /* 隐藏溢出内容 */
+  overflow: hidden;
   
   :deep(.el-tag) {
     background-color: #ffffff;

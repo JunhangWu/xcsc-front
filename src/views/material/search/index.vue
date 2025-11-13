@@ -8,16 +8,20 @@
           <div class="history-list" v-if="searchHistory.length > 0">
             <div 
               v-for="(item, index) in searchHistory" 
-              :key="index" 
+              :key="item.id || index" 
               class="history-item"
-              @click="searchWithHistory(item.keyword)"
             >
-              <div class="history-info">
-                <div class="history-keyword">{{ item.keyword }}</div>
-                <div class="history-time">{{ item.time }}</div>
+              <div class="history-content" @click="searchWithHistory(item.query)">
+                <div class="history-info">
+                  <div class="history-keyword">{{ item.query }}</div>
+                  <div class="history-time">{{ parseTime(item.createTime) }}</div>
+                </div>
+                <div class="history-result">
+                  <span>{{ item.resultCount }}个结果</span>
+                </div>
               </div>
-              <div class="history-result">
-                <span>{{ item.resultCount }}个结果</span>
+              <div class="history-delete" @click.stop="deleteSingleHistory(item.id)">
+                <el-icon class="delete-icon"><Delete /></el-icon>
               </div>
             </div>
           </div>
@@ -257,9 +261,12 @@
 
 <script setup name="MaterialSearch">
 import { ref, reactive, onMounted } from 'vue'
-import { Search, VideoCamera, Document, View, Download, RefreshRight } from '@element-plus/icons-vue'
+import { Search, VideoCamera, Document, View, Download, RefreshRight, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-
+import { getSearchList, addSearch, delSearch } from "@/api/xcsc/search"
+import useUserStore from '@/store/modules/user'
+//当前用户
+const userStore = useUserStore()
 // 搜索关键词
 const searchKeyword = ref('')
 
@@ -279,33 +286,7 @@ const showExamples = ref(true)
 const showResults = ref(false)
 
 // 搜索历史
-const searchHistory = ref([
-  {
-    keyword: '查找所有2024年的产品宣传图片',
-    time: '2025/9/18 16:23:33',
-    resultCount: 12
-  },
-  {
-    keyword: '哪些素材适合用于季度销售报告',
-    time: '2025/9/17 16:23:33',
-    resultCount: 8
-  },
-  {
-    keyword: '生成包含"新产品发布"关键词的PPT',
-    time: '2025/9/16 16:23:33',
-    resultCount: 5
-  },
-  {
-    keyword: '查找最近上传的视频素材',
-    time: '2025/9/14 16:23:33',
-    resultCount: 3
-  },
-  {
-    keyword: '2024年市场调研报告',
-    time: '2025/9/12 16:23:33',
-    resultCount: 6
-  }
-])
+const searchHistory = ref([])
 
 // 搜索示例
 const searchExamples = ref([
@@ -341,25 +322,22 @@ const searchMaterials = () => {
 }
 
 // 保存搜索历史
-const saveToSearchHistory = (keyword) => {
-  // 检查是否已存在该关键词
-  const existingIndex = searchHistory.value.findIndex(item => item.keyword === keyword)
-  
-  // 如果已存在，移除旧的
-  if (existingIndex !== -1) {
-    searchHistory.value.splice(existingIndex, 1)
-  }
-  
-  // 添加新的搜索历史到列表开头
-  searchHistory.value.unshift({
-    keyword,
-    time: new Date().toLocaleString('zh-CN'),
-    resultCount: total.value
-  })
-  
-  // 限制历史记录数量为10条
-  if (searchHistory.value.length > 10) {
-    searchHistory.value.pop()
+const saveToSearchHistory = async (keyword) => {
+  // debugger
+  try {
+    // 调用API保存搜索记录
+    const data = {
+      query: keyword,
+      userId: userStore.id,
+      // searchResult: searchResult,
+    }
+    await addSearch(data)
+    
+    // 重新获取搜索历史列表
+    await fetchSearchHistory(userStore.id)
+  } catch (error) {
+    console.error('保存搜索历史失败:', error)
+    ElMessage.error('保存搜索历史失败')
   }
 }
 
@@ -376,10 +354,51 @@ const searchWithExample = (text) => {
   saveToSearchHistory(text)
 }
 
+// 删除单条搜索历史
+const deleteSingleHistory = async (id) => {
+  // debugger
+  try {
+    await delSearch({ id })
+    // 重新获取搜索历史列表
+    await fetchSearchHistory(userStore.id)
+    ElMessage.success('搜索记录已删除')
+  } catch (error) {
+    console.error('删除搜索记录失败:', error)
+    ElMessage.error('删除搜索记录失败')
+  }
+}
+
 // 清空搜索历史
-const clearHistory = () => {
-  searchHistory.value = []
-  ElMessage.success('搜索历史已清空')
+const clearHistory = async () => {
+  try {
+    await delSearch({})
+    searchHistory.value = []
+    ElMessage.success('搜索历史已清空')
+  } catch (error) {
+    console.error('清空搜索历史失败:', error)
+    ElMessage.error('清空搜索历史失败')
+  }
+}
+
+// 获取搜索历史
+const fetchSearchHistory = async () => {
+  try {
+    let params = {
+        userId: userStore.id,
+    }
+    console.log('userStore.id', userStore.id)
+    const response = await getSearchList(params)
+    // getSearchList(params).then(res => {
+    //   searchHistory.value = res.data || []
+
+    // })
+    // 假设API返回的数据格式需要转换为组件需要的格式
+    searchHistory.value = response.data || []
+    console.log('response',response)
+  } catch (error) {
+    console.log('暂无搜索历史')
+    // ElMessage.error('获取搜索历史失败')
+  }
 }
 
 // 获取素材列表
@@ -388,7 +407,8 @@ const fetchMaterialList = () => {
   showExamples.value = false
   showResults.value = true
   
-  // 模拟API请求
+  // 模拟API请求 - 注意：这里需要根据实际的素材搜索API进行修改
+  // 由于没有看到素材搜索的API，暂时保留模拟数据逻辑
   setTimeout(() => {
     const mockData = [
       {
@@ -493,7 +513,8 @@ const handleClose = () => {
 
 // 组件挂载时初始化
 onMounted(() => {
-  // 初始化时不自动加载数据，等待用户搜索
+  // 获取搜索历史
+  fetchSearchHistory()
 })
 </script>
 
@@ -521,16 +542,46 @@ onMounted(() => {
     }
     .history-list {
       .history-item {
-        padding: 12px;
-        border: 1px solid #e4e7ed;
-        border-radius: 6px;
-        margin-bottom: 8px;
-        cursor: pointer;
-        transition: all 0.3s;
-        &:hover {
-          border-color: #409eff;
-          box-shadow: 0 2px 8px rgba(64, 158, 255, 0.15);
-        }
+          padding: 12px;
+          border: 1px solid #e4e7ed;
+          border-radius: 6px;
+          margin-bottom: 8px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          transition: all 0.3s;
+          &:hover {
+            border-color: #409eff;
+            box-shadow: 0 2px 8px rgba(64, 158, 255, 0.15);
+          }
+          .history-content {
+            flex: 1;
+            cursor: pointer;
+          }
+          .history-delete {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px;
+            border-radius: 4px;
+            margin-left: 8px;
+            cursor: pointer;
+            opacity: 0;
+            transition: all 0.3s;
+            .delete-icon {
+              color: #909399;
+              font-size: 16px;
+            }
+          }
+          &:hover .history-delete {
+            opacity: 1;
+          }
+          .history-delete:hover {
+            background-color: #f56c6c;
+            .delete-icon {
+              color: white;
+            }
+          }
         .history-info {
           .history-keyword {
             font-size: 14px;

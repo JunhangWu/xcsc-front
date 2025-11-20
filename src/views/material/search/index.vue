@@ -102,11 +102,11 @@
               <!-- 素材预览 -->
               <div class="material-preview-container" @click="previewMaterial(material)" style="cursor: pointer;">
                 <img 
-                  v-if="material.type.includes('image')" 
-                  :src="material.url" 
+                  v-if="isImage(material.minioPath)" 
+                  :src="material.minioPath" 
                   class="material-thumbnail" 
                 />
-                <div v-else-if="material.type.includes('video')" class="video-placeholder">
+                <div v-else-if="isVideo(material.minioPath)" class="video-placeholder">
                   <el-icon><VideoCamera /></el-icon>
                 </div>
                 <div v-else class="document-placeholder">
@@ -116,12 +116,12 @@
               
               <!-- 素材信息 -->
               <div class="material-info">
-                <div class="material-name" :title="material.name">{{ material.name }}</div>
+                <div class="material-name" :title="material.fileName">{{ material.fileName }}</div>
                 <div class="material-meta">
-                  <span class="material-size">{{ material.size }} KB</span>
-                  <span class="material-type">{{ material.type.split('/')[1].toUpperCase() }}</span>
+                  <span class="material-size">{{ material.fileSize }} KB</span>
+                  <!-- <span class="material-type">{{ material.type.split('/')[1].toUpperCase() }}</span> -->
                 </div>
-                <div class="material-tags">
+                <!-- <div class="material-tags">
                   <el-tag 
                     v-for="tag in material.tags.slice(0, 3)"
                     :key="tag"
@@ -137,7 +137,7 @@
                   >
                     +{{ material.tags.length - 3 }}
                   </el-tag>
-                </div>
+                </div> -->
                 <div class="material-upload-time">{{ material.uploadTime }}</div>
                 
                 <!-- 操作按钮 -->
@@ -263,7 +263,8 @@
 import { ref, reactive, onMounted } from 'vue'
 import { Search, VideoCamera, Document, View, Download, RefreshRight, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getSearchList, addSearch, delSearch } from "@/api/xcsc/search"
+import { getSearchList, addSearch, delSearch} from "@/api/xcsc/search"
+import {getFileList,getFileBatch} from "@/api/xcsc/uploadFile"
 import useUserStore from '@/store/modules/user'
 //当前用户
 const userStore = useUserStore()
@@ -272,6 +273,7 @@ const searchKeyword = ref('')
 
 // 素材列表
 const loading = ref(false)
+const idList = ref([])
 const materialList = ref([])
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -308,21 +310,27 @@ const searchExamples = ref([
   }
 ])
 
+function isImage(path) {
+  return ['jpg', 'jpeg', 'png', 'bmp', 'gif'].some(ext => path.toLowerCase().includes(ext));
+}
+function isVideo(path) {
+  return ['mp4', 'mov', 'avi', 'mkv', 'flv'].some(ext => path.toLowerCase().includes(ext));
+}
 // 搜索素材
-const searchMaterials = () => {
-  if (!searchKeyword.value.trim()) {
+async function searchMaterials() {
+  // debugger
+  if (!searchKeyword.value) {
     ElMessage.warning('请输入搜索关键词')
     return
   }
-  
-  fetchMaterialList()
-  
+  console.log('searchKeyword.value', searchKeyword.value)
   // 保存到搜索历史
-  saveToSearchHistory(searchKeyword.value.trim())
+  await saveToSearchHistory(searchKeyword.value)
+  fetchMaterialList()
 }
 
 // 保存搜索历史
-const saveToSearchHistory = async (keyword) => {
+async function saveToSearchHistory(keyword) {
   // debugger
   try {
     // 调用API保存搜索记录
@@ -332,30 +340,69 @@ const saveToSearchHistory = async (keyword) => {
       // searchResult: searchResult,
     }
     await addSearch(data)
-    
+    // getSearchMaterialIds()
     // 重新获取搜索历史列表
     await fetchSearchHistory(userStore.id)
   } catch (error) {
     console.error('保存搜索历史失败:', error)
     ElMessage.error('保存搜索历史失败')
   }
+  
+}
+//获取搜索结果素材id
+async function getSearchMaterialIds(keyword){
+  try {
+    let params = {
+      query: keyword || searchKeyword.value, // 确保 keyword 已定义（如从响应式变量中获取）
+    };
+    const res = await getSearchList(params);
+    // 边界处理：确保 response 存在再访问 data
+    if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
+
+      const searchResultStr = res.data[0].searchResult || "";
+      
+      // 3. 核心转换逻辑：字符串 → Long类型数组
+      idList.value = searchResultStr
+        .split(',') // 按逗号分割为字符串数组（如 ["254", "306", ...]）
+        .filter(idStr => {
+          // 过滤无效值：空字符串、纯空格、非数字字符
+          const trimmed = idStr.trim();
+          return trimmed !== "" && !isNaN(Number(trimmed));
+        })
+        .map(idStr => {
+          // 转为Number类型
+          return Number(idStr.trim());
+        });
+    } else {
+      idList.value = [];
+    }
+
+    console.log('idList.value', idList.value)
+    return idList.value;
+  } catch (error) {
+    // 捕获接口请求错误（如网络错误、422/500 状态码）
+    console.error('获取搜索结果ID列表失败:', error);
+    // 错误时重置列表，避免显示旧数据
+    idList.value = [];
+    return [];
+  }
 }
 
 // 从历史记录搜索
-const searchWithHistory = (keyword) => {
+function searchWithHistory(keyword) {
   searchKeyword.value = keyword
   fetchMaterialList()
 }
 
 // 使用搜索示例
-const searchWithExample = (text) => {
+function searchWithExample(text) {
   searchKeyword.value = text
   fetchMaterialList()
   saveToSearchHistory(text)
 }
 
 // 删除单条搜索历史
-const deleteSingleHistory = async (id) => {
+async function deleteSingleHistory(id) {
   // debugger
   try {
     await delSearch({ id })
@@ -369,7 +416,7 @@ const deleteSingleHistory = async (id) => {
 }
 
 // 清空搜索历史
-const clearHistory = async () => {
+async function clearHistory() {
   try {
     await delSearch({})
     searchHistory.value = []
@@ -381,7 +428,7 @@ const clearHistory = async () => {
 }
 
 // 获取搜索历史
-const fetchSearchHistory = async () => {
+async function fetchSearchHistory() {
   try {
     let params = {
         userId: userStore.id,
@@ -394,7 +441,7 @@ const fetchSearchHistory = async () => {
     // })
     // 假设API返回的数据格式需要转换为组件需要的格式
     searchHistory.value = response.data || []
-    console.log('response',response)
+    // console.log('response',response)
   } catch (error) {
     console.log('暂无搜索历史')
     // ElMessage.error('获取搜索历史失败')
@@ -402,117 +449,76 @@ const fetchSearchHistory = async () => {
 }
 
 // 获取素材列表
-const fetchMaterialList = () => {
-  loading.value = true
-  showExamples.value = false
-  showResults.value = true
-  
-  // 模拟API请求 - 注意：这里需要根据实际的素材搜索API进行修改
-  // 由于没有看到素材搜索的API，暂时保留模拟数据逻辑
-  setTimeout(() => {
-    const mockData = [
-      {
-        id: '1',
-        name: '活动现场照片1.jpg',
-        url: 'https://picsum.photos/id/1/400/300',
-        size: 245,
-        type: 'image/jpeg',
-        uploadTime: '2023-09-15 10:23',
-        tags: ['活动', '照片', '场景'],
-        description: '公司年度活动现场照片'
-      },
-      {
-        id: '2',
-        name: '产品宣传视频.mp4',
-        url: '',
-        size: 12540,
-        type: 'video/mp4',
-        uploadTime: '2023-09-14 15:36',
-        tags: ['产品', '视频', '宣传'],
-        description: '新产品宣传视频'
-      },
-      {
-        id: '3',
-        name: '季度报告文档.docx',
-        url: '',
-        size: 356,
-        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        uploadTime: '2023-09-13 09:12',
-        tags: ['报告', '文档', '财务'],
-        description: '2023年第三季度财务报告'
-      },
-      {
-        id: '4',
-        name: '团队合影.jpg',
-        url: 'https://picsum.photos/id/1005/400/300',
-        size: 320,
-        type: 'image/jpeg',
-        uploadTime: '2023-09-12 16:45',
-        tags: ['团队', '照片', '合影'],
-        description: '市场部团队合影'
-      },
-      {
-        id: '5',
-        name: '会议记录.pdf',
-        url: '',
-        size: 180,
-        type: 'application/pdf',
-        uploadTime: '2023-09-10 14:30',
-        tags: ['会议', '记录', '文档'],
-        description: '项目启动会议记录'
-      }
-    ]
+async function fetchMaterialList(keyword) {
+  loading.value = true;
+  showExamples.value = false;
+  showResults.value = true;
+
+  try {
+    await getSearchMaterialIds(keyword || searchKeyword.value);
     
-    // 模拟搜索过滤
-    let filteredData = [...mockData]
-    if (searchKeyword.value.trim()) {
-      const keyword = searchKeyword.value.toLowerCase().trim()
-      filteredData = filteredData.filter(item => 
-        item.name.toLowerCase().includes(keyword) ||
-        item.tags.some(tag => tag.toLowerCase().includes(keyword)) ||
-        (item.description && item.description.toLowerCase().includes(keyword))
-      )
+    console.log('idList.value', idList.value);
+    // 检查idList是否为空
+    if (!idList.value || idList.value.length === 0) {
+      materialList.value = [];
+      total.value = 0;
+      return;
     }
     
-    // 模拟分页
-    const start = (currentPage.value - 1) * pageSize.value
-    const end = start + pageSize.value
-    materialList.value = filteredData.slice(start, end)
-    total.value = filteredData.length
-    loading.value = false
-  }, 500)
+    // 调用批量查询接口，传递idList作为参数
+    const res = await getFileBatch(idList.value); // 传递idList作为请求体参数
+    console.log('res', res.data);
+    
+    // 处理批量查询结果
+    const allMaterials = res.data || [];
+    console.log('批量查询到的素材列表:', allMaterials);
+    
+    // 处理分页
+    const start = (currentPage.value - 1) * pageSize.value;
+    const end = start + pageSize.value;
+    materialList.value = allMaterials.slice(start, end);
+    total.value = allMaterials.length;
+  } catch (error) {
+    console.error('获取素材列表失败:', error);
+    ElMessage.error('获取素材列表失败');
+    materialList.value = [];
+    total.value = 0;
+  } finally {
+    loading.value = false;
+    console.log('materialList.value', materialList.value)
+  }
 }
 
 // 分页处理
-const handleSizeChange = (size) => {
+function handleSizeChange(size) {
   pageSize.value = size
   fetchMaterialList()
 }
 
-const handleCurrentChange = (current) => {
+function handleCurrentChange(current) {
   currentPage.value = current
   fetchMaterialList()
 }
 
 // 预览素材
-const previewMaterial = (material) => {
+function previewMaterial(material) {
   selectedMaterial.value = { ...material }
   previewVisible.value = true
 }
 
 // 下载素材
-const downloadMaterial = (material) => {
+function downloadMaterial(material) {
   // 模拟下载操作
   ElMessage.success(`正在下载素材: ${material.name}`)
 }
 
 // 关闭弹窗
-const handleClose = () => {
+function handleClose() {
   previewVisible.value = false
 }
 
 // 组件挂载时初始化
-onMounted(() => {
+onMounted(function() {
   // 获取搜索历史
   fetchSearchHistory()
 })

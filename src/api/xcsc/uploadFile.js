@@ -82,6 +82,19 @@ export function getFileIndexList(query) {
         params: query
     })
 }
+
+//根据id批量查询文件
+export function getFileBatch(idList){
+    return request({
+        url: `/file/ids`,
+        method: 'post',
+        data: idList,
+        headers: {
+        'Content-Type': 'application/json'
+        }
+    })
+}
+
 //收藏列表
 export function getCollectionList(query){
     return request({
@@ -106,3 +119,4 @@ export function delCollection(query){
         params: query
     })
 }
+

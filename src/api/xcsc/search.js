@@ -24,3 +24,12 @@ export function delSearch(query){
         params: query
     })
 }
+
+// 删除全部搜索记录
+export function delAllSearchHistory(userId) {
+    return request({
+        url: '/search/del-all',
+        method: 'delete',
+        params: { userId }
+    })
+}

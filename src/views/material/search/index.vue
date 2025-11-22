@@ -263,7 +263,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { Search, VideoCamera, Document, View, Download, RefreshRight, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getSearchList, addSearch, delSearch} from "@/api/xcsc/search"
+import {getSearchList, addSearch, delSearch, delAllSearchHistory} from "@/api/xcsc/search"
 import {getFileList,getFileBatch} from "@/api/xcsc/uploadFile"
 import useUserStore from '@/store/modules/user'
 //当前用户
@@ -418,7 +418,7 @@ async function deleteSingleHistory(id) {
 // 清空搜索历史
 async function clearHistory() {
   try {
-    await delSearch({})
+    await delAllSearchHistory(userStore.id) // 传用户ID
     searchHistory.value = []
     ElMessage.success('搜索历史已清空')
   } catch (error) {
@@ -426,6 +426,7 @@ async function clearHistory() {
     ElMessage.error('清空搜索历史失败')
   }
 }
+
 
 // 获取搜索历史
 async function fetchSearchHistory() {

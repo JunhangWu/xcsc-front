@@ -196,10 +196,20 @@
     >
       <div class="preview-dialog">
         <div class="preview-content">
-          <div v-if="selectedMaterial.type?.includes('image')" class="image-preview">
-            <img :src="selectedMaterial.url" class="full-image" />
+          <div
+              v-if="['jpg','jpeg','png','gif','webp','bmp','svg'].includes(
+                  selectedMaterial.fileType?.toLowerCase()
+              )"
+              class="image-preview"
+          >
+            <img :src="selectedMaterial.minioPath" class="full-image" />
           </div>
-          <div v-else-if="selectedMaterial.type?.includes('video')" class="video-preview">
+          <div
+              v-else-if="['mp4','mov','avi','mkv','flv','wmv','webm'].includes(
+               selectedMaterial.fileType?.toLowerCase().replace('.', '')
+             )"
+              class="video-preview"
+          >
             <div class="video-placeholder">
               <el-icon><VideoCamera /></el-icon>
               <span>视频预览区域</span>
@@ -212,30 +222,30 @@
             </div>
           </div>
           <div class="material-info">
-            <h3>{{ selectedMaterial.name }}</h3>
+            <h3>{{ selectedMaterial.fileName }}</h3>
             <div class="info-row">
               <span class="info-label">素材ID:</span>
               <span class="info-value">{{ selectedMaterial.id }}</span>
             </div>
             <div class="info-row">
               <span class="info-label">大小:</span>
-              <span class="info-value">{{ selectedMaterial.size }} KB</span>
+              <span class="info-value">{{ selectedMaterial.fileSize }} KB</span>
             </div>
             <div class="info-row">
               <span class="info-label">类型:</span>
-              <span class="info-value">{{ selectedMaterial.type }}</span>
+              <span class="info-value">{{ selectedMaterial.fileType }}</span>
             </div>
             <div class="info-row">
               <span class="info-label">上传时间:</span>
-              <span class="info-value">{{ selectedMaterial.uploadTime }}</span>
+              <span class="info-value">{{ selectedMaterial.createTime }}</span>
             </div>
             <div class="info-row">
               <span class="info-label">标签:</span>
               <div class="tag-list">
-                <el-tag 
-                  v-for="tag in selectedMaterial.tags"
-                  :key="tag"
-                  size="small"
+                <el-tag
+                    v-for="tag in selectedMaterial.annotationTags"
+                    :key="tag"
+                    size="small"
                 >
                   {{ tag }}
                 </el-tag>
@@ -243,7 +253,7 @@
             </div>
             <div class="info-row">
               <span class="info-label">描述:</span>
-              <span class="info-value">{{ selectedMaterial.description || '无' }}</span>
+              <span class="info-value">{{ selectedMaterial.annotationDescription || '无' }}</span>
             </div>
           </div>
         </div>
@@ -503,7 +513,12 @@ function handleCurrentChange(current) {
 
 // 预览素材
 function previewMaterial(material) {
-  selectedMaterial.value = { ...material }
+  const parsed = parseAnnotation(material.annotationContent)
+  selectedMaterial.value = {
+    ...material,
+    annotationTags: parsed.tags,          // 所有标签
+    annotationDescription: parsed.desc    // 描述
+  }
   previewVisible.value = true
 }
 
@@ -517,6 +532,38 @@ function downloadMaterial(material) {
 function handleClose() {
   previewVisible.value = false
 }
+
+// 解析标签字段（打平所有数组，除了materialDescription字段
+// todo 后续前后端应优化一下接口 不然后续修改容易出bug
+function parseAnnotation(jsonStr) {
+  if (!jsonStr) {
+    return { tags: [], desc: '' }
+  }
+
+  try {
+    const obj = JSON.parse(jsonStr)
+
+    // 提取描述字段
+    const desc = obj.materialDescription || ''
+
+    // 除 materialDescription 之外的字段全部收集为 tags
+    const tags = Object.entries(obj)
+        .filter(([key, value]) => key !== 'materialDescription')
+        .flatMap(([key, value]) => value)      // 展开数组
+        .filter(tag => tag && tag.trim() !== '') // 过滤空内容
+
+    return {
+      tags,
+      desc
+    }
+
+  } catch (e) {
+    console.error("annotationContent 解析失败:", e)
+    return { tags: [], desc: '' }
+  }
+}
+
+
 
 // 组件挂载时初始化
 onMounted(function() {

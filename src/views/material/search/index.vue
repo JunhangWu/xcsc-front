@@ -524,10 +524,48 @@ function previewMaterial(material) {
   previewVisible.value = true
 }
 
-// 下载素材
-function downloadMaterial(material) {
-  // 模拟下载操作
-  ElMessage.success(`正在下载素材: ${material.name}`)
+// 下载素材 todo: 抽象出工具方法
+const downloadMaterial = async (material) => {
+  if (!material.minioPath) {
+    ElMessage.warning('文件路径不存在，无法下载')
+    return
+  }
+  console.log('下载文件:', material.fileName)
+  try {
+    // 使用fetch API获取文件内容
+    const response = await fetch(material.minioPath, {
+      method: 'GET',
+      credentials: 'include' // 包含cookies等认证信息
+    })
+    if (!response.ok) {
+      throw new Error(`服务器响应错误: ${response.status}`)
+    }
+    // 获取文件内容并创建Blob对象
+    const blob = await response.blob()
+    // 创建下载链接
+    const link = document.createElement('a')
+    // 创建指向Blob的URL
+    const url = window.URL.createObjectURL(blob)
+    // 设置下载属性
+    link.href = url
+    link.download = material.fileName || getFileNameFromUrl(material.minioPath) || 'download_file'
+    // 隐藏链接
+    link.style.display = 'none'
+    // 添加到文档并触发点击
+    document.body.appendChild(link)
+    link.click()
+    // 延迟清理
+    setTimeout(() => {
+      // 移除链接
+      document.body.removeChild(link)
+      // 释放Blob URL
+      window.URL.revokeObjectURL(url)
+    }, 100)
+    ElMessage.success('文件下载已开始')
+  } catch (error) {
+    console.error('文件下载失败:', error)
+    ElMessage.error('文件下载失败，请稍后重试')
+  }
 }
 
 // 关闭弹窗

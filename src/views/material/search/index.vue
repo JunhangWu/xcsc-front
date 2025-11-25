@@ -17,7 +17,9 @@
                   <div class="history-time">{{ parseTime(item.createTime) }}</div>
                 </div>
                 <div class="history-result">
-                  <span>{{ item.resultCount }}个结果</span>
+                  <span>{{ item.searchResult
+                      ? item.searchResult.split(',').filter(i => i.trim() !== '').length
+                      : 0 }}个结果</span>
                 </div>
               </div>
               <div class="history-delete" @click.stop="deleteSingleHistory(item.id)">

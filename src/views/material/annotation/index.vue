@@ -999,8 +999,10 @@ function showMaterialDetail(material) {
 }
 
 .folderBox {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 18px;
+  // flex-wrap: wrap;
   max-height: calc(100vh - 180px);
   overflow-y: auto;
   padding: 16px;
@@ -1012,7 +1014,7 @@ function showMaterialDetail(material) {
   .folderItem {
     margin: 8px;
     aspect-ratio: 1 / 1;
-    width: 250px;
+    width: 100%;
     height: 250px;
     cursor: pointer;
     display: flex;
@@ -1147,15 +1149,17 @@ function showMaterialDetail(material) {
 }
 
 .material-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
+  // display: flex;
+  // flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
+  gap: 18px;
 }
 
 .subFolder {
   position: relative;
   aspect-ratio: 1 / 1;
-  width: 255px;
+  width: 100%;
   height: 255px;
   display: flex;
   flex-direction: column;
@@ -1225,7 +1229,7 @@ function showMaterialDetail(material) {
 .material-item {
     margin: 0;
     position: relative;
-    width: 255px;
+    width: 100%;
     height: 255px;
     border-radius: 8px;
     transition: all 0.3s ease;

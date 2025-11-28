@@ -185,6 +185,7 @@
             class="empty-state">
             <el-empty description="暂无内容" />
           </div>
+          
           <div v-else class="material-grid">
             <!-- 文件夹列表 -->
             <div class="subFolder" v-for="(item, index) in folderData" :key="index"
@@ -195,10 +196,46 @@
               <div class="subFolderName">{{ item.filePath }}</div>
             </div>
             <!-- 文件列表 -所有文件 -->
-            <div class="allFileList" v-if="activeSpace == 'all'">
-              <div class="everydayBox" v-for="(everydayData, index) in getSortedDates()" :key="index">
-                <div class="date" style=" font-size: 16px;font-weight: 600;color: #303133;padding: 10px 0;border-bottom: 1px solid #ebeef5;width: 100%; margin-bottom: 16px;
-                ">{{ everydayData }}</div>
+
+            <!-- 文件列表 -->
+            <div v-for="material in fileListData" :key="material.id" class="material-item">
+              <div class="material-thumb">
+                <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
+                  @click="handleMaterialClick(material)" />
+                <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
+                  <el-icon class="file-icon">
+                    <VideoPlay />
+                  </el-icon>
+                  <video :src="material.minioPath" playsinline muted preload="metadata"
+                    style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                </div>
+                <el-icon v-else :src="material.minioPath" :alt="getFileName(material.minioPath)" class="file-icon"
+                  @click="handleMaterialClick(material)" style="cursor:pointer;">
+                  <Document />
+                </el-icon>
+              </div>
+              <div class="fileName" :title="material.fileName">{{ material.fileName }}</div>
+              <div class="material-tags" v-if="material.annotationContent !== null">
+                <el-tag v-for="tag in JSON.parse(material.annotationContent).sceneCategory" :key="tag" type="success" size="small">{{ tag }}</el-tag>
+                <el-tag v-for="tag in JSON.parse(material.annotationContent).activityEvent" :key="tag" type="success" size="small">{{ tag }}</el-tag>
+              </div>
+              <div class="material-actions">
+                <el-button size="small" @click.stop="toggleFavorite($event, material)" 
+                  :class="['favorite-btn', { favorited: material.isFavorite }]"
+                  :icon="material.isFavorite ? StarFilled : Star">
+                  {{ material.isFavorite ? '已收藏' : '收藏' }}
+                </el-button>
+                <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
+                  :icon="Download">
+                  下载
+                </el-button>
+              </div>
+            </div>
+          </div>
+          <div class="allFileList" v-if="activeSpace == 'all'">
+            <div class="everydayBox" v-for="(everydayData, index) in getSortedDates()" :key="index">
+              <div class="date" style=" font-size: 16px;font-weight: 600;color: #303133;padding: 10px 0;border-bottom: 1px solid #ebeef5;width: 100%; margin-bottom: 16px;">{{ everydayData }}</div>
+              <div class="material-grid">
                 <div v-for="material in allFileListData[everydayData]" :key="material.id" class="material-item">
                   <div class="material-thumb">
                     <img v-if="isImage(material.minioPath)" :src="material.minioPath"
@@ -234,41 +271,10 @@
                 </div>
               </div>
             </div>
-            <!-- 文件列表 -->
-            <div v-for="material in fileListData" :key="material.id" class="material-item" v-else>
-              <div class="material-thumb">
-                <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
-                  @click="handleMaterialClick(material)" />
-                <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
-                  <el-icon class="file-icon">
-                    <VideoPlay />
-                  </el-icon>
-                  <video :src="material.minioPath" playsinline muted preload="metadata"
-                    style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
-                </div>
-                <el-icon v-else :src="material.minioPath" :alt="getFileName(material.minioPath)" class="file-icon"
-                  @click="handleMaterialClick(material)" style="cursor:pointer;">
-                  <Document />
-                </el-icon>
-              </div>
-              <div class="fileName" :title="material.fileName">{{ material.fileName }}</div>
-              <div class="material-tags" v-if="material.annotationContent !== null">
-                <el-tag v-for="tag in JSON.parse(material.annotationContent).sceneCategory" :key="tag" type="success" size="small">{{ tag }}</el-tag>
-                <el-tag v-for="tag in JSON.parse(material.annotationContent).activityEvent" :key="tag" type="success" size="small">{{ tag }}</el-tag>
-              </div>
-              <div class="material-actions">
-                <el-button size="small" @click.stop="toggleFavorite($event, material)" 
-                  :class="['favorite-btn', { favorited: material.isFavorite }]"
-                  :icon="material.isFavorite ? StarFilled : Star">
-                  {{ material.isFavorite ? '已收藏' : '收藏' }}
-                </el-button>
-                <el-button type="primary" size="small" @click.stop="handleDownload(material)" class="download-btn"
-                  :icon="Download">
-                  下载
-                </el-button>
-              </div>
-            </div>
           </div>
+
+
+
         </div>
       </div>
     </div>
@@ -1326,6 +1332,7 @@ onBeforeUnmount(() => {
 // 右侧内容区
 .content-area {
   flex: 1;
+  width: 100%;
   padding: 24px;
   overflow-y: auto;
   background: #fff;
@@ -1400,7 +1407,7 @@ onBeforeUnmount(() => {
 .subFolder {
   position: relative;
   aspect-ratio: 1 / 1;
-  width: 255px;
+  width: 100%;
   height: 305px;
   display: flex;
   flex-direction: column;
@@ -1468,9 +1475,10 @@ onBeforeUnmount(() => {
 }
 
 .material-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
+  display: grid;
+  // flex-wrap: wrap;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 18px;
   margin-top: 16px;
 }
 
@@ -1478,16 +1486,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
-
-  .everydayBox {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    // margin-top: 16px;
-    // width: 1386px;
-    width: 100%;
-
-    .date {
+  .date {
       font-size: 14px;
       color: #606266;
       padding: 0 8px;
@@ -1497,13 +1496,24 @@ onBeforeUnmount(() => {
       white-space: nowrap;
       max-width: 100%;
     }
+
+  .everydayBox {
+    // display: flex;
+    // flex-wrap: wrap;
+    // gap: 16px;
+    max-height: calc(100% - 130px);
+    height: calc(100% - 130px);
+    overflow-y: auto;
+    margin-top: 16px;
+    width: 100%; 
   }
 }
 
 .material-item {
     margin: 0;
     position: relative;
-    width: 255px;
+    // width: 255px;
+    width: 100%;
     height: 305px;
     border-radius: 8px;
     transition: all 0.3s ease;

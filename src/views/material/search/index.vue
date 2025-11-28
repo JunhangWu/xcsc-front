@@ -52,7 +52,7 @@
         <!-- 页面标题和描述 -->
         <div class="header-section">
           <h1 class="page-title">AI智能搜索</h1>
-          <p class="page-description">使用AI技术快速查找和分析宣传素材，支持自然语言查询和智能推荐。</p>
+          <p class="page-description">使用AI技术快速查找素材，支持自然语言查询。</p>
         </div>
 
         <!-- 搜索框 -->
@@ -60,9 +60,10 @@
           <div class="search-input-wrapper">
             <el-input
               v-model="searchKeyword"
-              placeholder="请输入搜索关键词或问题..."
+              placeholder="请输入图片描述或关键词..."
               style="width: 100%;"
               @keyup.enter="searchMaterials"
+              clearable
             >
               <template #append>
                 <el-button type="primary" @click="searchMaterials" class="ai-search-button">
@@ -70,6 +71,11 @@
                 </el-button>
               </template>
             </el-input>
+          </div>
+          <div class="search-actions">
+            <el-button @click="resetSearch" class="reset-button" style="margin-left: 10px;">
+              <el-icon><Refresh /></el-icon> 重置
+            </el-button>
           </div>
         </div>
 
@@ -108,8 +114,15 @@
                   :src="material.minioPath" 
                   class="material-thumbnail" 
                 />
-                <div v-else-if="isVideo(material.minioPath)" class="video-placeholder">
+                <!-- <div v-else-if="isVideo(material.minioPath)" src="material.minioPath" class="video-placeholder">
                   <el-icon><VideoCamera /></el-icon>
+                </div> -->
+                <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="previewVideo(material)">
+                  <el-icon class="file-icon">
+                    <VideoPlay />
+                  </el-icon>
+                  <video :src="material.minioPath" playsinline muted preload="metadata"
+                    style="max-width: 95%; max-height: 95%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
                 </div>
                 <div v-else class="document-placeholder">
                   <el-icon><Document /></el-icon>
@@ -120,7 +133,7 @@
               <div class="material-info">
                 <div class="material-name" :title="material.fileName">{{ material.fileName }}</div>
                 <div class="material-meta">
-                  <span class="material-size">{{ material.fileSize }} KB</span>
+                  <span class="material-size">{{ material.fileSize }} MB</span>
                   <!-- <span class="material-type">{{ material.type.split('/')[1].toUpperCase() }}</span> -->
                 </div>
                 <!-- <div class="material-tags">
@@ -213,8 +226,9 @@
               class="video-preview"
           >
             <div class="video-placeholder">
-              <el-icon><VideoCamera /></el-icon>
-              <span>视频预览区域</span>
+                  <video :src="selectedMaterial.minioPath" controls autoplay loop muted playsinline
+                      style="max-width: 100%; max-height: 400px; width: auto; height: auto; display: block; object-fit: contain;"></video>
+              <!-- <span>视频预览区域</span> -->
             </div>
           </div>
           <div v-else class="document-preview">
@@ -226,12 +240,12 @@
           <div class="material-info">
             <h3>{{ selectedMaterial.fileName }}</h3>
             <div class="info-row">
-              <span class="info-label">素材ID:</span>
-              <span class="info-value">{{ selectedMaterial.id }}</span>
+              <!-- <span class="info-label">素材ID:</span>
+              <span class="info-value">{{ selectedMaterial.id }}</span> -->
             </div>
             <div class="info-row">
               <span class="info-label">大小:</span>
-              <span class="info-value">{{ selectedMaterial.fileSize }} KB</span>
+              <span class="info-value">{{ selectedMaterial.fileSize }} M</span>
             </div>
             <div class="info-row">
               <span class="info-label">类型:</span>
@@ -239,7 +253,7 @@
             </div>
             <div class="info-row">
               <span class="info-label">上传时间:</span>
-              <span class="info-value">{{ selectedMaterial.createTime }}</span>
+              <span class="info-value">{{ parseTime(selectedMaterial.createTime) }}</span>
             </div>
             <div class="info-row">
               <span class="info-label">标签:</span>
@@ -259,21 +273,21 @@
             </div>
           </div>
         </div>
-        
-        <!-- <template #footer> -->
-          <span class="dialog-footer">
-            <el-button @click="handleClose">关闭</el-button>
-            <el-button type="primary" @click="downloadMaterial(selectedMaterial)">下载素材</el-button>
-          </span>
-        <!-- </template> -->
       </div>
+      
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="handleClose">关闭</el-button>
+          <el-button type="primary" @click="downloadMaterial(selectedMaterial)">下载素材</el-button>
+        </div>
+      </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup name="MaterialSearch">
 import { ref, reactive, onMounted } from 'vue'
-import { Search, VideoCamera, Document, View, Download, RefreshRight, Delete } from '@element-plus/icons-vue'
+import { Search, VideoCamera, Document, View, Download, RefreshRight, Delete, Refresh,VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {getSearchList, addSearch, delSearch, delAllSearchHistory} from "@/api/xcsc/search"
 import {getFileList,getFileBatch} from "@/api/xcsc/uploadFile"
@@ -306,19 +320,19 @@ const searchHistory = ref([])
 const searchExamples = ref([
   {
     id: 1,
-    text: '查找所有2024年的产品宣传图片'
+    text: '美丽的自然风景'
   },
   {
     id: 2,
-    text: '哪些素材适合用于季度销售报告'
+    text: '一位领导正在发言'
   },
   {
     id: 3,
-    text: '查找包含"新产品发布"关键词的图片'
+    text: '查找包含"安徽交控"关键词的图片'
   },
   {
     id: 4,
-    text: '查找最近上传的视频素材'
+    text: '高楼大厦全景图'
   }
 ])
 
@@ -327,6 +341,26 @@ function isImage(path) {
 }
 function isVideo(path) {
   return ['mp4', 'mov', 'avi', 'mkv', 'flv'].some(ext => path.toLowerCase().includes(ext));
+}
+function previewVideo(material) {
+  videoDialogVisible.value = true
+  videoFilePath.value = material.minioPath
+  videoDialogTitle.value = material.fileName
+}
+// 重置搜索
+function resetSearch() {
+  // 清空搜索关键词
+  searchKeyword.value = '';
+  // 重置页面状态
+  showResults.value = false;
+  showExamples.value = true;
+  // 清空素材列表
+  materialList.value = [];
+  total.value = 0;
+  // 重置分页
+  currentPage.value = 1;
+  // 清空ID列表
+  idList.value = [];
 }
 // 搜索素材
 async function searchMaterials() {
@@ -832,12 +866,55 @@ onMounted(function() {
   align-items: center;
   justify-content: center;
   position: relative;
+  img {
+    width: 95%;
+    height: 95%;
+    // object-fit: cover;
+    contain: content;
+    transition: transform 0.3s;
+    cursor: pointer;
+  }
 }
 
 .material-thumbnail {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.videoBox {
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+
+  video {
+    width: 100%;
+    height: 100%;
+    // object-fit: contain;
+  }
+
+  .file-icon {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    font-size: 48px;
+    color: #ffffff;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 50%;
+    padding: 8px;
+  } 
+}
+
+.file-icon {
+  font-size: 64px;
+  color: #909399;
 }
 
 .video-placeholder,
@@ -966,5 +1043,11 @@ onMounted(function() {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>

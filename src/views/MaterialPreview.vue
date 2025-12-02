@@ -139,7 +139,7 @@
             <div class="tag-dimension">
               <span class="dimension-label">时间信息：</span>
               <div class="dimension-values">
-                <el-tag size="small" type="success" effect="plain">{{ manualTagForm.eventTime }}</el-tag>
+                <el-tag size="small" type="success" effect="plain">{{ manualTagForm.timeInfo }}</el-tag>
               </div>
             </div>
             <div class="tag-dimension">
@@ -159,6 +159,14 @@
               </div>
             </div>
             <div class="tag-dimension">
+              <span class="dimension-label">事件信息：</span>
+              <div class="dimension-values">
+                <el-tag v-for="(tag, index) in manualTagForm.eventInfo.split(',')"  :key="index" size="small" type="success"
+                  effect="plain">{{ tag.trim() }}</el-tag>
+                <!-- <el-tag size="small" type="success" effect="plain">{{ manualTagForm.eventInfo }}</el-tag> -->
+              </div>
+            </div>
+            <div class="tag-dimension">
               <span class="dimension-label">建筑名称：</span>
               <div class="dimension-values">
                 <el-tag v-for="(tag, index) in manualTagForm.buildingNames.split(',')"  :key="index" size="small" type="success"
@@ -174,14 +182,7 @@
                 <!-- <el-tag size="small" type="success" effect="plain">{{ manualTagForm.relatedThemes }}</el-tag> -->
               </div>
             </div>
-            <div class="tag-dimension">
-              <span class="dimension-label">专有名词：</span>
-              <div class="dimension-values">
-                <el-tag v-for="(tag, index) in manualTagForm.properNouns.split(',')"  :key="index" size="small" type="success"
-                  effect="plain">{{ tag.trim() }}</el-tag>
-                <!-- <el-tag size="small" type="success" effect="plain">{{ manualTagForm.properNouns }}</el-tag> -->
-              </div>
-            </div>
+            
           </div>
         </div>
 
@@ -241,12 +242,12 @@ const autoTagForm = reactive({
 
 // 标注信息 - 基本信息（6个维度）
 const manualTagForm = reactive({
-  eventTime: '', // 事件时间
+  timeInfo: '', // 事件时间
   locationInfo: '', // 地点信息
   personNames: '', // 人物姓名
   buildingNames: '', // 建筑名称
   relatedThemes: '', // 相关主题
-  properNouns: '' // 专有名词
+  eventInfo: '' // 事件信息
 })
 
 // 标注信息 - 补充标签
@@ -279,12 +280,12 @@ function getManualTags() {
   }
   getFileList(params).then(res => {
     console.log('人工标注:', res.data[0])
-    manualTagForm.eventTime = res.data[0].eventTime || ''
+    manualTagForm.timeInfo = res.data[0].timeInfo || ''
     manualTagForm.locationInfo = res.data[0].locationInfo || ''
     manualTagForm.personNames = res.data[0].personNames || ''
     manualTagForm.buildingNames = res.data[0].buildingNames || ''
     manualTagForm.relatedThemes = res.data[0].relatedThemes || ''
-    manualTagForm.properNouns = res.data[0].properNouns || ''
+    manualTagForm.eventInfo = res.data[0].eventInfo || ''
   })
 }
 getManualTags()

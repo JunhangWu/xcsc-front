@@ -285,7 +285,7 @@
   </div>
 </template>
 
-<script setup name="MaterialSearch">
+<script setup name="Search">
 import { ref, reactive, onMounted } from 'vue'
 import { Search, VideoCamera, Document, View, Download, RefreshRight, Delete, Refresh,VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'

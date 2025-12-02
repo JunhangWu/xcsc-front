@@ -286,7 +286,9 @@
   </div>
 </template>
 
-<script setup name="MaterialAnnotation">
+<!-- <script setup name="MaterialAnnotation"> -->
+<script setup name="Annotation">
+
 const { proxy } = getCurrentInstance();
 import { ref, reactive, onMounted, computed } from 'vue'
 import { api as viewerApi } from "v-viewer";

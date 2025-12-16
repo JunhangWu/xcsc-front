@@ -111,7 +111,7 @@
               <div class="material-preview-container" @click="previewMaterial(material)" style="cursor: pointer;">
                 <img 
                   v-if="isImage(material.minioPath)" 
-                  :src="material.minioPath" 
+                  :src="material.coverPath || material.minioPath" 
                   class="material-thumbnail" 
                 />
                 <!-- <div v-else-if="isVideo(material.minioPath)" src="material.minioPath" class="video-placeholder">
@@ -121,8 +121,9 @@
                   <el-icon class="file-icon">
                     <VideoPlay />
                   </el-icon>
-                  <video :src="material.minioPath" playsinline muted preload="metadata"
-                    style="max-width: 95%; max-height: 95%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                  <img :src="material.coverPath" :alt="material.fileName"/>
+                  <!-- <video :src="material.minioPath" playsinline muted preload="metadata"
+                    style="max-width: 95%; max-height: 95%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video> -->
                 </div>
                 <div v-else class="document-placeholder">
                   <el-icon><Document /></el-icon>
@@ -340,7 +341,7 @@ function isImage(path) {
   return ['jpg', 'jpeg', 'png', 'bmp', 'gif'].some(ext => path.toLowerCase().includes(ext));
 }
 function isVideo(path) {
-  return ['mp4', 'mov', 'avi', 'mkv', 'flv'].some(ext => path.toLowerCase().includes(ext));
+  return ['mp4', 'mov', 'avi', 'mkv', 'flv','m4v'].some(ext => path.toLowerCase().includes(ext));
 }
 function previewVideo(material) {
   videoDialogVisible.value = true

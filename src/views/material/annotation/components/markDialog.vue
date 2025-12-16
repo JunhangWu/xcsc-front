@@ -404,7 +404,7 @@ const getFileTypeText = (filePath) => {
     const ext = filePath.substring(dotIndex + 1);
     const typeMap = {
         '图片': ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'svg', 'heic'],
-        '视频': ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm'],
+        '视频': ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm','m4v'],
         // '音频': ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'],
         // 'PDF文档': ['pdf'],
         // 'Word文档': ['doc', 'docx'],

@@ -67,14 +67,15 @@
                   </el-icon>
                 </span>
               <div class="material-thumb">
-                <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="material.fileName"
+                <img v-if="isImage(material.minioPath)" :src="material.coverPath || material.minioPath" :alt="material.fileName"
                   @click="previewImg(material)" />
                 <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="previewVideo(material)">
                   <el-icon class="file-icon">
                     <VideoPlay />
                   </el-icon>
-                  <video :src="material.minioPath" playsinline muted preload="metadata"
-                    style="max-width: 95%; max-height: 95%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                  <img :src="material.coverPath" :alt="material.fileName"/>
+                  <!-- <video :src="material.minioPath" playsinline muted preload="metadata"
+                    style="max-width: 95%; max-height: 95%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video> -->
                 </div>
                 <el-icon v-else class="file-icon" @click="downloadFile(material)" style="cursor:pointer;">
                   <Document />
@@ -155,7 +156,7 @@
             <div class="subFolder" v-for="(item, index) in folderData" :key="index"
               @mouseenter="onSubFolderMouseEnter(item)" @mouseleave="onSubFolderMouseLeave(item)">
               <span class="subFolder-actions">
-                <el-icon class="action-icon" @click.stop="editFolder(item)" title="重命名" v-show="item._hover"
+                <el-icon class="action-icon" @click.stop="editFolder(item)" title="重命名" v-show="item._hover" v-hasPermi="['xcsc:FilePathMapping:edit']"
                   style="color: #409eff;">
                   <Edit />
                 </el-icon>
@@ -181,14 +182,15 @@
                   </el-icon>
                 </span>
               <div class="material-thumb">
-                <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="material.fileName"
+                <img v-if="isImage(material.minioPath)" :src="material.coverPath || material.minioPath" :alt="material.fileName"
                   @click="previewImg(material)" />
                 <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="previewVideo(material)">
                   <el-icon class="file-icon">
                     <VideoPlay />
                   </el-icon>
-                  <video :src="material.minioPath" playsinline muted preload="metadata"
-                    style="max-width: 95%; max-height: 95%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                  <!-- <video :src="material.minioPath" playsinline muted preload="metadata"
+                    style="max-width: 95%; max-height: 95%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video> -->
+                  <img :src="material.coverPath" :alt="material.fileName"/>
                 </div>
                 <el-icon v-else class="file-icon" @click="downloadFile(material)" style="cursor:pointer;">
                   <Document />
@@ -251,9 +253,9 @@
         <el-icon class="el-icon--upload"><upload-filled /></el-icon>
         <div class="el-upload__text">
           {{ uploadType === 'file' ? '点击或拖拽文件到此处上传' : '点击或拖拽文件夹到此处上传' }}
-          <div class="el-upload__tip"> 支持图片：jpeg / jpg / png / bmp / gif；视频：mp4 / mov / avi / mkv / flv；文档：docx /
+          <div class="el-upload__tip"> 支持图片：jpeg / jpg / png / bmp / gif；视频：mp4 / mov / avi / mkv / flv / m4v；文档：docx /
             pdf / pptx
-            <br>单个文件大小不超过100MB，总文件大小不超过500MB
+            <br>单个文件大小不超过2048MB，总文件大小不超过5120MB
           </div>
         </div>
       </el-upload>
@@ -267,7 +269,8 @@
             :text-inside="true"
           ></el-progress>
           <div class="progress-text" style="margin-top: 8px; text-align: center; color: #606266;">
-            正在上传中，请稍候...
+            <!-- 正在上传中，请稍候... -->
+            {{ uploadProgress === 100? `处理中，请稍等...` : '正在上传中，请稍候...' }}
           </div>
         </div>
         
@@ -398,6 +401,7 @@ function getFolderData(pid) {
     console.log('===params===', params);
     getFileList(param).then(res => {
       fileListData.value = res.data
+      console.log('===fileListData.value===', fileListData.value);
     })
   }
 }
@@ -622,12 +626,12 @@ function cancelUpload() {
   showProgress.value = false
 }
 function confirmUpload() {
-  // 再次检查所有文件总大小不超过500MB
+  // 再次检查所有文件总大小不超过5120MB
   const totalSize = fileList.value.reduce((sum, f) => sum + ((f.raw || f.originFileObj || f).size || 0), 0);
-  const maxTotalSize = 500 * 1024 * 1024; // 500MB
+  const maxTotalSize = 5120 * 1024 * 1024; // 500MB
   if (totalSize > maxTotalSize) {
     const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
-    ElMessage.error(`所有文件总大小（${totalSizeMB}MB）超过限制（500MB）`);
+    ElMessage.error(`所有文件总大小（${totalSizeMB}MB）超过限制（5120MB）`);
     return;
   }
   
@@ -686,14 +690,14 @@ function confirmUpload() {
 // 支持的文件格式
 const supportedFormats = {
   image: ['jpg', 'jpeg', 'png', 'bmp', 'gif'],
-  video: ['mp4', 'mov', 'avi', 'mkv', 'flv'],
+  video: ['mp4', 'mov', 'avi', 'mkv', 'flv','m4v'],
   document: ['docx', 'pdf', 'pptx']
 }
 function isImage(path) {
   return ['jpg', 'jpeg', 'png', 'bmp', 'gif'].some(ext => path.toLowerCase().includes(ext));
 }
 function isVideo(path) {
-  return ['mp4', 'mov', 'avi', 'mkv', 'flv'].some(ext => path.toLowerCase().includes(ext));
+  return ['mp4', 'mov', 'avi', 'mkv', 'flv','m4v'].some(ext => path.toLowerCase().includes(ext));
 }
 // 获取文件名
 function getFileName(path) {
@@ -742,9 +746,9 @@ const handleBeforeUpload = (file) => {
     return false
   }
   // 检查文件大小（可选，可根据需要添加）
-  const maxSize = 100 * 1024 * 1024 // 100MB
+  const maxSize = 2048 * 1024 * 1024 // 2048MB
   if (file.size > maxSize) {
-    ElMessage.error(`文件 ${file.name} 大小超过限制（100MB）`)
+    ElMessage.error(`文件 ${file.name} 大小超过限制（2048MB）`)
     return false
   }
   // 校验同名
@@ -770,19 +774,19 @@ const handleFileChange = (file, fileList) => {
     f.status = isSupportedFormat(f.name) ? 'success' : 'error'
   })
   // 检查单个文件大小
-  const maxSize = 100 * 1024 * 1024 // 100MB
+  const maxSize = 2048 * 1024 * 1024 // 2048MB
   if (file.size > maxSize) {
-    ElMessage.error(`文件 ${file.name} 大小超过限制（100MB）`)
+    ElMessage.error(`文件 ${file.name} 大小超过限制（2048MB）`)
     hasUploadError = true;
     return false
   }
   
-  // 检查所有文件总大小不超过500MB
+  // 检查所有文件总大小不超过5120MB
   const totalSize = fileList.reduce((sum, f) => sum + (f.size || 0), 0);
-  const maxTotalSize = 500 * 1024 * 1024; // 500MB
+  const maxTotalSize = 5120 * 1024 * 1024; // 500MB
   if (totalSize > maxTotalSize) {
     const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
-    ElMessage.error(`所有文件总大小（${totalSizeMB}MB）超过限制（500MB）`)
+    ElMessage.error(`所有文件总大小（${totalSizeMB}MB）超过限制（5120MB）`)
     hasUploadError = true;
     return false
   }

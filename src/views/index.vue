@@ -96,14 +96,15 @@
               <!-- 搜索结果文件列表 -->
               <div v-for="material in queryfileListData" :key="material.id" class="material-item">
                 <div class="material-thumb">
-                  <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
+                  <img v-if="isImage(material.minioPath)" :src="material.coverPath || material.minioPath" :alt="getFileName(material.minioPath)"
                     @click="handleMaterialClick(material)" />
                   <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
                     <el-icon class="file-icon">
                       <VideoPlay />
                     </el-icon>
-                    <video :src="material.minioPath" playsinline muted preload="metadata"
-                      style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                    <img :src="material.coverPath" :alt="material.fileName"/>
+                    <!-- <video :src="material.minioPath" playsinline muted preload="metadata"
+                      style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video> -->
                   </div>
                   <el-icon v-else :src="material.minioPath" :alt="getFileName(material.minioPath)" class="file-icon"
                     @click="handleMaterialClick(material)" style="cursor:pointer;">
@@ -200,14 +201,15 @@
             <!-- 文件列表 -->
             <div v-for="material in fileListData" :key="material.id" class="material-item">
               <div class="material-thumb">
-                <img v-if="isImage(material.minioPath)" :src="material.minioPath" :alt="getFileName(material.minioPath)"
+                <img v-if="isImage(material.minioPath)" :src="material.coverPath || material.minioPath" :alt="getFileName(material.minioPath)"
                   @click="handleMaterialClick(material)" />
                 <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
                   <el-icon class="file-icon">
                     <VideoPlay />
                   </el-icon>
-                  <video :src="material.minioPath" playsinline muted preload="metadata"
-                    style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                  <img :src="material.coverPath" :alt="material.fileName"/>
+                  <!-- <video :src="material.minioPath" playsinline muted preload="metadata"
+                    style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video> -->
                 </div>
                 <el-icon v-else :src="material.minioPath" :alt="getFileName(material.minioPath)" class="file-icon"
                   @click="handleMaterialClick(material)" style="cursor:pointer;">
@@ -238,14 +240,15 @@
               <div class="material-grid">
                 <div v-for="material in allFileListData[everydayData]" :key="material.id" class="material-item">
                   <div class="material-thumb">
-                    <img v-if="isImage(material.minioPath)" :src="material.minioPath"
+                    <img v-if="isImage(material.minioPath)" :src="material.coverPath || material.minioPath"
                       :alt="getFileName(material.minioPath)" @click="handleMaterialClick(material)" />
                     <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
                       <el-icon class="file-icon">
                         <VideoPlay />
                       </el-icon>
-                      <video :src="material.minioPath" playsinline muted preload="metadata"
-                        style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video>
+                      <img :src="material.coverPath" :alt="material.fileName"/>
+                      <!-- <video :src="material.minioPath" playsinline muted preload="metadata"
+                        style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video> -->
                     </div>
                     <el-icon v-else :src="material.minioPath" :alt="getFileName(material.minioPath)" class="file-icon"
                       @click="handleMaterialClick(material)" style="cursor:pointer;">
@@ -885,7 +888,7 @@ const handleSpaceClick = (spaceId) => {
 const allFileListData = reactive({})//文件列表
 let fileTypeObj = {
     'image': ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'svg', 'heic'],
-    'video': ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm'],
+    'video': ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm','m4v'],
     'document': ['doc', 'docx', 'xls', 'xlsx', 'pdf', 'pptx', 'zip', 'rar', '7z', 'tar', 'gz', 'txt', 'md', 'csv', 'json', 'xml'],
 }
 function getALlFileListData() {
@@ -1090,7 +1093,7 @@ const handleMaterialClick = (material) => {
 // 支持的文件格式
 const supportedFormats = {
   image: ['jpg', 'jpeg', 'png', 'bmp', 'gif'],
-  video: ['mp4', 'mov', 'avi', 'mkv', 'flv'],
+  video: ['mp4', 'mov', 'avi', 'mkv', 'flv','m4v'],
   document: ['docx', 'pdf', 'pptx']
 }
 
@@ -1099,7 +1102,7 @@ function isImage(path) {
 }
 
 function isVideo(path) {
-  return ['mp4', 'mov', 'avi', 'mkv', 'flv'].some(ext => path.toLowerCase().includes(ext));
+  return ['mp4', 'mov', 'avi', 'mkv', 'flv','m4v'].some(ext => path.toLowerCase().includes(ext));
 }
 
 //获取文件名

@@ -42,8 +42,7 @@
                             </div>
                             <div class="metadata-item">
                                 <span class="metadata-label">所属路径：</span>
-                                <span class="metadata-value">{{ getFilePath(currentMaterial.minioPath) || '未分类'
-                                    }}</span>
+                                <span class="metadata-value">{{ currentMaterial.localPath || '未分类'}}</span>
                             </div>
                             <div class="metadata-item">
                                 <span class="metadata-label">文件大小：</span>

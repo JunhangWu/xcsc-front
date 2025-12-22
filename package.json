@@ -23,6 +23,7 @@
     "fuse.js": "6.6.2",
     "js-cookie": "3.0.5",
     "jsencrypt": "3.3.2",
+    "mediainfo.js": "^0.3.6",
     "nprogress": "0.2.0",
     "pinia": "2.1.7",
     "v-viewer": "^3.0.22",

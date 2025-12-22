@@ -286,7 +286,7 @@
 
 <script setup name="Index">
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter, onBeforeRouteUpdate } from 'vue-router'
+import { useRouter, useRoute, onBeforeRouteUpdate } from 'vue-router'
 import {
   UploadFilled,
   Tools,
@@ -306,6 +306,7 @@ import { getFolderList, getFileList, getFileIndexList, getCollectionList, addCol
 import useUserStore from '@/store/modules/user'
 
 const router = useRouter()
+const route = useRoute()
 const showSearchResults = ref(false) // 控制是否显示搜索结果
 const userStore = useUserStore()
 // const isFavorite = ref(false) // 收藏状态
@@ -322,8 +323,8 @@ function onSubFolderMouseLeave(item) {
 const activeCategory = ref('')
 // 板块分类
 const categories = reactive({
-  bizId: '',
-  filePath: '',
+  bizId: [],
+  filePath: [],
 })
 // 存储分类名称到bizId的映射
 const categoryMap = ref({})
@@ -333,7 +334,7 @@ function getCategories(pid) {
     let params = {
         pid: pid,
     }
-    getFolderList(params).then(response => {
+    return getFolderList(params).then(response => {
         categories.filePath = response.data.map(item => item.filePath)
         categories.bizId = response.data.map(item => item.bizId)
         // 构建分类名称到bizId的映射
@@ -342,6 +343,7 @@ function getCategories(pid) {
         })
     })
 }
+// 页面加载时调用
 getCategories(0)
 
 // 素材列表
@@ -378,7 +380,7 @@ function getFolderData(pid) {
         getFileList(param).then(res => {
             fileListData.value = res.data
             // 获取当前用户收藏列表并设置文件收藏状态
-            getCollectionData(userStore.id).then(() => {
+            getCollectionData().then(() => {
                 // 提取收藏列表中的文件id
                 const favoriteFileIds = collectionList.value.map(item => item.fileId);
                 // 遍历文件列表，设置收藏状态
@@ -581,14 +583,21 @@ function initCategoryFileCounts() {
 //收藏列表
 const collectionList = ref([])
 //获取当前用户收藏列表
-function getCollectionData(userId){
-  // collectionList.value = [];
-  let params = {
-        userId: userId
-    }
-    return getCollectionList(params).then(res => {
+// function getCollectionData(userId){
+//   // collectionList.value = [];
+//   let params = {
+//         userId: userId
+//     }
+//     return getCollectionList(params).then(res => {
+//       collectionList.value = res.data
+//       console.log('===params===', params)
+//       console.log('collectionList.value', collectionList.value)
+//       return res.data;
+//     })
+// }
+function getCollectionData(){
+    return getCollectionList().then(res => {
       collectionList.value = res.data
-      console.log('===params===', params)
       console.log('collectionList.value', collectionList.value)
       return res.data;
     })
@@ -596,16 +605,11 @@ function getCollectionData(userId){
 // 在组件挂载时获取收藏列表，确保页面初始加载时所有文件的收藏状态正确
 onMounted(() => {
   if (userStore.id) {
-    getCollectionData(userStore.id)
+    getCollectionData()
   }
   // 初始化板块文件数量
   // initCategoryFileCounts();
 })
-
-// 获取当前登录用户的id
-function getCurrentUserId() {
-  return userStore.id
-}
 
 // 更新文件列表中的收藏状态
 function updateFileFavoriteStatus() {
@@ -653,13 +657,12 @@ const toggleFavorite = (event, material) => {
         // 用户确认取消收藏
         material.isFavorite = false
         let params = {
-          userId: userStore.id,
           fileId: material.id
         }
         console.log('===params===', params)
         delCollection(params).then(res => {
           // 取消收藏成功后，更新收藏列表
-          getCollectionData(userStore.id).then(() => {
+          getCollectionData().then(() => {
             // 更新当前文件列表中的收藏状态
             updateFileFavoriteStatus();
           })
@@ -686,12 +689,11 @@ const toggleFavorite = (event, material) => {
       // 收藏
       material.isFavorite = true
       let params = {
-        userId: userStore.id,
         fileId: material.id
       }
       addCollection(params).then(res => {
         // 收藏成功后，更新收藏列表
-        getCollectionData(userStore.id).then(() => {
+        getCollectionData().then(() => {
           // 更新当前文件列表中的收藏状态
           updateFileFavoriteStatus();
         })
@@ -764,7 +766,7 @@ const getFavoriteFiles = () => {
     fileListData.value = []
     
     // 确保已加载收藏列表
-    getCollectionData(userStore.id).then(() => {
+    getCollectionData().then(() => {
         if (collectionList.value.length > 0) {
             // 构建查询参数，模仿getALlFileListData的结构
             let params = {
@@ -857,6 +859,7 @@ const handleSpaceClick = (spaceId) => {
     showSearchResults.value = false // 确保显示文件夹视图而不是搜索结果
     
     if (activeSpace.value == 'all') {
+        fileListData.value = []
         getALlFileListData()
     } else if (activeSpace.value == 'favorite') {
         // 显示我的收藏
@@ -892,16 +895,10 @@ let fileTypeObj = {
     'document': ['doc', 'docx', 'xls', 'xlsx', 'pdf', 'pptx', 'zip', 'rar', '7z', 'tar', 'gz', 'txt', 'md', 'csv', 'json', 'xml'],
 }
 function getALlFileListData() {
-    let params = {
-        fileTypeList: fileTypeObj[filterForm.fileType] || null,
-        createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
-        createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
-        // createStartTime: filterForm.dateRange && filterForm.dateRange.length === 2 ? filterForm.dateRange[0] + ' 00:00:00' : null,
-        // createEndTime: filterForm.dateRange && filterForm.dateRange.length === 2 ? filterForm.dateRange[1] + ' 23:59:59' : null,
-        createBy: filterForm.createBy,
-        keyWords: filterForm.annotationContent,
-        fileName: filterForm.fileName
-    }
+    console.log('filterForm.dateRange:', filterForm.dateRange)
+    Object.assign(filterForm, {
+      dateRange: []
+    })
     // 如果filterForm.dateRange是空的，默认获取近30天的开始时间和结束时间
     if (filterForm.dateRange.length === 0) {
         const endDate = new Date();
@@ -916,6 +913,17 @@ function getALlFileListData() {
         filterForm.dateRange = [formatDate(startDate), formatDate(endDate)];
     }
 
+    let params = {
+        fileTypeList: fileTypeObj[filterForm.fileType] || null,
+        createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
+        createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
+        // createStartTime: filterForm.dateRange && filterForm.dateRange.length === 2 ? filterForm.dateRange[0] + ' 00:00:00' : null,
+        // createEndTime: filterForm.dateRange && filterForm.dateRange.length === 2 ? filterForm.dateRange[1] + ' 23:59:59' : null,
+        createBy: filterForm.createBy,
+        keyWords: filterForm.annotationContent,
+        fileName: filterForm.fileName
+    }
+
     console.log('执行查询:', params)
     getFileIndexList(params).then(res => {
         // 删除所有 key
@@ -926,7 +934,7 @@ function getALlFileListData() {
         console.log("===allFileListData===",allFileListData)
         
         // 获取当前用户收藏列表并设置文件收藏状态
-        getCollectionData(userStore.id).then(() => {
+        getCollectionData().then(() => {
             // 提取收藏列表中的文件id
             const favoriteFileIds = collectionList.value.map(item => item.fileId);
             // 遍历所有文件列表，设置收藏状态
@@ -1013,7 +1021,7 @@ function getQueryData(pid) {
       queryfileListData.value = res.data
       showSearchResults.value = true
       // 获取当前用户收藏列表并设置文件收藏状态
-      getCollectionData(userStore.id).then(() => {
+      getCollectionData().then(() => {
           // 提取收藏列表中的文件id
           const favoriteFileIds = collectionList.value.map(item => item.fileId);
           // 遍历文件列表，设置收藏状态
@@ -1130,9 +1138,9 @@ const getSortedDates = () => {
 // 定时检查同步（每5秒）
 let syncInterval = null
 
-onMounted(() => {
+onMounted(async () => {
   console.log('首页加载完成')
-  handleSpaceClick('all')
+    handleSpaceClick('all')
 })
 
 

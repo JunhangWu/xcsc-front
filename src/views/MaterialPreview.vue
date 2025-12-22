@@ -52,7 +52,7 @@
           </div>
           <div class="metadata-item">
             <span class="metadata-label">所属路径：</span>
-            <span class="metadata-value">{{ getFilePath(material.minioPath) }}</span>
+            <span class="metadata-value">{{ material.localPath || '未分类' }}</span>
           </div>
           <div class="metadata-item">
             <span class="metadata-label">文件大小：</span>
@@ -227,6 +227,7 @@ const material = reactive({
   createBy: '',
   fileType: '',
   tag: '',
+  localPath: '',
 })
 // 标注信息 - 标签信息（8个维度）
 const autoTagForm = reactive({
@@ -321,6 +322,7 @@ function getMaterial() {
     material.createBy = res.data[0].createBy || ''
     material.fileType = getFileType(res.data[0].minioPath)
     material.tag = res.data.annotationContent || ''
+    material.localPath = res.data[0].localPath || ''
   })
   console.log('素材数据加载成功:', material);
 }

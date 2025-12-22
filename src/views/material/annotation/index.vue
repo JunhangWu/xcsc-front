@@ -84,6 +84,7 @@
               
               <div class="material-details">
                 <div class="fileName" :title="material.fileName">{{ material.fileName }}</div>
+                <div class="file-id">ID: {{ material.id }}</div>
                 <div class="file-status">
                   <el-tag :type="getStatusTagType(material.annotationStatus)" size="medium">
                     {{ getStatusText(material.annotationStatus) }}
@@ -199,6 +200,7 @@
               
               <div class="material-details">
                 <div class="fileName" :title="material.fileName">{{ material.fileName }}</div>
+                <div class="file-id">ID: {{ material.id }}</div>
                 <div class="file-status">
                   <!-- 待标注:0  AI标注:1  人工修改:2-->
                   <el-tag :type="getStatusTagType(material.annotationStatus)" size="medium">
@@ -291,7 +293,8 @@
 
 <!-- <script setup name="MaterialAnnotation"> -->
 <script setup name="Annotation">
-
+const router = useRouter()
+const route = useRoute()
 const { proxy } = getCurrentInstance();
 import { ref, reactive, onMounted, computed } from 'vue'
 import { api as viewerApi } from "v-viewer";
@@ -300,6 +303,12 @@ import { Search, VideoCamera, Document, Check, Edit, VideoPlay, Back, ArrowRight
 import { ElMessage } from 'element-plus'
 import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile, updateFile } from "@/api/xcsc/uploadFile"
 import MarkDialog from './components/markDialog.vue'
+import EXIF from 'exif-js';
+// 修复压缩版的变量丢失 bug（关键：手动声明缺失的变量）
+window.EXIF = EXIF;
+window.n = window.n || {}; // 补充缺失的 n 变量（根据错误提示补充）
+// import EXIF from 'exif-js';
+// window.EXIF = EXIF; // 关键：将库挂载到全局 window 对象
 import download from '../../../plugins/download';
 // 搜索和筛选
 const searchKeyword = ref('')
@@ -512,10 +521,18 @@ function handleAddFolderConfirm() {
       addFolderDialogVisible.value = true // 保持对话框打开
       return
     }
-    
+
+    let folderPath = ''
+    breadcrumbData.value.forEach((item, idx) => {
+      folderPath += item.filePath
+      if (idx !== breadcrumbData.value.length - 1) {
+        folderPath += '/'  
+      }
+    })
     const params = {
       id: editFileObj.id,
-      fileName: editFileName.value.trim()
+      fileName: editFileName.value.trim(),
+      localPath: folderPath+'/'+editFileName.value.trim(),
     }
     
     updateFile(params).then(res => {
@@ -566,9 +583,41 @@ function handleAddFolderConfirm() {
     
     params.id = editOrDeleteFolderObj.id
     updateFolder(params).then(res => {
-      ElMessage.success('修改成功')
-      folderName.value = ''
-      getFolderData(curFolderObj.bizId)
+      debugger
+      // 获取该文件夹下的所有文件
+      console.log("editOrDeleteFolderObj.bizId",editOrDeleteFolderObj.bizId)
+      getFileList({ folderId: editOrDeleteFolderObj.bizId}).then(filesRes => {
+        const files = filesRes.data
+        // 遍历文件并更新路径
+        const updatePromises = files.map(file => {
+          let folderPath = ''
+          breadcrumbData.value.forEach((item, idx) => {
+            folderPath += item.filePath
+            if (idx !== breadcrumbData.value.length - 1) {
+              folderPath += '/'  
+            }
+          })
+          folderPath += '/'+folderName.value.trim()
+          console.log("folderPath",folderPath)
+          const params = {
+            id: file.id,
+            localPath: folderPath+'/'+file.fileName,
+          }
+          
+          updateFile(params).then(res => {
+          }).catch(err => {
+            console.error('修改文件路径失败:', err)
+          })
+        })
+        
+        
+        // 等待所有文件更新完成
+        return Promise.all(updatePromises)
+      }).then(() => {
+        ElMessage.success('修改成功')
+        folderName.value = ''
+        getFolderData(curFolderObj.bizId)
+      })
     })
   }
 }
@@ -578,6 +627,7 @@ function editFolder(item) {
   addFolderDialogVisible.value = true
   handleFolderType.value = 'edit'
   editOrDeleteFolderObj.id = item.id
+  editOrDeleteFolderObj.bizId = item.bizId
   folderName.value = item.filePath
 }
 // 编辑文件
@@ -625,7 +675,8 @@ function cancelUpload() {
   uploadProgress.value = 0
   showProgress.value = false
 }
-function confirmUpload() {
+async function confirmUpload() {
+  debugger
   // 再次检查所有文件总大小不超过5120MB
   const totalSize = fileList.value.reduce((sum, f) => sum + ((f.raw || f.originFileObj || f).size || 0), 0);
   const maxTotalSize = 5120 * 1024 * 1024; // 500MB
@@ -645,8 +696,9 @@ function confirmUpload() {
   let files = fileList.value.map(item => item.raw || item.originFileObj || item); // 兼容不同上传组件的文件对象
   files.forEach((file, index) => {
     formData.append("files", file);
-    formData.append("eventTimes", parseTime(file.lastModifiedDate) || '');
+    formData.append("eventTimes",  parseTime(file.lastModifiedDate));
   });
+  // console.log("eventTimes", parseTime(file.lastModifiedDate))
   let folderPath = ''
   formData.append("folderId", curFolderObj.bizId);
   breadcrumbData.value.forEach((item, idx) => {
@@ -656,6 +708,7 @@ function confirmUpload() {
     }
   })
   formData.append("folderPath", folderPath);
+  // console.log("formData", formData)
   
   // 配置上传进度监听
   const config = {
@@ -668,6 +721,7 @@ function confirmUpload() {
   };
   
   uploadFiles(formData, config).then(res => {
+    console.log("formData", formData)
     // 完成上传，进度设为100%
     uploadProgress.value = 100;
     
@@ -822,9 +876,10 @@ const handleFileChange = (file, fileList) => {
   // 校验同名（与已存在的文件）
   const fileName = file.name;
   const existNames = fileListData.value.map(item => {
-    const path = item.minioPath || '';
-    const idx = path.lastIndexOf('/');
-    return idx !== -1 ? path.substring(idx + 1) : path;
+    // const path = item.minioPath || '';
+    // const idx = path.lastIndexOf('/');
+    // return idx !== -1 ? path.substring(idx + 1) : path;
+    return item.fileName || '';
   });
 
   // 删除 fileList.value 中与已存在文件同名的文件，并提示
@@ -1330,6 +1385,15 @@ function showMaterialDetail(material) {
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: pointer;
+  }
+  
+  .file-id {
+    font-size: 12px;
+    color: #909399;
+    margin-bottom: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .file-info {

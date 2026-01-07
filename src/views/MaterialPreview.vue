@@ -27,6 +27,7 @@
       <!-- 返回按钮 -->
       <div class="back-section">
         <el-button @click="handleBack" icon="ArrowLeft">返回</el-button>
+        <el-button @click="handleShare" icon="Share">分享</el-button>
       </div>
 
       <!-- 文件名称 -->
@@ -253,6 +254,17 @@ const manualTagForm = reactive({
 
 // 标注信息 - 补充标签
 const supplementTags = ref('')
+
+const handleShare = () => {
+  if (!material.minioPath) {
+    ElMessage.warning('暂无素材链接可分享');
+    return;
+  }
+  navigator.clipboard.writeText(material.minioPath)
+      .then(() => ElMessage.success('链接已复制到剪贴板'))
+      .catch(() => ElMessage.error('复制失败，请手动复制'));
+};
+
 
 //获取自动标注信息
 function getAutoTags() {

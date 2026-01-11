@@ -19,15 +19,20 @@
       </div>
 
       <!-- 板块分类模块 -->
-      <div class="sidebar-section">
-        <h3 class="section-title">板块分类</h3>
-        <div class="category-list">
-          <div v-for="category in categories.filePath" :key="category"
-            :class="['category-item', { active: activeCategory === category }]" @click="handleCategoryClick(category)">
-            {{ category }}
-            <!-- <span class="category-name">{{ category }}</span> -->
-            <!-- <span class="file-count">{{ getCategoryFileCount(category) }}</span> -->
-          </div>
+      <div class="category-list">
+        <div
+            v-for="dept in sortedCategoriesByDept"
+            :key="dept.deptId"
+            :class="[
+        'category-item',
+        {
+          active: activeDeptId === dept.deptId,
+          disabled: !canClickDept(dept)
+        }
+      ]"
+            @click="handleDeptClickIfAllowed(dept)"
+        >
+          <span class="category-name">{{ dept.deptName }}</span>
         </div>
       </div>
     </div>
@@ -117,7 +122,7 @@
                   <el-tag v-for="tag in JSON.parse(material.annotationContent).activityEvent" :key="tag" type="success" size="small">{{ tag }}</el-tag>
                 </div>
                 <div class="material-actions">
-                  <el-button size="small" @click.stop="toggleFavorite($event, material)" 
+                  <el-button size="small" @click.stop="toggleFavorite($event, material)"
                     :class="['favorite-btn', { favorited: material.isFavorite }]"
                     :icon="material.isFavorite ? StarFilled : Star">
                     {{ material.isFavorite ? '已收藏' : '收藏' }}
@@ -302,7 +307,7 @@ import {
   FolderOpened
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getFolderList, getFileList, getFileIndexList, getCollectionList, addCollection, delCollection } from "@/api/xcsc/uploadFile"
+import { getFolderList, getFileList, getFileIndexList, getCollectionList, addCollection, delCollection,  getDeptCategoryList } from "@/api/xcsc/uploadFile"
 import useUserStore from '@/store/modules/user'
 
 const router = useRouter()
@@ -330,21 +335,23 @@ const categories = reactive({
 const categoryMap = ref({})
 
 // 获取左侧板块列表
-function getCategories(pid) {
-    let params = {
-        pid: pid,
-    }
-    return getFolderList(params).then(response => {
-        categories.filePath = response.data.map(item => item.filePath)
-        categories.bizId = response.data.map(item => item.bizId)
-        // 构建分类名称到bizId的映射
-        response.data.forEach(item => {
-            categoryMap.value[item.filePath] = item.bizId
-        })
-    })
+function getCategoriesByDeptList() {
+  return getDeptCategoryList().then(response => {
+    const list = response.data || []
+
+    // 直接赋值数组
+    categoriesByDept.value = list
+
+    // 默认选中第一个
+    // if (list.length > 0) {
+    //   activeDeptId.value = list[0].deptId
+    // }
+  })
 }
+
 // 页面加载时调用
-getCategories(0)
+// getCategories(0)
+getCategoriesByDeptList()
 
 // 素材列表
 const loading = ref(false)
@@ -357,47 +364,48 @@ const breadcrumbData = ref([])
 // 获取文件夹及文件列表数据
 const folderData = ref([]) //文件夹列表
 const fileListData = ref([])//文件列表
-function getFolderData(pid) {
-    let params = {
-        pid: pid,
+
+function getFolderData(folderBizId) {
+  let params = {
+    pid: folderBizId,
+  }
+  console.log('===folderBizId===', folderBizId);
+  console.log('===params===', params);
+
+  getFolderList(params).then(res => {
+    folderData.value = res.data
+    console.log('===folderData.value===', folderData.value)
+  })
+
+  if (folderBizId !== 0) {
+    let param = {
+      folderId: folderBizId,
+      fileTypeList: fileTypeObj[filterForm.fileType] || null,
+      createStartTime: filterForm.dateRange[0]
+          ? filterForm.dateRange[0] + ' 00:00:00'
+          : null,
+      createEndTime: filterForm.dateRange[0]
+          ? filterForm.dateRange[1] + ' 23:59:59'
+          : null,
+      createBy: filterForm.createBy,
+      annotationContent: filterForm.annotationContent,
+      fileName: filterForm.fileName
     }
-    console.log('===pid===', pid);
-    console.log('===params===', params);
-    getFolderList(params).then(res => {
-        folderData.value = res.data
-        console.log('===folderData.value===', folderData.value)
-    }) 
-    if (pid !== 0) {
-        let param = {
-            folderId: pid,
-            fileTypeList: fileTypeObj[filterForm.fileType] || null,
-            createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
-            createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
-            createBy: filterForm.createBy,
-            annotationContent: filterForm.annotationContent,
-            fileName: filterForm.fileName
-        }
-        getFileList(param).then(res => {
-            fileListData.value = res.data
-            // 获取当前用户收藏列表并设置文件收藏状态
-            getCollectionData().then(() => {
-                // 提取收藏列表中的文件id
-                const favoriteFileIds = collectionList.value.map(item => item.fileId);
-                // 遍历文件列表，设置收藏状态
-                fileListData.value.forEach(file => {
-                    file.isFavorite = favoriteFileIds.includes(file.id);
-                });
-            });
-            console.log('===fileListData.value===', fileListData.value)
-        })
-        
-    }
+
+    getFileList(param).then(res => {
+      fileListData.value = res.data
+      // 获取当前用户收藏列表并设置文件收藏状态
+      getCollectionData().then(() => {
+        const favoriteFileIds = collectionList.value.map(item => item.fileId);
+        fileListData.value.forEach(file => {
+          file.isFavorite = favoriteFileIds.includes(file.id);
+        });
+      });
+      console.log('===fileListData.value===', fileListData.value)
+    })
+  }
 }
 
-// 根据分类名称获取对应的bizId
-function getCategoryPid(category) {
-    return categoryMap.value[category] || 0
-}
 
 //点击子文件展示相关文件夹及文件
 function selectFolder(item, type) {
@@ -522,79 +530,18 @@ const totalFavoriteFiles = computed(() => {
   return collectionList.value.length;
 });
 
-// 存储各板块的文件数量
-const categoryFileCounts = ref({});
+// 存储各板块的文件数量 todo 通过sql查count
+// const categoryFileCounts = ref({});
 
 // 获取指定板块的文件数量
 const getCategoryFileCount = (category) => {
   return categoryFileCounts.value[category] || 0;
 };
 
-// 更新板块文件数量
-function updateCategoryFileCounts() {
-  // 重置计数
-  categoryFileCounts.value = {};
-  
-  // 遍历所有板块
-  if (categories.filePath && Array.isArray(categories.filePath)) {
-    categories.filePath.forEach(category => {
-      const pid = categoryMap.value[category];
-      if (pid) {
-        // 为每个板块调用API获取文件数量
-        let params = {
-          folderId: pid,
-          // 不设置筛选条件，获取该板块下的所有文件
-          fileTypeList: null,
-          createStartTime: null,
-          createEndTime: null,
-          createBy: '',
-          annotationContent: '',
-          fileName: ''
-        };
-        
-        getFileList(params).then(res => {
-          // 存储该板块的文件数量
-          categoryFileCounts.value[category] = res.data.length;
-          console.log(`板块 ${category} 的文件数量: ${res.data.length}`);
-        }).catch(error => {
-          console.error(`获取板块 ${category} 文件数量失败:`, error);
-          categoryFileCounts.value[category] = 0;
-        });
-      }
-    });
-  }
-}
-
-// 在组件挂载和切换空间时调用此方法来更新板块文件数量
-function initCategoryFileCounts() {
-  // 延迟执行，确保categories已经加载完成
-  setTimeout(() => {
-    updateCategoryFileCounts();
-  }, 500);
-}
-
-// 监听categories变化，自动更新文件数量
-// const unwatchCategories = watch(() => categories.filePath, () => {
-//   if (categories.filePath && categories.filePath.length > 0) {
-//     updateCategoryFileCounts();
-//   }
-// }, { deep: true });
 
 //收藏列表
 const collectionList = ref([])
-//获取当前用户收藏列表
-// function getCollectionData(userId){
-//   // collectionList.value = [];
-//   let params = {
-//         userId: userId
-//     }
-//     return getCollectionList(params).then(res => {
-//       collectionList.value = res.data
-//       console.log('===params===', params)
-//       console.log('collectionList.value', collectionList.value)
-//       return res.data;
-//     })
-// }
+
 function getCollectionData(){
     return getCollectionList().then(res => {
       collectionList.value = res.data
@@ -638,6 +585,58 @@ function updateFileFavoriteStatus() {
     });
   }
 }
+
+// 当前选中的部门
+const activeDeptId = ref(null)
+
+// 所有部门列表
+const categoriesByDept = ref([])
+
+const isAdmin = computed(() => {
+  const user = userStore.user;
+
+  // 对象数组 roles
+  const objectRoles = user?.roles?.some(
+      role => role.roleKey === 'admin' || role.roleKey === 'studio'
+  );
+
+  // 顶层字符串数组 roles
+  const stringRoles = userStore.roles?.some(
+      role => role === 'admin' || role === 'studio'
+  );
+
+  return objectRoles || stringRoles;
+});
+
+// 判断部门是否可点击
+const canClickDept = (dept) => {
+  if (isAdmin.value) return true
+  return Number(dept.deptId) === Number(userStore.deptId)
+}
+
+// 点击部门处理（真正业务逻辑）
+const handleDeptClick = (dept) => {
+  activeDeptId.value = dept.deptId
+  console.log('选中部门：', dept.deptName)
+  // TODO: 根据 deptId 拉取文件列表等逻辑
+  // 板块/公司  有一个主文件夹（pid = 0）；dept."foldid"
+  handleCategoryClick(dept)
+}
+
+// 包装点击：不可点击时直接 return
+const handleDeptClickIfAllowed = (dept) => {
+  if (!canClickDept(dept)) return
+  handleDeptClick(dept)
+}
+
+// 排序：可点击部门排前面
+const sortedCategoriesByDept = computed(() => {
+  return [...categoriesByDept.value].sort((a, b) => {
+    const aCan = canClickDept(a) ? 0 : 1
+    const bCan = canClickDept(b) ? 0 : 1
+    return aCan - bCan
+  })
+})
 
 // 收藏操作
 const toggleFavorite = (event, material) => {
@@ -854,30 +853,17 @@ const handleSpaceClick = (spaceId) => {
       fileName: ''
     })
     activeSpace.value = spaceId
-    activeCategory.value = '' // 清空板块分类选中状态
+    // activeCategory.value = '' // 清空板块分类选中状态
     folderData.value = [] // 不展示文件夹
     showSearchResults.value = false // 确保显示文件夹视图而不是搜索结果
     
     if (activeSpace.value == 'all') {
         fileListData.value = []
-        getALlFileListData()
+        getAllFileListData()
     } else if (activeSpace.value == 'favorite') {
         // 显示我的收藏
         // breadcrumbData.value = [{ filePath: '我的收藏', bizId: 'favorite' }]
         breadcrumbData.value = []
-        
-        // 确保已经加载了所有文件数据，以便能够应用筛选条件
-        // 如果allFileListData为空，先加载所有文件
-        // if (Object.keys(allFileListData).length === 0) {
-        //     // 使用当前的筛选条件加载所有文件
-        //     getALlFileListData().then(() => {
-        //         // 然后获取收藏文件并应用筛选
-        //         getFavoriteFiles()
-        //     })
-        // } else {
-        //     // 直接获取收藏文件并应用筛选
-        //     getFavoriteFiles()
-        // }
         getFavoriteFiles()
     }
     
@@ -887,94 +873,72 @@ const handleSpaceClick = (spaceId) => {
     // }
 }
 
-// 获取所有文件
-const allFileListData = reactive({})//文件列表
-let fileTypeObj = {
-    'image': ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'svg', 'heic'],
-    'video': ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm','m4v'],
-    'document': ['doc', 'docx', 'xls', 'xlsx', 'pdf', 'pptx', 'zip', 'rar', '7z', 'tar', 'gz', 'txt', 'md', 'csv', 'json', 'xml'],
-}
-function getALlFileListData() {
-    console.log('filterForm.dateRange:', filterForm.dateRange)
-    Object.assign(filterForm, {
-      dateRange: []
-    })
-    // 如果filterForm.dateRange是空的，默认获取近30天的开始时间和结束时间
-    if (filterForm.dateRange.length === 0) {
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setDate(endDate.getDate() - 30);
-        const formatDate = (date) => {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-        };
-        filterForm.dateRange = [formatDate(startDate), formatDate(endDate)];
-    }
-
-    let params = {
-        fileTypeList: fileTypeObj[filterForm.fileType] || null,
-        createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
-        createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
-        // createStartTime: filterForm.dateRange && filterForm.dateRange.length === 2 ? filterForm.dateRange[0] + ' 00:00:00' : null,
-        // createEndTime: filterForm.dateRange && filterForm.dateRange.length === 2 ? filterForm.dateRange[1] + ' 23:59:59' : null,
-        createBy: filterForm.createBy,
-        keyWords: filterForm.annotationContent,
-        fileName: filterForm.fileName
-    }
-
-    console.log('执行查询:', params)
-    getFileIndexList(params).then(res => {
-        // 删除所有 key
-        Object.keys(allFileListData).forEach(key => {
-            delete allFileListData[key];
-        });
-        Object.assign(allFileListData, res.data)
-        console.log("===allFileListData===",allFileListData)
-        
-        // 获取当前用户收藏列表并设置文件收藏状态
-        getCollectionData().then(() => {
-            // 提取收藏列表中的文件id
-            const favoriteFileIds = collectionList.value.map(item => item.fileId);
-            // 遍历所有文件列表，设置收藏状态
-            for (const dateKey in allFileListData) {
-                const dailyFiles = allFileListData[dateKey];
-                dailyFiles.forEach(file => {
-                    file.isFavorite = favoriteFileIds.includes(file.id);
-                });
-            }
-        });
-    })
+// 获取当前用户能接触的所有文件（n天m个文件，后端有个数限制）
+const allFileListData = reactive({}) // 文件列表
+const fileTypeObj = {
+  image: ['jpg','jpeg','png','bmp','gif','webp','svg','heic'],
+  video: ['mp4','mov','avi','mkv','flv','wmv','webm','m4v'],
+  document: ['doc','docx','xls','xlsx','pdf','pptx','zip','rar','7z','tar','gz','txt','md','csv','json','xml'],
 }
 
-// 点击板块分类
-const handleCategoryClick = (category) => {
-    // 重置搜索栏
-    Object.assign(filterForm, {
-      fileType: '',
-      dateRange: [],
-      createBy: '',
-      annotationContent: '',
-      fileName: ''
-    })
-    activeCategory.value = category // 设置当前选中的分类
-    activeSpace.value = '' // 清空个人空间选中状态
-    console.log('===activeCategory===', category)
-    const pid = getCategoryPid(category)
-    if (pid) {
-        getFolderData(pid)
-        // 更新面包屑数据
-        breadcrumbData.value = [{
-            filePath: category,
-            bizId: pid,
-        }]
-        // 更新当前文件夹对象
-        Object.assign(curFolderObj, {
-            filePath: category,
-            bizId: pid,
+function getAllFileListData() {
+  const params = {
+    fileTypeList: fileTypeObj[filterForm.fileType] || null,
+    createStartTime: filterForm.dateRange?.[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
+    createEndTime: filterForm.dateRange?.[1] ? filterForm.dateRange[1] + ' 23:59:59' : null,
+    createBy: filterForm.createBy,
+    keyWords: filterForm.annotationContent,
+    fileName: filterForm.fileName
+  }
+
+  getFileIndexList(params).then(res => {
+    Object.assign(allFileListData, res.data) // 直接覆盖，不用先删
+    // 设置收藏状态
+    getCollectionData().then(() => {
+      const favoriteFileIds = collectionList.value.map(item => item.fileId)
+      for (const dateKey in allFileListData) {
+        allFileListData[dateKey].forEach(file => {
+          file.isFavorite = favoriteFileIds.includes(file.id)
         })
+      }
+    })
+  })
+}
+
+// 点击板块分类（统一接收 dept 对象）
+const handleCategoryClick = (dept) => {
+  // 1. 重置搜索栏
+  Object.assign(filterForm, {
+    fileType: '',
+    dateRange: [],
+    createBy: '',
+    annotationContent: '',
+    fileName: ''
+  })
+
+  // 2. 设置当前选中状态
+  activeCategory.value = dept.deptName
+  activeDeptId.value = dept.deptId
+  activeSpace.value = ''
+
+  console.log('===activeCategory===', dept)
+
+  // 3. 拉取数据
+  getFolderData(dept.rootFolderId)
+
+  // 4. 面包屑
+  breadcrumbData.value = [
+    {
+      filePath: dept.deptName,
+      bizId: pid
     }
+  ]
+
+  // 5. 当前文件夹对象
+  Object.assign(curFolderObj, {
+    filePath: dept.deptName,
+    bizId: pid
+  })
 }
 
 // 查询处理
@@ -982,7 +946,7 @@ const handleQuery = () => {
   showSearchResults.value = false; // 确保在收藏模块中不进入搜索结果视图
   if (activeSpace.value == 'all') {
     folderData.value = [] // 不展示文件夹
-    getALlFileListData()
+    getAllFileListData()
   } else if (activeSpace.value == 'favorite') {
     // 处理收藏模块的查询
     folderData.value = [] // 不展示文件夹
@@ -1038,15 +1002,6 @@ function resetSearch() {
   if(curFolderObj.bizId == 0){
     showFolder.value = true // 确保显示文件夹视图
   }
-  
-  // searchKeyword.value = ''
-  // statusFilter.value = ''
-  // breadcrumbData.value = [] // 清空面包屑数据
-  // Object.assign(curFolderObj, {
-  //   filePath: '',
-  //   bizId: '',
-  //   id: ''
-  // }) // 重置当前文件夹对象
   Object.assign(filterForm, {
     fileType: '',
     dateRange: [],
@@ -1054,13 +1009,6 @@ function resetSearch() {
     annotationContent: '',
     fileName: ''
   })
-  // if (activeSpace.value == 'all') {
-  //   folderData.value = [] // 不展示文件夹
-  //   // getALlFileListData()
-  // } else {
-  //   const pid = getCategoryPid(activeCategory.value)
-  //   getFolderData(pid)
-  // }
   console.log(curFolderObj)
   getFolderData(curFolderObj.bizId) // 获取根文件夹数据
 }
@@ -1187,16 +1135,21 @@ onBeforeUnmount(() => {
   }
 }
 
-// 左侧边栏
+/* sidebar.scss */
 .sidebar {
   width: 280px;
+  height: 100vh;
   background: #f8f9fa;
   border-right: 1px solid #e4e7ed;
   padding: 20px;
-  height: 100%;
+  display: flex;
+  flex-direction: column;
 
+  /* 每个板块间隔 */
   .sidebar-section {
-    margin-bottom: 24px;
+    &:not(:last-child) {
+      margin-bottom: 24px;
+    }
 
     .section-title {
       font-size: 14px;
@@ -1208,33 +1161,38 @@ onBeforeUnmount(() => {
     }
   }
 
+  /* 个人空间列表 */
   .space-list {
+    max-height: 120px;       // 固定高度，超出滚动
+    overflow-y: auto;
+
     .space-item {
       display: flex;
       align-items: center;
       padding: 12px 16px;
-      margin-bottom: 4px;
-      border-radius: 4px;
+      margin-bottom: 8px;
+      border-radius: 6px;
       cursor: pointer;
       transition: all 0.2s;
-      
+      color: #303133;
+      background: #fff;
+
+      &:hover {
+        background: #ecf5ff;
+        color: #409eff;
+      }
+
+      &.active {
+        background: #409eff;
+        color: #fff;
+        font-weight: 500;
+      }
+
       .space-name {
         flex: 1;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-      }
-
-      .el-icon {
-        margin-right: 8px;
-        font-size: 16px;
-        color: #909399;
-      }
-
-      span {
-        font-size: 14px;
-        color: #606266;
-        // flex: 1;
       }
 
       .file-count {
@@ -1244,33 +1202,13 @@ onBeforeUnmount(() => {
         padding: 2px 8px;
         border-radius: 10px;
         margin-left: auto;
-      }
 
-      &:hover {
-        background: #ecf5ff;
-        color: #409eff;
-
-        .el-icon,
-        span {
-          color: #409eff;
-        }
-        
-        .file-count {
+        .space-item:hover & {
           background: #e6f7ff;
           color: #409eff;
         }
-      }
 
-      &.active {
-        background: #409eff;
-        color: #fff;
-
-        .el-icon,
-        span {
-          color: #fff;
-        }
-        
-        .file-count {
+        .space-item.active & {
           background: rgba(255, 255, 255, 0.2);
           color: #fff;
         }
@@ -1279,9 +1217,9 @@ onBeforeUnmount(() => {
   }
 
   .category-list {
-    height: calc(100vh - 300px);
-    overflow-y: auto;
-
+    flex: 1;                // 占满剩余高度
+    overflow-y: auto;       // 开启垂直滚动
+    padding-right: 4px;     // 防止滚动条遮挡内容
     .category-item {
       display: flex;
       align-items: center;
@@ -1292,7 +1230,7 @@ onBeforeUnmount(() => {
       transition: all 0.2s;
       font-size: 14px;
       color: #606266;
-      background: transparent;
+      background: #fff;
 
       .category-name {
         flex: 1;
@@ -1311,29 +1249,41 @@ onBeforeUnmount(() => {
         flex-shrink: 0;
       }
 
-      &:hover {
+      // hover 样式：只有可点击的才生效
+      &:not(.disabled):hover {
         background: #ecf5ff;
         color: #409eff;
-        
+
+        .category-name,
+        .file-count {
+          color: #409eff;
+        }
         .file-count {
           background: #e6f7ff;
-          color: #409eff;
         }
       }
 
-      // 确保分类项垂直排列，不换行
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-
-      // 选中状态样式
       &.active {
         background: #409eff;
         color: #fff;
-        
+
+        .category-name,
+        .file-count {
+          color: #fff;
+        }
         .file-count {
           background: rgba(255, 255, 255, 0.2);
-          color: #fff;
+        }
+      }
+
+      &.disabled {
+        cursor: not-allowed;
+        color: #aaa;
+        background: #f5f5f5;
+
+        .file-count {
+          background: #eee;
+          color: #aaa;
         }
       }
     }

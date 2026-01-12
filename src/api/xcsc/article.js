@@ -35,10 +35,29 @@ export function updateArticle(data) {
   })
 }
 
+// 审批稿件
+export function approvalArticle(data) {
+  return request({
+    url: '/article/approval',
+    method: 'put',
+    data: data
+  })
+}
+
 // 删除稿件
 export function delArticle(id) {
   return request({
     url: '/article/' + id,
     method: 'delete'
+  })
+}
+
+// 导出稿件
+export function exportHtmlToWord(data) {
+  return request({
+    url: '/article/exportWord',
+    method: 'post',
+    data: data,
+    responseType: 'blob'
   })
 }

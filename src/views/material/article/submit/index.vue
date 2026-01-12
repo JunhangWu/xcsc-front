@@ -1,7 +1,7 @@
 <template>
   <div class="article-submit-container">
     <div class="title-section">
-      <h4 class="common-title">文章标题：</h4>
+      <h4 class="required-title">文章标题：</h4>
       <el-input
         v-model="articleTitle"
         placeholder="请输入文章标题，长度不超过100个字"
@@ -23,8 +23,38 @@
       />
     </div>
 
+    <div class="author-section">
+      <h4 class="required-title">栏花：</h4>
+      <!-- 栏花上传区域 - 改造核心 -->
+      <el-upload 
+        v-model:file-list="fileList" 
+        class="upload-demo flower-upload" 
+        drag 
+        :multiple="false"  
+        action=""
+        :on-change="handleFileChange" 
+        :on-remove="handleFileRemove" 
+        :auto-upload="false"
+        :limit="1"  
+      >
+        <!-- 未上传时显示上传提示 -->
+        <div v-if="!fileList.length" class="upload-tips">
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">
+            点击或拖拽文件到此处上传
+            <div class="el-upload__tip"> 支持图片格式：jpeg / jpg / png，文件大小不超过10MB</div>
+          </div>
+        </div>
+        <!-- 已上传时显示图片预览 -->
+        <div v-else class="flower-preview">
+          <img :src="fileList[0].url || URL.createObjectURL(fileList[0].raw)" alt="栏花预览" class="preview-img">
+        </div>
+      </el-upload>
+    </div>
+
     <div class="editor-section">
       <!-- WangEditor 富文本编辑器 核心组件 -->
+      <h4 class="required-title">正文：</h4>
       <div style="border: 1px solid #ccc; border-radius: 4px;">
         <Toolbar
           style="border-bottom: 1px solid #ccc; padding: 6px 10px"
@@ -42,17 +72,6 @@
       </div>
     </div>
 
-    <!-- 附件上传区域 -->
-    <!-- <div class="attachment-section">
-      <h3 class="section-title">附件上传</h3>
-      <FileUpload
-        v-model="articleAttachments"
-        :limit="5"
-        :file-size="20"
-        :file-type="['doc', 'docx', 'pdf', 'txt']"
-      />
-    </div> -->
-
     <!-- 提交按钮 -->
     <div class="submit-section">
       <el-button type="primary" size="large" @click="handleSubmit">提交文章</el-button>
@@ -62,7 +81,7 @@
 
 <script setup>
 import { ref, shallowRef, onBeforeUnmount } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import FileUpload from '@/components/FileUpload/index.vue'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
@@ -71,11 +90,13 @@ import { addArticle } from "@/api/xcsc/article"
 
 // ========== 页面变量 ==========
 const articleTitle = ref('')
+const articleFlower = ref('')
 const articleAuthor = ref('')
 const articleAttachments = ref('')
+const fileList = ref([]) // 栏花文件列表（改造：数组形式管理）
 
-// ========== WangEditor 配置（核心修复） ==========
-const editorRef = shallowRef() // 编辑器实例（必须用 shallowRef）
+// ========== WangEditor 配置 ==========
+const editorRef = shallowRef() 
 const mode = ref('default')
 
 // 工具栏配置：排除不需要的功能
@@ -110,10 +131,34 @@ const editorConfig = {
   }
 }
 
-// 编辑器创建成功后执行（修复 disableXSS 时机）
+// 编辑器创建成功后执行
 const handleCreated = (editor) => {
   editorRef.value = editor
-  editor.disableXSS = true // 在这里执行，确保 editor 已存在
+  editor.disableXSS = true 
+}
+
+// ========== 栏花上传/删除逻辑 ==========
+// 文件选择/上传变化
+const handleFileChange = (file, fileLists) => {
+  // 限制只能上传一张，自动覆盖原有文件
+  if (fileLists.length > 1) {
+    fileList.value = [file] // 只保留最新选择的文件
+    ElMessage.info('栏花仅支持上传一张图片，已自动替换原有文件')
+  }
+  // 生成预览URL
+  if (file.raw) {
+    file.url = URL.createObjectURL(file.raw)
+  }
+}
+
+// 文件删除
+const handleFileRemove = (file, fileLists) => {
+  // 释放URL对象，避免内存泄漏
+  if (file.url) {
+    URL.revokeObjectURL(file.url)
+  }
+  fileList.value = fileLists
+  ElMessage.info('已删除栏花图片')
 }
 
 // ========== 功能方法 ==========
@@ -121,25 +166,37 @@ const handleCreated = (editor) => {
 const handleClear = () => {
   articleTitle.value = ''
   articleAuthor.value = ''
-  articleAttachments.value = ''
-  if (editorRef.value) {
-    editorRef.value.setHtml('') // 用编辑器 API 清空，而非绑定变量
+  // 清空栏花并释放URL
+  if (fileList.value.length > 0) {
+    fileList.value.forEach(file => {
+      if (file.url) URL.revokeObjectURL(file.url)
+    })
+    fileList.value = []
   }
+  if (editorRef.value) {
+    editorRef.value.setHtml('') 
+  }
+  ElMessage.info('已清空所有内容')
 }
 
 // 提交文章
-const handleSubmit = () => {
+async function handleSubmit() {
   const trimTitle = articleTitle.value.trim()
   if (!trimTitle) {
     ElMessage.warning('请输入文章标题')
     return
   }
 
-  const trimAuthor = articleAuthor.value.trim()
-  if (!trimAuthor) {
-    ElMessage.warning('请输入作者姓名')
+  if (fileList.value.length === 0) {
+    ElMessage.warning('请上传栏花图片')
     return
   }
+
+  const trimAuthor = articleAuthor.value.trim()
+  // if (!trimAuthor) {
+  //   ElMessage.warning('请输入作者姓名')
+  //   return
+  // }
 
   // 从编辑器实例获取 HTML 内容
   const contentHtml = editorRef.value?.getHtml() || ''
@@ -149,27 +206,34 @@ const handleSubmit = () => {
     return
   }
 
-  const submitData = {
-    title: trimTitle,
-    authorName: trimAuthor,
-    content: contentHtml // 直接用编辑器的 HTML
+  // 创建 FormData 并填充数据
+  const formData = new FormData();
+  // 处理栏花文件
+  if (fileList.value && fileList.value.length > 0) {
+    formData.append("file", fileList.value[0].raw);
   }
+  formData.append("title", articleTitle.value.trim());
+  formData.append("authorName", articleAuthor.value.trim());
+  formData.append("content", contentHtml);
 
-  addArticle(submitData)
-    .then(res => {
-      ElMessage.success('文章提交成功')
-      handleClear()
-    })
-    .catch(error => {
-      console.error('文章提交失败:', error)
-      ElMessage.error('文章提交失败，请稍后重试')
-    })
+  try {
+    const res = await addArticle(formData)
+    ElMessage.success('文章提交成功')
+    handleClear()
+  } catch (error) {
+    console.error('文章提交失败:', error)
+    ElMessage.error('文章提交失败，请稍后重试')
+  }
 }
 
 // 销毁编辑器
 onBeforeUnmount(() => {
   const editor = editorRef.value
   if (editor) editor.destroy()
+  // 组件销毁时释放图片URL
+  fileList.value.forEach(file => {
+    if (file.url) URL.revokeObjectURL(file.url)
+  })
 })
 </script>
 
@@ -180,11 +244,9 @@ onBeforeUnmount(() => {
   width: 80%;
   border-radius: 4px;
   margin: 0 auto; 
-
 }
 
 .title-section {
-  /* margin-bottom: 20px; */
   width: 80%;
   display: flex;
   align-items: center;
@@ -213,32 +275,46 @@ onBeforeUnmount(() => {
   margin: 20px 0;
 }
 
-.clear-btn {
-  font-size: 16px;
+/* 栏花上传样式改造 */
+.flower-upload {
+  width: 100%;
 }
-
-/* 附件上传区域样式 */
-.attachment-section {
-  /* padding: 20px; */
+.upload-tips {
+  text-align: center;
+  padding: 20px;
+}
+.flower-preview {
+  width: 100%;
+  text-align: center;
+  padding: 10px;
+}
+.preview-img {
+  max-width: 400px;
+  max-height: 300px;
   border-radius: 4px;
-}
-
-.section-title {
-  font-size: 16px;
-	font-weight: 600;
-	color: #303133;
-	padding-bottom: 10px;
-	border-bottom: 1px solid #e4e7ed;
-	margin-bottom: 15px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
 }
 
 .common-title {
   font-size: 16px;
-	font-weight: 600;
-	color: #303133;
-	padding-bottom: 10px;
-	/* border-bottom: 1px solid #e4e7ed; */
-	margin-bottom: 15px;
+  font-weight: 600;
+  color: #303133;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+.required-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+.required-title:before {
+  /* color: #F56C6C;
+  margin-left: 4px; */
+  content: "*";
+  color: #F56C6C;
+  margin-right: 2px;
 }
 
 /* 提交按钮样式 */

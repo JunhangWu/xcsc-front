@@ -96,7 +96,7 @@
           </el-table-column>
           <el-table-column prop="approver" label="审批人" width="120" align="center" />
           <el-table-column prop="approvalTime" label="审批时间" width="180" align="center" />
-          <el-table-column prop="approvalComments" label="审批意见" min-width="150" show-overflow-tooltip />
+          <el-table-column prop="approvalComments" label="审批意见" min-width="150" align="center" />
           <el-table-column label="操作" width="250" align="center" fixed="right">
             <template #default="scope">
               <el-button link type="primary" size="middle" @click="handleView(scope.row)">查看</el-button>
@@ -119,14 +119,24 @@
     >
       <div class="article-detail">
         <div class="detail-header">
-          <h2 class="article-title">{{ currentArticle.title }}</h2>
-          <div class="article-meta">
-            <span>作者：{{ currentArticle.authorName }}</span>
-            <span>提交时间：{{ currentArticle.createTime }}</span>
-            <el-tag :type="getStatusTagType(currentArticle.approvalStatus)">
-              {{ getStatusText(currentArticle.approvalStatus) }}
-            </el-tag>
+          <div class="header-left">
+            <h2 class="article-title">{{ currentArticle.title }}</h2>
+            <div class="article-meta">
+              <span>作者：{{ currentArticle.authorName }}</span>
+              <span>提交时间：{{ currentArticle.createTime }}</span>
+              <el-tag :type="getStatusTagType(currentArticle.approvalStatus)">
+                {{ getStatusText(currentArticle.approvalStatus) }}
+              </el-tag>
+            </div>
           </div>
+          <div class="header-right">
+            <el-button type="primary" @click="handleExport">导出</el-button>
+          </div>
+        </div>
+        <!-- 栏花预览 -->
+        <div v-if="currentArticle.columnOrnamentUrl" class="flower-preview">
+          <h4 class="flower-title">栏花：</h4>
+          <img :src="currentArticle.columnOrnamentUrl" alt="栏花" class="flower-image">
         </div>
         <div class="article-content" v-html="currentArticle.content"></div>
       </div>
@@ -170,11 +180,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, useSSRContext } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, ArrowUp, Clock, CircleCheck } from '@element-plus/icons-vue'
-import { listArticle, getArticle, updateArticle } from "@/api/xcsc/article"
+import { listArticle, getArticle, updateArticle, exportHtmlToWord, approvalArticle} from "@/api/xcsc/article"
+import useUserStore from '@/store/modules/user'
+import { parseTime } from '@/utils/common'
 
+const userStore = useUserStore()
 const activeTab = ref('pending')
 const queryParams = reactive({
   pageNum: 1,
@@ -247,8 +260,8 @@ const getList = async () => {
   loading.value = true
   try {
     if (dateRange.value && dateRange.value.length === 2) {
-      queryParams.startTime = dateRange.value[0]
-      queryParams.endTime = dateRange.value[1]
+      queryParams.startTime = dateRange.value[0] + ' 00:00:00'
+      queryParams.endTime = dateRange.value[1] + ' 23:59:59'
     } else {
       queryParams.startTime = ''
       queryParams.endTime = ''
@@ -343,9 +356,11 @@ const confirmApprove = async () => {
     const updateData = {
       id: approveForm.id,
       approvalStatus: approveForm.approvalStatus,
-      approvalComments: approveForm.approvalComments
+      approvalComments: approveForm.approvalComments,
+      approvalTime: parseTime(new Date()),
+      approver: userStore.name
     }
-    await updateArticle(updateData)
+    await approvalArticle(updateData)
     ElMessage.success(approveForm.approvalStatus === 1 ? '审批通过' : '审批不通过')
     approveDialogVisible.value = false
     viewDialogVisible.value = false
@@ -353,6 +368,34 @@ const confirmApprove = async () => {
   } catch (error) {
     ElMessage.error('审批操作失败')
     console.error('审批操作失败:', error)
+  }
+}
+
+// 导出功能
+const handleExport = async () => {
+  if (!currentArticle.value || !currentArticle.value.id) {
+    ElMessage.warning('请选择要导出的稿件')
+    return
+  }
+  
+  try {
+    const response = await exportHtmlToWord(currentArticle.value)
+    
+    // 处理文件流
+    const blob = new Blob([response], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${currentArticle.value.title || 'article'}.docx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    ElMessage.success('导出成功')
+  } catch (error) {
+    ElMessage.error('导出失败')
+    console.error('导出失败:', error)
   }
 }
 
@@ -462,6 +505,17 @@ onMounted(() => {
   border-bottom: 1px solid #eee;
   padding-bottom: 20px;
   margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.header-left {
+  flex: 1;
+}
+
+.header-right {
+  margin-left: 20px;
 }
 
 .article-title {
@@ -491,5 +545,27 @@ onMounted(() => {
 
 .article-content :deep(p) {
   margin: 10px 0;
+}
+
+/* 栏花预览样式 */
+.flower-preview {
+  /* margin: 20px 0; */
+  /* padding: 15px; */
+  /* background-color: #f5f7fa; */
+  border-radius: 4px;
+}
+
+.flower-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  /* margin-bottom: 10px; */
+}
+
+.flower-image {
+  max-width: 400px;
+  max-height: 300px;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
 }
 </style>

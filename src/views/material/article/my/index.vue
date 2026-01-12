@@ -110,7 +110,7 @@
       <!-- 操作列 -->
       <el-table-column label="操作" width="280" align="center">
         <template #default="scope">
-          <el-button link type="primary" size="middle" @click="handleReedit(scope.row)">重新编辑</el-button>
+          <el-button link type="primary" size="middle" @click="handleReedit(scope.row)" :disabled="scope.row.approvalStatus !== 0">重新编辑</el-button>
           <el-button link type="primary" size="middle" @click="handleView(scope.row)">查看</el-button>
         </template>
       </el-table-column>
@@ -120,7 +120,7 @@
     <pagination v-show="total > 0" :total="total" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize" @pagination="getList" />
 
     <!-- 查看详情对话框 -->
-    <el-dialog
+<el-dialog
       v-model="viewDialogVisible"
       title="稿件详情"
       width="70%"
@@ -128,28 +128,116 @@
     >
       <div class="article-detail">
         <div class="detail-header">
-          <h2 class="article-title">{{ currentArticle.title }}</h2>
-          <div class="article-meta">
-            <span>作者：{{ currentArticle.authorName }}</span>
-            <span>提交时间：{{ currentArticle.createTime }}</span>
-            <el-tag :type="getStatusTagType(currentArticle.approvalStatus)">
-              {{ currentArticle.approvalStatus === 1 ? '通过' : currentArticle.approvalStatus === 2 ? '不通过' : '待审批' }}
-            </el-tag>
+          <div class="header-left">
+            <h2 class="article-title">{{ currentArticle.title }}</h2>
+            <div class="article-meta">
+              <span>作者：{{ currentArticle.authorName }}</span>
+              <span>提交时间：{{ currentArticle.createTime }}</span>
+              <el-tag :type="getStatusTagType(currentArticle.approvalStatus)">
+                {{ getStatusText(currentArticle.approvalStatus) }}
+              </el-tag>
+            </div>
           </div>
+          <div class="header-right">
+            <el-button type="primary" @click="handleExport">导出</el-button>
+          </div>
+        </div>
+        <!-- 栏花预览 -->
+        <div v-if="currentArticle.columnOrnamentUrl" class="flower-preview">
+          <h4 class="flower-title">栏花：</h4>
+          <img :src="currentArticle.columnOrnamentUrl" alt="栏花" class="flower-image">
         </div>
         <div class="article-content" v-html="currentArticle.content"></div>
       </div>
       <template #footer>
         <el-button @click="viewDialogVisible = false">关闭</el-button>
+        <el-button type="success" @click="handleApprove(currentArticle)" v-if="currentArticle.approvalStatus === 0">通过</el-button>
+        <el-button type="danger" @click="handleReject(currentArticle)" v-if="currentArticle.approvalStatus === 0">不通过</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑对话框 -->
+    <el-dialog
+      v-model="editDialogVisible"
+      title="重新编辑稿件"
+      width="70%"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="editArticleForm" ref="editFormRef" label-width="80px" class="edit-form">
+        <el-form-item label="标题：" required>
+          <el-input
+            v-model="editArticleForm.title"
+            placeholder="请输入标题"
+            style="width: 100%;"
+          />
+        </el-form-item>
+        <el-form-item label="作者：">
+          <el-input
+            v-model="editArticleForm.authorName"
+            placeholder="请输入作者姓名"
+            style="width: 100%;"
+          />
+        </el-form-item>
+        <el-form-item label="正文：" required>
+          <div style="border: 1px solid #ccc; border-radius: 4px;">
+            <Toolbar
+              style="border-bottom: 1px solid #ccc; padding: 6px 10px"
+              :editor="editorRef"
+              :defaultConfig="toolbarConfig"
+              :mode="mode"
+            />
+            <Editor
+              style="height: 500px; overflow-y: auto;"
+              v-model="editArticleForm.content"
+              :defaultConfig="editorConfig"
+              :mode="mode"
+              @onCreated="handleEditorCreated"
+            />
+          </div>
+        </el-form-item>
+        <!-- 栏花上传 -->
+        <el-form-item label="栏花：">
+          <el-upload 
+            v-model:file-list="fileList" 
+            class="upload-demo flower-upload" 
+            drag 
+            :multiple="false"  
+            action=""
+            :on-change="handleFileChange" 
+            :on-remove="handleFileRemove" 
+            :auto-upload="false"
+            :limit="1"  
+          >
+            <!-- 未上传时显示上传提示 -->
+            <div v-if="!fileList.length" class="upload-tips">
+              <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+              <div class="el-upload__text">
+                点击或拖拽文件到此处上传
+                <div class="el-upload__tip"> 支持图片格式：jpeg / jpg / png，文件大小不超过10MB</div>
+              </div>
+            </div>
+            <!-- 已上传时显示图片预览 -->
+            <div v-else class="flower-preview">
+              <img :src="fileList[0].url || URL.createObjectURL(fileList[0].raw)" alt="栏花预览" class="preview-img">
+            </div>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveEdit" :loading="editLoading">保存</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, shallowRef, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
-import { addArticle, listArticle, getArticle } from "@/api/xcsc/article"
+import { addArticle, listArticle, getArticle, updateArticle, exportHtmlToWord} from "@/api/xcsc/article"
+import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
+import '@wangeditor/editor/dist/css/style.css'
+import { getToken } from "@/utils/auth"
 
 // 搜索参数
 const queryParams = reactive({
@@ -170,6 +258,84 @@ const loading = ref(false)
 const total = ref(0)
 const viewDialogVisible = ref(false)
 const currentArticle = ref({})
+// 编辑弹窗
+const editDialogVisible = ref(false)
+const editArticleForm = ref({})
+const editLoading = ref(false)
+const editFormRef = ref(null)
+const fileList = ref([]) // 栏花文件列表
+
+// 富文本编辑器配置
+const editorRef = shallowRef()
+const mode = ref('default')
+
+// 工具栏配置：排除不需要的功能
+const toolbarConfig = {
+  excludeKeys: [
+    'insertTable', 'deleteTable', 'insertVideo', 'codeBlock','uploadVideo',
+    'insertFormula', 'fullScreen', 'divider', 'emotion'
+  ]
+}
+
+// 编辑器配置
+const editorConfig = {
+  placeholder: '请输入文章正文内容...',
+  pasteFilterStyle: false,
+  pasteIgnoreImg: false,
+  uploadImgByBlob: true,
+  MENU_CONF: {
+    uploadImage: {
+      server: '/dev-api/article/uploadImage',
+      fieldName: 'file',
+      maxFileSize: 20 * 1024 * 1024,
+      allowedFileTypes: ['image/jpg', 'image/png', 'image/jpeg'],
+      headers: {
+        Authorization: 'Bearer ' + getToken()
+      },
+      onBeforeUpload(file) { return file },
+      onProgress(progress) { console.log('progress', progress) },
+      onSuccess(file, res) { console.log(`${file.name} 上传成功`, res) },
+      onFailed(file, res) { console.log(`${file.name} 上传失败`, res) },
+      onError(file, err, res) { console.log(`${file.name} 上传出错`, err, res) },
+    }
+  }
+}
+
+// 编辑器创建成功后执行
+const handleEditorCreated = (editor) => {
+  editorRef.value = editor
+  editor.disableXSS = true 
+}
+
+// 销毁编辑器
+onBeforeUnmount(() => {
+  const editor = editorRef.value
+  if (editor) editor.destroy()
+})
+
+// ========== 栏花上传/删除逻辑 ==========
+// 文件选择/上传变化
+const handleFileChange = (file, fileLists) => {
+  // 限制只能上传一张，自动覆盖原有文件
+  if (fileLists.length > 1) {
+    fileList.value = [file] // 只保留最新选择的文件
+    ElMessage.info('栏花仅支持上传一张图片，已自动替换原有文件')
+  }
+  // 生成预览URL
+  if (file.raw) {
+    file.url = URL.createObjectURL(file.raw)
+  }
+}
+
+// 文件删除
+const handleFileRemove = (file, fileLists) => {
+  // 释放URL对象，避免内存泄漏
+  if (file.url && !file.url.startsWith('http')) {
+    URL.revokeObjectURL(file.url)
+  }
+  fileList.value = fileLists
+  ElMessage.info('已删除栏花图片')
+}
 
 // 模拟数据
 // const mockData = [
@@ -273,6 +439,19 @@ const getStatusTagType = (status) => {
   }
 }
 
+const getStatusText = (status) => {
+  switch (status) {
+    case 1:
+      return '通过'
+    case 2:
+      return '不通过'
+    case 0:
+      return '待审批'
+    default:
+      return '未知'
+  }
+}
+
 // 查询数据
 const getList = async () => {
   loading.value = true
@@ -311,10 +490,93 @@ const resetQuery = () => {
 }
 
 // 重新编辑
-const handleReedit = (row) => {
-  ElMessage.success('重新编辑功能待实现')
+const handleReedit = async (row) => {
+  try {
+    const response = await getArticle(row.id)
+    editArticleForm.value = { ...response.data }
+    // 初始化栏花文件列表
+    if (editArticleForm.value.columnOrnamentUrl) {
+      fileList.value = [{
+        name: 'column-ornament.jpg',
+        url: editArticleForm.value.columnOrnamentUrl,
+        uid: 'existing-ornament'
+      }]
+    } else {
+      fileList.value = []
+    }
+    editDialogVisible.value = true
+  } catch (error) {
+    ElMessage.error('获取稿件详情失败')
+    console.error('获取稿件详情失败:', error)
+  }
 }
 
+//保存编辑
+const handleSaveEdit = async () => {
+  try {
+    if (!editArticleForm.value.title.trim()) {
+      ElMessage.warning('请输入文章标题')
+      return
+    }
+    if (!editArticleForm.value.content.replace(/<[^>]+>/g, '').trim()) {
+      ElMessage.warning('请输入文章正文内容，不能为空')
+      return
+    }
+    await editFormRef.value.validate()
+    editLoading.value = true
+
+    const formData = new FormData()
+    // 把所有字段都 append 到 FormData 里
+    formData.append('id', editArticleForm.value.id)
+    formData.append('title', editArticleForm.value.title)
+    formData.append('authorName', editArticleForm.value.authorName)
+    formData.append('content', editArticleForm.value.content)
+    // 有图片时才 append file
+    if (fileList.value.length > 0 && fileList.value[0].raw) {
+      formData.append('file', fileList.value[0].raw)
+    }
+
+    await updateArticle(formData) // 统一传 FormData
+    ElMessage.success('保存成功')
+    editDialogVisible.value = false
+    getList()
+  } catch (error) {
+    if (error.message !== 'Validation failed') {
+      ElMessage.error('保存失败')
+      console.error('保存稿件失败:', error)
+    }
+  } finally {
+    editLoading.value = false
+  }
+}
+
+// 导出功能
+const handleExport = async () => {
+  if (!currentArticle.value || !currentArticle.value.id) {
+    ElMessage.warning('请选择要导出的稿件')
+    return
+  }
+  
+  try {
+    const response = await exportHtmlToWord(currentArticle.value)
+    
+    // 处理文件流
+    const blob = new Blob([response], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${currentArticle.value.title || 'article'}.docx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    ElMessage.success('导出成功')
+  } catch (error) {
+    ElMessage.error('导出失败')
+    console.error('导出失败:', error)
+  }
+}
 // 查看
 // const handleHistory = (row) => {
 //   ElMessage.success('查看功能待实现')
@@ -370,6 +632,9 @@ onMounted(() => {
   border-bottom: 1px solid #eee;
   padding-bottom: 20px;
   margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
 }
 
 .article-title {
@@ -399,5 +664,43 @@ onMounted(() => {
 
 .article-content :deep(p) {
   margin: 10px 0;
+}
+
+/* 栏花预览样式 */
+.flower-preview {
+  /* margin: 20px 0; */
+  /* padding: 15px; */
+  /* background-color: #f5f7fa; */
+  border-radius: 4px;
+}
+
+.flower-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  /* margin-bottom: 10px; */
+}
+
+.flower-image {
+  max-width: 400px;
+  max-height: 300px;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* 编辑弹窗栏花预览样式 */
+.preview-img {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+.header-left {
+  flex: 1;
+}
+
+.header-right {
+  margin-left: 20px;
 }
 </style>

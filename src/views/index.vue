@@ -235,10 +235,10 @@
             </div>
           </div>
           <div class="allFileList" v-if="activeSpace == 'all'">
-            <div class="everydayBox" v-for="(everydayData, index) in getSortedDates()" :key="index">
+            <div class="everydayBox" v-for="(everydayData, index) in Object.keys(paginatedAllFiles)" :key="index">
               <div class="date" style=" font-size: 16px;font-weight: 600;color: #303133;padding: 10px 0;border-bottom: 1px solid #ebeef5;width: 100%; margin-bottom: 16px;">{{ everydayData }}</div>
               <div class="material-grid">
-                <div v-for="material in allFileListData[everydayData]" :key="material.id" class="material-item">
+                <div v-for="material in paginatedAllFiles[everydayData]" :key="material.id" class="material-item">
                   <div class="material-thumb">
                     <img v-if="isImage(material.minioPath)" :src="material.coverPath || material.minioPath"
                       :alt="getFileName(material.minioPath)" @click="handleMaterialClick(material)" />
@@ -273,6 +273,13 @@
                   </div>
                 </div>
               </div>
+            </div>
+            
+            <!-- 加载更多按钮 -->
+            <div v-if="hasMoreFiles" class="load-more-container" style="text-align: center; margin: 20px auto; width: 100%; display: flex; justify-content: center;">
+              <el-button plain @click="loadMoreFiles" size="default">
+                加载更多
+              </el-button>
             </div>
           </div>
 
@@ -860,6 +867,7 @@ const handleSpaceClick = (spaceId) => {
     
     if (activeSpace.value == 'all') {
         fileListData.value = []
+        currentShownCount.value = pageSize.value; // 重置分页计数
         getALlFileListData()
     } else if (activeSpace.value == 'favorite') {
         // 显示我的收藏
@@ -889,6 +897,49 @@ const handleSpaceClick = (spaceId) => {
 
 // 获取所有文件
 const allFileListData = reactive({})//文件列表
+// 分页相关状态
+const pageSize = ref(30) // 每页显示数量
+const currentShownCount = ref(30) // 当前已显示数量
+
+// 计算按日期分组并分页的文件列表
+const paginatedAllFiles = computed(() => {
+  const paginatedData = {};
+  let shownCount = 0;
+  
+  // 获取排序后的日期
+  const sortedDates = getSortedDates();
+  
+  for (const dateKey of sortedDates) {
+    const dailyFiles = allFileListData[dateKey] || [];
+    const remainingSlots = currentShownCount.value - shownCount;
+    
+    if (remainingSlots <= 0) break;
+    
+    if (dailyFiles.length <= remainingSlots) {
+      // 当天文件全部显示
+      paginatedData[dateKey] = dailyFiles;
+      shownCount += dailyFiles.length;
+    } else {
+      // 当天文件只显示部分
+      paginatedData[dateKey] = dailyFiles.slice(0, remainingSlots);
+      shownCount += remainingSlots;
+    }
+  }
+  
+  return paginatedData;
+});
+
+// 计算是否有更多文件可以加载
+const hasMoreFiles = computed(() => {
+  const totalFiles = totalAllFiles.value;
+  return currentShownCount.value < totalFiles;
+});
+
+// 加载更多文件
+function loadMoreFiles() {
+  currentShownCount.value += pageSize.value;
+}
+
 let fileTypeObj = {
     'image': ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'svg', 'heic'],
     'video': ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm','m4v'],

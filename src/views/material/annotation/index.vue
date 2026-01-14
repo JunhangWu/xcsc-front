@@ -786,7 +786,22 @@ const isSupportedFormat = (filename) => {
   const ext = filename.split('.').pop().toLowerCase()
   return Object.values(supportedFormats).flat().includes(ext)
 }
+
+// 计算字符串的UTF8字符数
+const getUtf8Length = (str) => {
+  if (!str) return 0;
+  // 使用TextEncoder将字符串编码为UTF-8，然后获取字节长度
+  return new TextEncoder().encode(str).length;
+}
 const handleBeforeUpload = (file) => {
+  // 校验文件名UTF8字符数
+  const utf8Length = getUtf8Length(file.name);
+  console.log(file.name+" "+utf8Length.value)
+  if (utf8Length > 255) {
+    ElMessage.error(`文件名UTF8字符数超过限制（${utf8Length}/255），请缩短文件名后上传`);
+    return false;
+  }
+  
   // 格式验证（图片/视频/文档）
   const ext = file.name.split('.').pop().toLowerCase();
   const validFormats = [...supportedFormats.image, ...supportedFormats.video, ...supportedFormats.document];
@@ -823,10 +838,17 @@ const handleFileChange = (file, fileList) => {
   console.log('==file====', file);
   isConfirmDisabled.value = true;
   let hasUploadError = false; // 标记是否存在不可上传的错误
-  // 实时显示文件校验状态
-  fileList.forEach(f => {
-    f.status = isSupportedFormat(f.name) ? 'success' : 'error'
-  })
+  // 检查所有文件的UTF8字符数
+  const overLengthFiles = fileList.filter(file => getUtf8Length(file.name) > 255);
+  console.log("overLengthFiles",overLengthFiles.value)
+  if (overLengthFiles.length > 0) {
+    ElMessage.error(`文件名字符数超过限制：${overLengthFiles.map(file => file.name).join('、')}，请缩短文件名后上传！`);
+    hasUploadError = true;
+    // 移除不符合要求的文件
+    // fileList.value = fileList.filter(f => getUtf8Length(f.name) <= 255);
+    return false
+  }
+  
   // 检查单个文件大小
   const maxSize = 2048 * 1024 * 1024 // 2048MB
   if (file.size > maxSize) {

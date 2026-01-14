@@ -32,6 +32,7 @@
         drag 
         :multiple="false"  
         action=""
+        accept=".jpg,.jpeg,.png"
         :on-change="handleFileChange" 
         :on-remove="handleFileRemove" 
         :auto-upload="false"
@@ -116,6 +117,7 @@ const editorConfig = {
   MENU_CONF: {
     uploadImage: {
       server: '/dev-api/article/uploadImage',
+      // server: '/inspection-api/article/uploadImage',
       fieldName: 'file',
       maxFileSize: 20 * 1024 * 1024,
       allowedFileTypes: ['image/jpg', 'image/png', 'image/jpeg'],
@@ -140,6 +142,22 @@ const handleCreated = (editor) => {
 // ========== 栏花上传/删除逻辑 ==========
 // 文件选择/上传变化
 const handleFileChange = (file, fileLists) => {
+  // 验证文件类型
+  const isImage = file.raw && ['image/jpeg', 'image/jpg', 'image/png'].includes(file.raw.type)
+  const isAllowedExt = file.name && /\.(jpg|jpeg|png)$/i.test(file.name)
+  
+  if (!isImage || !isAllowedExt) {
+    ElMessage.error('仅支持jpg、jpeg、png格式的图片')
+    // 移除不合法的文件
+    const validFiles = fileLists.filter(f => {
+      const fIsImage = f.raw && ['image/jpeg', 'image/jpg', 'image/png'].includes(f.raw.type)
+      const fIsAllowedExt = f.name && /\.(jpg|jpeg|png)$/i.test(f.name)
+      return fIsImage && fIsAllowedExt
+    })
+    fileList.value = validFiles
+    return
+  }
+  
   // 限制只能上传一张，自动覆盖原有文件
   if (fileLists.length > 1) {
     fileList.value = [file] // 只保留最新选择的文件

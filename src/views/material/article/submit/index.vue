@@ -43,7 +43,7 @@
           <el-icon class="el-icon--upload"><upload-filled /></el-icon>
           <div class="el-upload__text">
             点击或拖拽文件到此处上传
-            <div class="el-upload__tip"> 支持图片格式：jpeg / jpg / png，文件大小不超过10MB</div>
+            <div class="el-upload__tip"> 支持图片格式：jpeg / jpg / png</div>
           </div>
         </div>
         <!-- 已上传时显示图片预览 -->
@@ -116,8 +116,8 @@ const editorConfig = {
   uploadImgByBlob: true,
   MENU_CONF: {
     uploadImage: {
-      server: '/dev-api/article/uploadImage',
-      // server: '/inspection-api/article/uploadImage',
+      // server: '/dev-api/article/uploadImage',
+      server: '/inspection-api/article/uploadImage',
       fieldName: 'file',
       maxFileSize: 20 * 1024 * 1024,
       allowedFileTypes: ['image/jpg', 'image/png', 'image/jpeg'],

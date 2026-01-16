@@ -183,7 +183,7 @@
 import { ref, reactive, onMounted, computed, useSSRContext } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, ArrowUp, Clock, CircleCheck } from '@element-plus/icons-vue'
-import { listArticle, getArticle, updateArticle, exportHtmlToWord, approvalArticle} from "@/api/xcsc/article"
+import { listArticle, listAllArticle, getArticle, updateArticle, exportHtmlToWord, approvalArticle} from "@/api/xcsc/article"
 import useUserStore from '@/store/modules/user'
 import { parseTime } from '@/utils/common'
 
@@ -273,7 +273,7 @@ const getList = async () => {
       queryParams.approvalStatus = ''
     }
     
-    const response = await listArticle(queryParams)
+    const response = await listAllArticle(queryParams)
     let filteredList = response.rows || []
     
     if (activeTab.value === 'approved') {
@@ -286,7 +286,7 @@ const getList = async () => {
     if (activeTab.value === 'pending') {
       pendingCount.value = total.value
     } else {
-      const pendingResponse = await listArticle({ ...queryParams, approvalStatus: 0, pageNum: 1, pageSize: 1 })
+      const pendingResponse = await listAllArticle({ ...queryParams, approvalStatus: 0, pageNum: 1, pageSize: 1 })
       pendingCount.value = pendingResponse.total || 0
     }
   } catch (error) {

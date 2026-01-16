@@ -168,14 +168,20 @@
           <el-input
             v-model="editArticleForm.title"
             placeholder="请输入标题"
+            maxlength="100"
             style="width: 100%;"
+            show-word-limit
+            clearable
           />
         </el-form-item>
         <el-form-item label="作者：">
           <el-input
             v-model="editArticleForm.authorName"
             placeholder="请输入作者姓名"
+            maxlength="30"
             style="width: 100%;"
+            show-word-limit
+            clearable
           />
         </el-form-item>
         <el-form-item label="正文：" required>
@@ -203,6 +209,7 @@
             drag 
             :multiple="false"  
             action=""
+            accept=".jpg,.jpeg,.png"
             :on-change="handleFileChange" 
             :on-remove="handleFileRemove" 
             :auto-upload="false"
@@ -213,7 +220,7 @@
               <el-icon class="el-icon--upload"><upload-filled /></el-icon>
               <div class="el-upload__text">
                 点击或拖拽文件到此处上传
-                <div class="el-upload__tip"> 支持图片格式：jpeg / jpg / png，文件大小不超过10MB</div>
+                <div class="el-upload__tip"> 支持图片格式：jpeg / jpg / png</div>
               </div>
             </div>
             <!-- 已上传时显示图片预览 -->
@@ -234,10 +241,13 @@
 <script setup>
 import { ref, reactive, onMounted, shallowRef, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
+import { UploadFilled, Document } from '@element-plus/icons-vue'
 import { addArticle, listArticle, getArticle, updateArticle, exportHtmlToWord} from "@/api/xcsc/article"
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
 import { getToken } from "@/utils/auth"
+import useUserStore from '@/store/modules/user'
+const userStore = useUserStore()
 
 // 搜索参数
 const queryParams = reactive({
@@ -247,6 +257,7 @@ const queryParams = reactive({
   approvalStatus: '',
   approver: '',
   authorName: '',
+  // createBy:userStore.name
 })
 
 // 高级搜索开关
@@ -285,7 +296,8 @@ const editorConfig = {
   uploadImgByBlob: true,
   MENU_CONF: {
     uploadImage: {
-      server: '/dev-api/article/uploadImage',
+      // server: '/dev-api/article/uploadImage',
+      server: '/inspection-api/article/uploadImage',
       fieldName: 'file',
       maxFileSize: 20 * 1024 * 1024,
       allowedFileTypes: ['image/jpg', 'image/png', 'image/jpeg'],

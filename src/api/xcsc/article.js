@@ -8,7 +8,14 @@ export function listArticle(query) {
     params: query
   })
 }
-
+// 查询全部稿件列表
+export function listAllArticle(query) {
+  return request({
+    url: '/article/listAll',
+    method: 'get',
+    params: query
+  })
+}
 // 查询稿件详细
 export function getArticle(id) {
   return request({

@@ -97,12 +97,13 @@
           <el-table-column prop="approver" label="审批人" width="120" align="center" />
           <el-table-column prop="approvalTime" label="审批时间" width="180" align="center" />
           <el-table-column prop="approvalComments" label="审批意见" min-width="150" align="center" />
-          <el-table-column label="操作" width="250" align="center" fixed="right">
+          <el-table-column label="操作" width="300" align="center" fixed="right">
             <template #default="scope">
               <el-button link type="primary" size="middle" @click="handleView(scope.row)">查看</el-button>
               <el-button link type="success" size="middle" @click="handleApprove(scope.row)" v-if="activeTab === 'pending' && scope.row.approvalStatus === 1">通过</el-button>
               <el-button link type="danger" size="middle" @click="handleReject(scope.row)" v-if="activeTab === 'pending' && scope.row.approvalStatus === 2">不通过</el-button>
               <el-button link type="primary" size="middle" @click="handleApproveAction(scope.row)" v-if="scope.row.approvalStatus === 0">审批</el-button>
+              <el-button link type="primary" size="middle" @click="handleAttachments(scope.row)">附件</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -183,7 +184,8 @@
 import { ref, reactive, onMounted, computed, useSSRContext } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, ArrowUp, Clock, CircleCheck } from '@element-plus/icons-vue'
-import { listArticle, listAllArticle, getArticle, updateArticle, exportHtmlToWord, approvalArticle} from "@/api/xcsc/article"
+import { listArticle, getArticle, updateArticle, exportHtmlToWord, approvalArticle} from "@/api/xcsc/article"
+import { downloadFile } from "@/api/xcsc/uploadFile"
 import useUserStore from '@/store/modules/user'
 import { parseTime } from '@/utils/common'
 
@@ -273,7 +275,7 @@ const getList = async () => {
       queryParams.approvalStatus = ''
     }
     
-    const response = await listAllArticle(queryParams)
+    const response = await listArticle(queryParams)
     let filteredList = response.rows || []
     
     if (activeTab.value === 'approved') {
@@ -286,7 +288,7 @@ const getList = async () => {
     if (activeTab.value === 'pending') {
       pendingCount.value = total.value
     } else {
-      const pendingResponse = await listAllArticle({ ...queryParams, approvalStatus: 0, pageNum: 1, pageSize: 1 })
+      const pendingResponse = await listArticle({ ...queryParams, approvalStatus: 0, pageNum: 1, pageSize: 1 })
       pendingCount.value = pendingResponse.total || 0
     }
   } catch (error) {
@@ -344,6 +346,32 @@ const handleReject = (row) => {
   approveForm.approvalStatus = 2
   approveForm.approvalComments = ''
   approveDialogVisible.value = true
+}
+
+// 处理附件按钮点击事件 - 直接下载附件
+const handleAttachments = async (row) => {
+  try {
+    // 直接从row中获取附件URL，避免重复请求
+    const attachmentUrl = row.attachmentUrl
+    
+    // 检查是否有附件
+    if (!attachmentUrl || attachmentUrl.length === 0) {
+      ElMessage.info('无附件')
+      return
+    }
+    
+    // 直接下载附件
+    const a = document.createElement('a')
+    a.href = attachmentUrl
+    a.download = row.title ? `${row.title}_attachment` : 'attachment'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    ElMessage.success('下载开始')
+  } catch (error) {
+    ElMessage.error('下载附件失败')
+    console.error('下载附件失败:', error)
+  }
 }
 
 const confirmApprove = async () => {

@@ -74,6 +74,14 @@ export function updateFile(data) {
         data: data
     })
 }
+// 下载文件
+export function downloadFile(data) {
+    return request({
+        url: '/minio/download',
+        method: 'get',
+        params: data
+    })
+}
 // 首页文件列表
 export function getFileIndexList(query) {
     return request({

@@ -112,6 +112,7 @@
         <template #default="scope">
           <el-button link type="primary" size="middle" @click="handleReedit(scope.row)" :disabled="scope.row.approvalStatus !== 0">重新编辑</el-button>
           <el-button link type="primary" size="middle" @click="handleView(scope.row)">查看</el-button>
+          <el-button link type="primary" size="middle" @click="handleAttachments(scope.row)">附件</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -144,15 +145,15 @@
         </div>
         <!-- 栏花预览 -->
         <div v-if="currentArticle.columnOrnamentUrl" class="flower-preview">
-          <h4 class="flower-title">栏花：</h4>
+          <h4 class="flower-title">插图：</h4>
           <img :src="currentArticle.columnOrnamentUrl" alt="栏花" class="flower-image">
         </div>
         <div class="article-content" v-html="currentArticle.content"></div>
       </div>
       <template #footer>
         <el-button @click="viewDialogVisible = false">关闭</el-button>
-        <el-button type="success" @click="handleApprove(currentArticle)" v-if="currentArticle.approvalStatus === 0">通过</el-button>
-        <el-button type="danger" @click="handleReject(currentArticle)" v-if="currentArticle.approvalStatus === 0">不通过</el-button>
+        <!-- <el-button type="success" @click="handleApprove(currentArticle)" v-if="currentArticle.approvalStatus === 0">通过</el-button>
+        <el-button type="danger" @click="handleReject(currentArticle)" v-if="currentArticle.approvalStatus === 0">不通过</el-button> -->
       </template>
     </el-dialog>
 
@@ -202,7 +203,7 @@
           </div>
         </el-form-item>
         <!-- 栏花上传 -->
-        <el-form-item label="栏花：">
+        <el-form-item label="插图：">
           <el-upload 
             v-model:file-list="fileList" 
             class="upload-demo flower-upload" 
@@ -229,6 +230,36 @@
             </div>
           </el-upload>
         </el-form-item>
+        <!-- 附件上传 -->
+        <el-form-item label="附件：">
+          <el-upload 
+            v-model:file-list="attachmentList" 
+            class="upload-demo attachment-upload" 
+            drag 
+            :multiple="false"  
+            action=""
+            accept=".doc,.docx"
+            :on-change="handleAttachmentChange" 
+            :on-remove="handleAttachmentRemove" 
+            :auto-upload="false"
+            :limit="1"  
+          >
+            <!-- 未上传时显示上传提示 -->
+            <div v-if="!attachmentList.length" class="upload-tips">
+              <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+              <div class="el-upload__text">
+                点击或拖拽文件到此处上传
+                <div class="el-upload__tip"> 可上传新闻稿件附件，支持文档格式：doc / docx</div>
+              </div>
+            </div>
+            <!-- 已上传时显示文件信息 -->
+            <div v-else class="attachment-info">
+              <el-icon class="el-icon-document"><document /></el-icon>
+              <span class="file-name">{{ attachmentList[0].name }}</span>
+              <!-- <span class="file-size">({{ formatFileSize(attachmentList[0].size) }})</span> -->
+            </div>
+          </el-upload>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
@@ -246,8 +277,6 @@ import { addArticle, listArticle, getArticle, updateArticle, exportHtmlToWord} f
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
 import { getToken } from "@/utils/auth"
-import useUserStore from '@/store/modules/user'
-const userStore = useUserStore()
 
 // 搜索参数
 const queryParams = reactive({
@@ -257,7 +286,6 @@ const queryParams = reactive({
   approvalStatus: '',
   approver: '',
   authorName: '',
-  // createBy:userStore.name
 })
 
 // 高级搜索开关
@@ -275,6 +303,7 @@ const editArticleForm = ref({})
 const editLoading = ref(false)
 const editFormRef = ref(null)
 const fileList = ref([]) // 栏花文件列表
+const attachmentList = ref([]) // 附件文件列表
 
 // 富文本编辑器配置
 const editorRef = shallowRef()
@@ -284,7 +313,7 @@ const mode = ref('default')
 const toolbarConfig = {
   excludeKeys: [
     'insertTable', 'deleteTable', 'insertVideo', 'codeBlock','uploadVideo',
-    'insertFormula', 'fullScreen', 'divider', 'emotion'
+    'insertFormula', 'fullScreen', 'divider', 'emotion','insertLink','todo'
   ]
 }
 
@@ -296,10 +325,10 @@ const editorConfig = {
   uploadImgByBlob: true,
   MENU_CONF: {
     uploadImage: {
-      // server: '/dev-api/article/uploadImage',
-      server: '/inspection-api/article/uploadImage',
+      server: import.meta.env.VITE_APP_BASE_API + '/article/uploadImage',
+      // server: '/inspection-api/article/uploadImage',
       fieldName: 'file',
-      maxFileSize: 20 * 1024 * 1024,
+      maxFileSize: 200 * 1024 * 1024,
       allowedFileTypes: ['image/jpg', 'image/png', 'image/jpeg'],
       headers: {
         Authorization: 'Bearer ' + getToken()
@@ -347,6 +376,49 @@ const handleFileRemove = (file, fileLists) => {
   }
   fileList.value = fileLists
   ElMessage.info('已删除栏花图片')
+}
+
+// ========== 附件上传/删除逻辑 ==========
+// 格式化文件大小
+const formatFileSize = (bytes) => {
+  if (bytes < 1024) {
+    return bytes + ' B'
+  } else if (bytes < 1024 * 1024) {
+    return (bytes / 1024).toFixed(2) + ' KB'
+  } else {
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
+  }
+}
+
+// 附件选择/上传变化
+const handleAttachmentChange = (file, fileLists) => {
+  // 验证文件类型
+  const isDoc = file.raw && ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(file.raw.type)
+  const isAllowedExt = file.name && /\.(doc|docx)$/i.test(file.name)
+  
+  if (!isDoc || !isAllowedExt) {
+    ElMessage.error('仅支持doc、docx格式的文档')
+    // 移除不合法的文件
+    const validFiles = fileLists.filter(f => {
+      const fIsDoc = f.raw && ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(f.raw.type)
+      const fIsAllowedExt = f.name && /\.(doc|docx)$/i.test(f.name)
+      return fIsDoc && fIsAllowedExt
+    })
+    attachmentList.value = validFiles
+    return
+  }
+  
+  // 限制只能上传一个附件
+  if (fileLists.length > 1) {
+    attachmentList.value = [file] // 只保留最新选择的文件
+    ElMessage.info('附件仅支持上传一个文档，已自动替换原有文件')
+  }
+}
+
+// 附件删除
+const handleAttachmentRemove = (file, fileLists) => {
+  attachmentList.value = fileLists
+  ElMessage.info('已删除附件文档')
 }
 
 // 模拟数据
@@ -516,6 +588,16 @@ const handleReedit = async (row) => {
     } else {
       fileList.value = []
     }
+    // 初始化附件文件列表
+    if (editArticleForm.value.attachmentUrl) {
+      attachmentList.value = [{
+        name: editArticleForm.value.attachmentName || 'attachment.docx',
+        url: editArticleForm.value.attachmentUrl,
+        uid: 'existing-attachment'
+      }]
+    } else {
+      attachmentList.value = []
+    }
     editDialogVisible.value = true
   } catch (error) {
     ElMessage.error('获取稿件详情失败')
@@ -547,6 +629,13 @@ const handleSaveEdit = async () => {
     if (fileList.value.length > 0 && fileList.value[0].raw) {
       formData.append('file', fileList.value[0].raw)
     }
+    // 有附件时才 append attachment
+    if (attachmentList.value.length > 0 && attachmentList.value[0].raw) {
+      formData.append('attachment', attachmentList.value[0].raw)
+    }
+    else{
+      formData.append('attachment', '')
+    }
 
     await updateArticle(formData) // 统一传 FormData
     ElMessage.success('保存成功')
@@ -561,7 +650,31 @@ const handleSaveEdit = async () => {
     editLoading.value = false
   }
 }
-
+// 处理附件按钮点击事件 - 直接下载附件
+const handleAttachments = async (row) => {
+  try {
+    // 直接从row中获取附件URL，避免重复请求
+    const attachmentUrl = row.attachmentUrl
+    
+    // 检查是否有附件
+    if (!attachmentUrl || attachmentUrl.length === 0) {
+      ElMessage.info('无附件')
+      return
+    }
+    
+    // 直接下载附件
+    const a = document.createElement('a')
+    a.href = attachmentUrl
+    a.download = row.title ? `${row.title}_attachment` : 'attachment'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    ElMessage.success('下载开始')
+  } catch (error) {
+    ElMessage.error('下载附件失败')
+    console.error('下载附件失败:', error)
+  }
+}
 // 导出功能
 const handleExport = async () => {
   if (!currentArticle.value || !currentArticle.value.id) {
@@ -706,6 +819,41 @@ onMounted(() => {
   max-height: 300px;
   border-radius: 4px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* 附件上传样式 */
+.attachment-upload {
+  width: 100%;
+}
+
+.attachment-info {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+}
+
+.attachment-info .el-icon-document {
+  font-size: 24px;
+  color: #409eff;
+}
+
+.file-name {
+  font-weight: 500;
+  color: #303133;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+
+.file-size {
+  font-size: 12px;
+  color: #909399;
 }
 
 .header-left {

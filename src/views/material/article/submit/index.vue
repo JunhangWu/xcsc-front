@@ -24,19 +24,29 @@
     </div>
 
     <div class="author-section">
-      <h4 class="required-title">栏花：</h4>
-      <!-- 栏花上传区域 - 改造核心 -->
+      <h4 class="common-title">审核人：</h4>
+      <el-input
+        v-model="articleReviewer"
+        placeholder="请输入审核人姓名"
+        maxlength="30"
+        show-word-limit
+        clearable
+      />
+    </div>
+
+    <div class="author-section">
+      <h4 class="common-title">插图：</h4>
+      <!-- 栏花上传区域 -->
       <el-upload 
         v-model:file-list="fileList" 
         class="upload-demo flower-upload" 
         drag 
-        :multiple="false"  
+        :multiple="ture"  
         action=""
         accept=".jpg,.jpeg,.png"
         :on-change="handleFileChange" 
         :on-remove="handleFileRemove" 
-        :auto-upload="false"
-        :limit="1"  
+        :auto-upload="false" 
       >
         <!-- 未上传时显示上传提示 -->
         <div v-if="!fileList.length" class="upload-tips">
@@ -73,6 +83,38 @@
       </div>
     </div>
 
+    <div class="author-section">
+      <h4 class="common-title">附件：</h4>
+      <!-- 附件上传区域 -->
+      <el-upload 
+        v-model:file-list="attachmentList" 
+        class="upload-demo attachment-upload" 
+        drag 
+        :multiple="false"  
+        action=""
+        accept=".doc,.docx"
+        :on-change="handleAttachmentChange" 
+        :on-remove="handleAttachmentRemove" 
+        :auto-upload="false"
+        :limit="1"  
+      >
+        <!-- 未上传时显示上传提示 -->
+        <div v-if="!attachmentList.length" class="upload-tips">
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">
+            点击或拖拽文件到此处上传
+            <div class="el-upload__tip"> 可上传新闻稿件附件，支持文档格式：doc / docx</div>
+          </div>
+        </div>
+        <!-- 已上传时显示文件信息 -->
+        <div v-else class="attachment-info">
+          <el-icon class="el-icon-document"><document /></el-icon>
+          <span class="file-name">{{ attachmentList[0].name }}</span>
+          <span class="file-size">({{ formatFileSize(attachmentList[0].size) }})</span>
+        </div>
+      </el-upload>
+    </div>
+
     <!-- 提交按钮 -->
     <div class="submit-section">
       <el-button type="primary" size="large" @click="handleSubmit">提交文章</el-button>
@@ -83,6 +125,7 @@
 <script setup>
 import { ref, shallowRef, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { UploadFilled, Document } from '@element-plus/icons-vue'
 import FileUpload from '@/components/FileUpload/index.vue'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
@@ -93,8 +136,10 @@ import { addArticle } from "@/api/xcsc/article"
 const articleTitle = ref('')
 const articleFlower = ref('')
 const articleAuthor = ref('')
+const articleReviewer = ref('') // 审核人
 const articleAttachments = ref('')
-const fileList = ref([]) // 栏花文件列表（改造：数组形式管理）
+const fileList = ref([]) // 栏花文件列表
+const attachmentList = ref([]) // 附件文件列表
 
 // ========== WangEditor 配置 ==========
 const editorRef = shallowRef() 
@@ -104,10 +149,11 @@ const mode = ref('default')
 const toolbarConfig = {
   excludeKeys: [
     'insertTable', 'deleteTable', 'insertVideo', 'codeBlock','uploadVideo',
-    'insertFormula', 'fullScreen', 'divider', 'emotion'
+    'insertFormula', 'fullScreen', 'divider', 'emotion','insertLink','todo'
   ]
 }
-
+// 获取当前页面的基础网址（协议+域名+端口）
+const currentOrigin = window.location.origin;
 // 编辑器配置
 const editorConfig = {
   placeholder: '请输入文章正文内容...',
@@ -116,10 +162,10 @@ const editorConfig = {
   uploadImgByBlob: true,
   MENU_CONF: {
     uploadImage: {
-      // server: '/dev-api/article/uploadImage',
-      server: '/inspection-api/article/uploadImage',
+      server: import.meta.env.VITE_APP_BASE_API + '/article/uploadImage',
+      // server: '/inspection-api/article/uploadImage',
       fieldName: 'file',
-      maxFileSize: 20 * 1024 * 1024,
+      maxFileSize: 200 * 1024 * 1024,
       allowedFileTypes: ['image/jpg', 'image/png', 'image/jpeg'],
       headers: {
         Authorization: 'Bearer ' + getToken()
@@ -179,11 +225,55 @@ const handleFileRemove = (file, fileLists) => {
   ElMessage.info('已删除栏花图片')
 }
 
+// ========== 附件上传/删除逻辑 ==========
+// 格式化文件大小
+const formatFileSize = (bytes) => {
+  if (bytes < 1024) {
+    return bytes + ' B'
+  } else if (bytes < 1024 * 1024) {
+    return (bytes / 1024).toFixed(2) + ' KB'
+  } else {
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
+  }
+}
+
+// 附件选择/上传变化
+const handleAttachmentChange = (file, fileLists) => {
+  // 验证文件类型
+  const isDoc = file.raw && ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(file.raw.type)
+  const isAllowedExt = file.name && /\.(doc|docx)$/i.test(file.name)
+  
+  if (!isDoc || !isAllowedExt) {
+    ElMessage.error('仅支持doc、docx格式的文档')
+    // 移除不合法的文件
+    const validFiles = fileLists.filter(f => {
+      const fIsDoc = f.raw && ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(f.raw.type)
+      const fIsAllowedExt = f.name && /\.(doc|docx)$/i.test(f.name)
+      return fIsDoc && fIsAllowedExt
+    })
+    attachmentList.value = validFiles
+    return
+  }
+  
+  // 限制只能上传一个附件
+  if (fileLists.length > 1) {
+    attachmentList.value = [file] // 只保留最新选择的文件
+    ElMessage.info('附件仅支持上传一个文档，已自动替换原有文件')
+  }
+}
+
+// 附件删除
+const handleAttachmentRemove = (file, fileLists) => {
+  attachmentList.value = fileLists
+  ElMessage.info('已删除附件文档')
+}
+
 // ========== 功能方法 ==========
 // 清空内容
 const handleClear = () => {
   articleTitle.value = ''
   articleAuthor.value = ''
+  articleReviewer.value = ''
   // 清空栏花并释放URL
   if (fileList.value.length > 0) {
     fileList.value.forEach(file => {
@@ -191,10 +281,14 @@ const handleClear = () => {
     })
     fileList.value = []
   }
+  // 清空附件
+  if (attachmentList.value.length > 0) {
+    attachmentList.value = []
+  }
   if (editorRef.value) {
     editorRef.value.setHtml('') 
   }
-  ElMessage.info('已清空所有内容')
+  // ElMessage.info('已清空所有内容')
 }
 
 // 提交文章
@@ -205,10 +299,10 @@ async function handleSubmit() {
     return
   }
 
-  if (fileList.value.length === 0) {
-    ElMessage.warning('请上传栏花图片')
-    return
-  }
+  // if (fileList.value.length === 0) {
+  //   ElMessage.warning('请上传栏花图片')
+  //   return
+  // }
 
   const trimAuthor = articleAuthor.value.trim()
   // if (!trimAuthor) {
@@ -230,8 +324,13 @@ async function handleSubmit() {
   if (fileList.value && fileList.value.length > 0) {
     formData.append("file", fileList.value[0].raw);
   }
+  // 处理附件文件
+  if (attachmentList.value && attachmentList.value.length > 0) {
+    formData.append("attachment", attachmentList.value[0].raw);
+  }
   formData.append("title", articleTitle.value.trim());
   formData.append("authorName", articleAuthor.value.trim());
+  formData.append("reviewer", articleReviewer.value.trim());
   formData.append("content", contentHtml);
 
   try {
@@ -252,6 +351,8 @@ onBeforeUnmount(() => {
   fileList.value.forEach(file => {
     if (file.url) URL.revokeObjectURL(file.url)
   })
+  // 清空附件列表
+  attachmentList.value = []
 })
 </script>
 
@@ -311,6 +412,41 @@ onBeforeUnmount(() => {
   max-height: 300px;
   border-radius: 4px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* 附件上传样式 */
+.attachment-upload {
+  width: 100%;
+}
+
+.attachment-info {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+  border: 1px solid #e4e7ed;
+}
+
+.attachment-info .el-icon-document {
+  font-size: 24px;
+  color: #409eff;
+}
+
+.file-name {
+  font-weight: 500;
+  color: #303133;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+
+.file-size {
+  font-size: 12px;
+  color: #909399;
 }
 
 .common-title {

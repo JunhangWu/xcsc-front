@@ -934,14 +934,14 @@ const handleCategoryClick = (dept) => {
   breadcrumbData.value = [
     {
       filePath: dept.deptName,
-      bizId: pid
+      bizId: dept.rootFolderId
     }
   ]
 
   // 5. 当前文件夹对象
   Object.assign(curFolderObj, {
     filePath: dept.deptName,
-    bizId: pid
+    bizId: dept.rootFolderId
   })
 }
 

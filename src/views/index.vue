@@ -508,6 +508,8 @@ function downloadFile(material) {
 
 // 当前选中的个人空间
 const activeSpace = ref('all')
+// 当前选中的文件夹/板块
+const curDeptRootFolderId = ref('')
 
 // 总文件数
 // const totalFiles = computed(() => materials.value.length)
@@ -617,6 +619,7 @@ const canClickDept = (dept) => {
 // 点击部门处理（真正业务逻辑）
 const handleDeptClick = (dept) => {
   activeDeptId.value = dept.deptId
+  curDeptRootFolderId.value = dept.rootFolderId
   console.log('选中部门：', dept.deptName)
   // TODO: 根据 deptId 拉取文件列表等逻辑
   // 板块/公司  有一个主文件夹（pid = 0）；dept."foldid"
@@ -920,6 +923,7 @@ const handleCategoryClick = (dept) => {
   activeCategory.value = dept.deptName
   activeDeptId.value = dept.deptId
   activeSpace.value = ''
+  curDeptRootFolderId.value =  dept.rootFolderId
 
   console.log('===activeCategory===', dept)
 
@@ -952,50 +956,50 @@ const handleQuery = () => {
     folderData.value = [] // 不展示文件夹
     getFavoriteFiles() // 重新获取并应用筛选条件
   } else {
-    const pid = getCategoryPid(activeCategory.value)
-    // getFolderData(pid)
-    getQueryData(pid)
+    const bizId =  curDeptRootFolderId.value
+    getFolderData(bizId)
+    // getQueryData(bizId)
   }
 }
 
 // 获取文件列表数据
 const queryfileListData = ref([])//文件列表
-function getQueryData(pid) {
-
-  if (pid !== 0) {
-  let currentFilePath = "";
-  for (let i = 0; i < breadcrumbData.value.length; i++) {
-    // 避免开头出现多余的"/"
-    currentFilePath += i === 0 ? breadcrumbData.value[i].filePath : "/" + breadcrumbData.value[i].filePath;
-  }
-    let param = {
-      localPath: currentFilePath,
-      // folderId: pid,
-      fileTypeList: fileTypeObj[filterForm.fileType] || null,
-      createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
-      createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
-      createBy: filterForm.createBy,
-      keyWords: filterForm.annotationContent,
-      fileName: filterForm.fileName
-      
-    }
-    // console.log('localPath:', curFolderObj.filePath)
-    console.log('breadcrumbData:', currentFilePath)
-    getFileList(param).then(res => {
-      queryfileListData.value = res.data
-      showSearchResults.value = true
-      // 获取当前用户收藏列表并设置文件收藏状态
-      getCollectionData().then(() => {
-          // 提取收藏列表中的文件id
-          const favoriteFileIds = collectionList.value.map(item => item.fileId);
-          // 遍历文件列表，设置收藏状态
-          queryfileListData.value.forEach(file => {
-              file.isFavorite = favoriteFileIds.includes(file.id);
-          });
-      });
-    })
-  }
-}
+// function getQueryData(pid) {
+//
+//   if (pid !== 0) {
+//   let currentFilePath = "";
+//   for (let i = 0; i < breadcrumbData.value.length; i++) {
+//     // 避免开头出现多余的"/"
+//     currentFilePath += i === 0 ? breadcrumbData.value[i].filePath : "/" + breadcrumbData.value[i].filePath;
+//   }
+//     let param = {
+//       localPath: currentFilePath,
+//       // folderId: pid,
+//       fileTypeList: fileTypeObj[filterForm.fileType] || null,
+//       createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
+//       createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
+//       createBy: filterForm.createBy,
+//       keyWords: filterForm.annotationContent,
+//       fileName: filterForm.fileName
+//
+//     }
+//     // console.log('localPath:', curFolderObj.filePath)
+//     console.log('breadcrumbData:', currentFilePath)
+//     getFileList(param).then(res => {
+//       queryfileListData.value = res.data
+//       showSearchResults.value = true
+//       // 获取当前用户收藏列表并设置文件收藏状态
+//       getCollectionData().then(() => {
+//           // 提取收藏列表中的文件id
+//           const favoriteFileIds = collectionList.value.map(item => item.fileId);
+//           // 遍历文件列表，设置收藏状态
+//           queryfileListData.value.forEach(file => {
+//               file.isFavorite = favoriteFileIds.includes(file.id);
+//           });
+//       });
+//     })
+//   }
+// }
 // 重置搜索，返回文件夹视图
 function resetSearch() {
   showSearchResults.value = false

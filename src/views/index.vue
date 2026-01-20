@@ -365,18 +365,21 @@ const breadcrumbData = ref([])
 const folderData = ref([]) //文件夹列表
 const fileListData = ref([])//文件列表
 
-function getFolderData(folderBizId) {
+// 通用文件夹下内容获取（含搜索）
+function getFolderData(folderBizId, mode = 'folder') {
   let params = {
     pid: folderBizId,
   }
   console.log('===folderBizId===', folderBizId);
   console.log('===params===', params);
 
+  // 1 获取文件夹列表
   getFolderList(params).then(res => {
-    folderData.value = res.data
+    folderData.value = res.data || []
     console.log('===folderData.value===', folderData.value)
   })
 
+  // 2️ 获取文件列表（浏览或搜索）
   if (folderBizId !== 0) {
     let param = {
       folderId: folderBizId,
@@ -384,7 +387,7 @@ function getFolderData(folderBizId) {
       createStartTime: filterForm.dateRange[0]
           ? filterForm.dateRange[0] + ' 00:00:00'
           : null,
-      createEndTime: filterForm.dateRange[0]
+      createEndTime: filterForm.dateRange[1]
           ? filterForm.dateRange[1] + ' 23:59:59'
           : null,
       createBy: filterForm.createBy,
@@ -393,18 +396,29 @@ function getFolderData(folderBizId) {
     }
 
     getFileList(param).then(res => {
-      fileListData.value = res.data
-      // 获取当前用户收藏列表并设置文件收藏状态
+      // 根据 mode 决定写入哪个列表
+      const targetList = mode === 'search' ? queryfileListData : fileListData
+      targetList.value = res.data || []
+
+      // 获取收藏列表并同步状态
       getCollectionData().then(() => {
-        const favoriteFileIds = collectionList.value.map(item => item.fileId);
-        fileListData.value.forEach(file => {
-          file.isFavorite = favoriteFileIds.includes(file.id);
-        });
-      });
-      console.log('===fileListData.value===', fileListData.value)
+        const favoriteFileIds = collectionList.value.map(item => item.fileId)
+        targetList.value.forEach(file => {
+          file.isFavorite = favoriteFileIds.includes(file.id)
+        })
+      })
+
+      console.log('===targetList.value===', targetList.value)
+
+      // 搜索模式才显示搜索结果区域
+      if (mode === 'search') {
+        showSearchResults.value = true
+      }
     })
   }
 }
+
+
 
 
 //点击子文件展示相关文件夹及文件
@@ -957,7 +971,7 @@ const handleQuery = () => {
     getFavoriteFiles() // 重新获取并应用筛选条件
   } else {
     const bizId =  curDeptRootFolderId.value
-    getFolderData(bizId)
+    getFolderData(bizId, 'search')
     // getQueryData(bizId)
   }
 }

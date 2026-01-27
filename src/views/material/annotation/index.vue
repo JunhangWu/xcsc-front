@@ -255,10 +255,10 @@
         <el-icon class="el-icon--upload"><upload-filled /></el-icon>
         <div class="el-upload__text">
           {{ uploadType === 'file' ? '点击或拖拽文件到此处上传' : '点击或拖拽文件夹到此处上传' }}
-          <div class="el-upload__tip"> 支持图片：jpeg / jpg / png / bmp / gif；视频：mp4 / mov / avi / mkv / flv / m4v；文档：docx /
+          <!-- <div class="el-upload__tip"> 支持图片：jpeg / jpg / png / bmp / gif；视频：mp4 / mov / avi / mkv / flv / m4v；文档：docx /
             pdf / pptx
             <br>单个文件大小不超过2048MB，总文件大小不超过5120MB
-          </div>
+          </div> -->
         </div>
       </el-upload>
         
@@ -271,8 +271,10 @@
             :text-inside="true"
           ></el-progress>
           <div class="progress-text" style="margin-top: 8px; text-align: center; color: #606266;">
-            <!-- 正在上传中，请稍候... -->
             {{ uploadProgress === 100? `处理中，请稍等...` : '正在上传中，请稍候...' }}
+            <span v-if="uploadSpeed" style="margin-left: 20px; font-weight: bold;">
+              速率: {{ uploadSpeed }}
+            </span>
           </div>
         </div>
         
@@ -665,6 +667,9 @@ const isConfirmDisabled = ref(false);// 确认按钮是否禁用
 const isUploading = ref(false); // 上传中状态
 const uploadProgress = ref(0); // 上传进度（0-100）
 const showProgress = ref(false); // 是否显示进度条
+const uploadSpeed = ref(''); // 上传速率
+let lastLoaded = 0; // 上一次的已上传字节数
+let lastTime = 0; // 上一次的时间戳
 function uploadFile() {
   fileList.value = []
   uploadDialogVisible.value = true
@@ -674,17 +679,20 @@ function cancelUpload() {
   uploadDialogVisible.value = false
   uploadProgress.value = 0
   showProgress.value = false
+  uploadSpeed.value = ''
+  lastLoaded = 0
+  lastTime = 0
 }
 async function confirmUpload() {
-  debugger
-  // 再次检查所有文件总大小不超过5120MB
-  const totalSize = fileList.value.reduce((sum, f) => sum + ((f.raw || f.originFileObj || f).size || 0), 0);
-  const maxTotalSize = 5120 * 1024 * 1024; // 500MB
-  if (totalSize > maxTotalSize) {
-    const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
-    ElMessage.error(`所有文件总大小（${totalSizeMB}MB）超过限制（5120MB）`);
-    return;
-  }
+  // debugger
+  // // 再次检查所有文件总大小不超过5120MB
+  // const totalSize = fileList.value.reduce((sum, f) => sum + ((f.raw || f.originFileObj || f).size || 0), 0);
+  // const maxTotalSize = 5120 * 1024 * 1024; // 500MB
+  // if (totalSize > maxTotalSize) {
+  //   const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+  //   ElMessage.error(`所有文件总大小（${totalSizeMB}MB）超过限制（5120MB）`);
+  //   return;
+  // }
   
   // 设置上传中状态
   isUploading.value = true;
@@ -710,43 +718,126 @@ async function confirmUpload() {
   formData.append("folderPath", folderPath);
   // console.log("formData", formData)
   
+  // 重置速率计算变量
+  lastLoaded = 0;
+  lastTime = 0;
+  uploadSpeed.value = '';
+  
   // 配置上传进度监听
   const config = {
     onUploadProgress: (progressEvent) => {
       if (progressEvent.total) {
         const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
         uploadProgress.value = percentCompleted;
+        
+        // 计算上传速率
+        const currentTime = Date.now();
+        const currentLoaded = progressEvent.loaded;
+        
+        if (lastTime > 0) {
+          const timeDiff = (currentTime - lastTime) / 1000; // 时间差（秒）
+          const loadedDiff = currentLoaded - lastLoaded; // 已上传字节差
+          
+          if (timeDiff > 0) {
+            const speedBps = loadedDiff / timeDiff; // 字节/秒
+            let speedText = '';
+            
+            if (speedBps < 1024) {
+              speedText = `${speedBps.toFixed(2)} B/s`;
+            } else if (speedBps < 1024 * 1024) {
+              speedText = `${(speedBps / 1024).toFixed(2)} KB/s`;
+            } else {
+              speedText = `${(speedBps / (1024 * 1024)).toFixed(2)} MB/s`;
+            }
+            
+            uploadSpeed.value = speedText;
+          }
+        }
+        
+        lastLoaded = currentLoaded;
+        lastTime = currentTime;
       }
     }
   };
   
-  uploadFiles(formData, config).then(res => {
-    console.log("formData", formData)
-    // 完成上传，进度设为100%
-    uploadProgress.value = 100;
+  // console.log("上传数据:",formData)
+  // 
+  // uploadFiles(formData, config).then(res => {
+  //   console.log("上传数据formData", Array.from(formData.entries()))
+  //   // 完成任务提交，进度设为100%（此处进度仅代表“请求提交完成”，非文件处理完成）
+  //   uploadProgress.value = 100;
     
-    // 延迟显示成功消息，让用户看到100%的进度
+  //   // 延迟显示提示消息，让用户看到100%的进度
+  //   setTimeout(() => {
+  //     // 核心修改：提示文案改为异步任务提交成功，而非文件上传完成
+  //     const successMsg = res?.data?.msg || '文件上传任务已提交，后台正在处理，请稍后查看结果！';
+  //     ElMessage.success(successMsg);
+  //     // 原有刷新文件夹数据逻辑保留（可选：若需立即刷新，可保留；若无需立即刷，可注释）
+  //     getFolderData(curFolderObj.bizId);
+  //   }, 300);
+  // }).catch(error => {
+  //   // 新增：捕获请求提交失败的异常，提示用户
+  //   uploadProgress.value = 0;
+  //   const errorMsg = error?.response?.data?.msg || '文件上传任务提交失败，请重试！';
+  //   ElMessage.error(errorMsg);
+  // }).finally(() => {
+  //   // 无论成功失败，都重置上传状态（原有逻辑保留）
+  //   setTimeout(() => {
+  //     isUploading.value = false;
+  //     uploadDialogVisible.value = false;
+  //     fileList.value = [];
+  //     uploadProgress.value = 0;
+  //     showProgress.value = false;
+  //     uploadSpeed.value = '';
+  //     lastLoaded = 0;
+  //     lastTime = 0;
+  //   }, 700);
+  // });
+  // 保留原有then/catch风格的优化版
+  uploadFiles(formData, config).then(res => {
+    console.log("上传数据formData", Array.from(formData.entries()));
+    uploadProgress.value = 100;
+
     setTimeout(() => {
-      ElMessage.success(`上传成功！`)
-      getFolderData(curFolderObj.bizId)
+      const successMsg = res?.data?.msg || '文件上传任务已提交，后台正在处理，请稍后查看结果！';
+      ElMessage.success({
+        message: successMsg,
+        duration: 5000,
+        showClose: true
+      });
+      // 空值校验
+      curFolderObj?.bizId && getFolderData(curFolderObj.bizId);
     }, 300);
-  }).finally(() => {
-    // 无论成功失败，都重置上传状态
+  })
+  .catch(error => {
+    uploadProgress.value = 0;
+    const errorMsg = error?.response?.data?.msg || '文件上传任务提交失败，请重试！';
+    ElMessage.error({
+      message: errorMsg,
+      duration: 5000,
+      showClose: true
+    });
+    console.error('上传任务提交失败：', error); // 调试日志
+  })
+  .finally(() => {
     setTimeout(() => {
       isUploading.value = false;
       uploadDialogVisible.value = false;
       fileList.value = [];
       uploadProgress.value = 0;
       showProgress.value = false;
+      uploadSpeed.value = '';
+      lastLoaded = 0;
+      lastTime = 0;
     }, 700);
-  })
+  });
 }
-// 支持的文件格式
-const supportedFormats = {
-  image: ['jpg', 'jpeg', 'png', 'bmp', 'gif'],
-  video: ['mp4', 'mov', 'avi', 'mkv', 'flv','m4v'],
-  document: ['docx', 'pdf', 'pptx']
-}
+// // 支持的文件格式
+// const supportedFormats = {
+//   image: ['jpg', 'jpeg', 'png', 'bmp', 'gif'],
+//   video: ['mp4', 'mov', 'avi', 'mkv', 'flv','m4v'],
+//   document: ['docx', 'pdf', 'pptx']
+// }
 function isImage(path) {
   return ['jpg', 'jpeg', 'png', 'bmp', 'gif'].some(ext => path.toLowerCase().includes(ext));
 }
@@ -782,10 +873,10 @@ function formatDate(dateStr) {
   return date.getFullYear() + '/' + String(date.getMonth() + 1).padStart(2, '0') + '/' + String(date.getDate()).padStart(2, '0');
 }
 // 检查文件格式是否支持
-const isSupportedFormat = (filename) => {
-  const ext = filename.split('.').pop().toLowerCase()
-  return Object.values(supportedFormats).flat().includes(ext)
-}
+// const isSupportedFormat = (filename) => {
+//   const ext = filename.split('.').pop().toLowerCase()
+//   return Object.values(supportedFormats).flat().includes(ext)
+// }
 
 // 计算字符串的UTF8字符数
 const getUtf8Length = (str) => {
@@ -796,30 +887,29 @@ const getUtf8Length = (str) => {
 const handleBeforeUpload = (file) => {
   // 校验文件名UTF8字符数
   const utf8Length = getUtf8Length(file.name);
-  console.log(file.name+" "+utf8Length.value)
   if (utf8Length > 255) {
     ElMessage.error(`文件名UTF8字符数超过限制（${utf8Length}/255），请缩短文件名后上传`);
     return false;
   }
   
-  // 格式验证（图片/视频/文档）
-  const ext = file.name.split('.').pop().toLowerCase();
-  const validFormats = [...supportedFormats.image, ...supportedFormats.video, ...supportedFormats.document];
-  if (!validFormats.includes(ext)) {
-    ElMessage.error(`不支持${ext}格式，请上传${Object.values(supportedFormats).flat().join('/')}文件`);
-    return false;
-  }
-  // 检查文件格式
-  if (!isSupportedFormat(file.name)) {
-    ElMessage.error(`文件 ${file.name} 格式不符合要求，请上传支持的文件格式`)
-    return false
-  }
-  // 检查文件大小（可选，可根据需要添加）
-  const maxSize = 2048 * 1024 * 1024 // 2048MB
-  if (file.size > maxSize) {
-    ElMessage.error(`文件 ${file.name} 大小超过限制（2048MB）`)
-    return false
-  }
+  // // 格式验证（图片/视频/文档）
+  // const ext = file.name.split('.').pop().toLowerCase();
+  // const validFormats = [...supportedFormats.image, ...supportedFormats.video, ...supportedFormats.document];
+  // if (!validFormats.includes(ext)) {
+  //   ElMessage.error(`不支持${ext}格式，请上传${Object.values(supportedFormats).flat().join('/')}文件`);
+  //   return false;
+  // }
+  // // 检查文件格式
+  // if (!isSupportedFormat(file.name)) {
+  //   ElMessage.error(`文件 ${file.name} 格式不符合要求，请上传支持的文件格式`)
+  //   return false
+  // }
+  // // 检查文件大小（可选，可根据需要添加）
+  // const maxSize = 2048 * 1024 * 1024 // 2048MB
+  // if (file.size > maxSize) {
+  //   ElMessage.error(`文件 ${file.name} 大小超过限制（2048MB）`)
+  //   return false
+  // }
   // 校验同名
   const fileName = file.name;
   const existNames = fileListData.value.map(item => {
@@ -849,33 +939,33 @@ const handleFileChange = (file, fileList) => {
     return false
   }
   
-  // 检查单个文件大小
-  const maxSize = 2048 * 1024 * 1024 // 2048MB
-  if (file.size > maxSize) {
-    ElMessage.error(`文件 ${file.name} 大小超过限制（2048MB）`)
-    hasUploadError = true;
-    return false
-  }
+  // // 检查单个文件大小
+  // const maxSize = 2048 * 1024 * 1024 // 2048MB
+  // if (file.size > maxSize) {
+  //   ElMessage.error(`文件 ${file.name} 大小超过限制（2048MB）`)
+  //   hasUploadError = true;
+  //   return false
+  // }
   
-  // 检查所有文件总大小不超过5120MB
-  const totalSize = fileList.reduce((sum, f) => sum + (f.size || 0), 0);
-  const maxTotalSize = 5120 * 1024 * 1024; // 500MB
-  if (totalSize > maxTotalSize) {
-    const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
-    ElMessage.error(`所有文件总大小（${totalSizeMB}MB）超过限制（5120MB）`)
-    hasUploadError = true;
-    return false
-  }
-  // 检查文件格式
-  const invalidFiles = fileList.filter(f => !isSupportedFormat(f.name))
-  if (invalidFiles.length > 0) {
-    ElMessage.error(`素材格式不符合，请上传支持的文件格式`)
-    hasUploadError = true;
-    // 移除不支持格式的文件
-    fileList.value = fileList.filter(f => isSupportedFormat(f.name))
-    return
-  }
-  // 检查上传列表中是否存在相同文件名的文件
+  // // 检查所有文件总大小不超过5120MB
+  // const totalSize = fileList.reduce((sum, f) => sum + (f.size || 0), 0);
+  // const maxTotalSize = 5120 * 1024 * 1024; // 500MB
+  // if (totalSize > maxTotalSize) {
+  //   const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+  //   ElMessage.error(`所有文件总大小（${totalSizeMB}MB）超过限制（5120MB）`)
+  //   hasUploadError = true;
+  //   return false
+  // }
+  // // 检查文件格式
+  // const invalidFiles = fileList.filter(f => !isSupportedFormat(f.name))
+  // if (invalidFiles.length > 0) {
+  //   ElMessage.error(`素材格式不符合，请上传支持的文件格式`)
+  //   hasUploadError = true;
+  //   // 移除不支持格式的文件
+  //   fileList.value = fileList.filter(f => isSupportedFormat(f.name))
+  //   return
+  // }
+    // 检查上传列表中是否存在相同文件名的文件
   const fileNames = fileList.map(f => f.name);
   const duplicateNamesInList = fileNames.filter((name, index) => fileNames.indexOf(name) !== index);
   const uniqueDuplicateNames = [...new Set(duplicateNamesInList)];
@@ -914,34 +1004,6 @@ const handleFileChange = (file, fileList) => {
 
   isConfirmDisabled.value = hasUploadError || fileList.length === 0;
 
-  // 对于图片文件，获取分辨率
-  // if (file.raw && file.raw.type == "image/png") {
-  //   // 使用同步方式获取分辨率
-  //   try {
-  //     const tempUrl = URL.createObjectURL(file.raw);
-  //     const img = new Image();
-  //     const getResolution = new Promise((resolve, reject) => {
-  //       img.onload = function () {
-  //         URL.revokeObjectURL(tempUrl); // 释放临时URL
-  //         resolve(`${img.width}x${img.height}`);
-  //       };
-  //       img.onerror = function () {
-  //         URL.revokeObjectURL(tempUrl); // 释放临时URL
-  //         reject(new Error('图片加载失败，无法获取分辨率'));
-  //       };
-  //       img.src = tempUrl;
-  //     });
-  //     // 立即获取分辨率（同步获取）
-  //     getResolution.then(res => {
-  //       const resolution = res;
-  //       console.log('成功获取图片分辨率:', resolution);
-  //     }).catch(err => {
-  //       console.warn(err.message);
-  //     });
-  //   } catch (error) {
-  //     console.warn('获取分辨率时出错:', error);
-  //   }
-  // }
 }
 
 // 处理文件移除

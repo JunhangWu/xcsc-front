@@ -484,27 +484,6 @@ const filterForm = reactive({
 })
 
 
-// 素材数据
-const materials = ref([])
-
-// 预览图片
-function previewImg(material) {
-    const $viewer = viewerApi({
-        options: {
-            toolbar: true,
-            initialViewIndex: 0,
-        },
-        images: [material.minioPath],
-    });
-}
-
-//下载文件
-function downloadFile(material) {
-    if (material && material.minioPath) {
-        window.open(material.minioPath, '_blank');
-    }
-}
-
 // 当前选中的个人空间
 const activeSpace = ref('all')
 
@@ -572,36 +551,10 @@ function updateCategoryFileCounts() {
   }
 }
 
-// 在组件挂载和切换空间时调用此方法来更新板块文件数量
-function initCategoryFileCounts() {
-  // 延迟执行，确保categories已经加载完成
-  setTimeout(() => {
-    updateCategoryFileCounts();
-  }, 500);
-}
-
-// 监听categories变化，自动更新文件数量
-// const unwatchCategories = watch(() => categories.filePath, () => {
-//   if (categories.filePath && categories.filePath.length > 0) {
-//     updateCategoryFileCounts();
-//   }
-// }, { deep: true });
 
 //收藏列表
 const collectionList = ref([])
-//获取当前用户收藏列表
-// function getCollectionData(userId){
-//   // collectionList.value = [];
-//   let params = {
-//         userId: userId
-//     }
-//     return getCollectionList(params).then(res => {
-//       collectionList.value = res.data
-//       console.log('===params===', params)
-//       console.log('collectionList.value', collectionList.value)
-//       return res.data;
-//     })
-// }
+
 function getCollectionData(){
     return getCollectionList().then(res => {
       collectionList.value = res.data
@@ -947,9 +900,6 @@ let fileTypeObj = {
 }
 function getALlFileListData() {
     console.log('filterForm.dateRange:', filterForm.dateRange)
-    Object.assign(filterForm, {
-      dateRange: []
-    })
     // 如果filterForm.dateRange是空的，默认获取近30天的开始时间和结束时间
     if (filterForm.dateRange.length === 0) {
         const endDate = new Date();
@@ -1446,24 +1396,6 @@ onBeforeUnmount(() => {
     gap: 6px;
     padding: 0 12px 12px;
   }
-
-  // .favorite-btn {
-  //   flex: 1;
-  //   display: flex;
-  //   align-items: center;
-  //   justify-content: center;
-  // }
-
-  // .download-btn {
-  //   width: 80px !important;
-  //   height: 28px !important;
-  //   padding: 0 !important;
-  //   font-size: 12px !important;
-  //   display: flex;
-  //   align-items: center;
-  //   justify-content: center;
-  //   margin: 0 auto;
-  // }
 }
 
 .subFolder {
@@ -1651,13 +1583,6 @@ onBeforeUnmount(() => {
     }
   }
 
-  // .material-details {
-  //     padding: 8px 12px;
-  //     display: flex;
-  //     flex-direction: column;
-  //     justify-content: space-between;
-  //     // flex: 1;
-  //   }
 
   .fileName {
     font-size: 15px;
@@ -1674,12 +1599,6 @@ onBeforeUnmount(() => {
     text-align: center
   }
 
-  // .material-actions {
-  //   display: flex;
-  //   justify-content: space-between;
-  //   padding: 0 12px 12px;
-  //   // margin-top: auto;
-  // }
 
   .download-btn {
     width: 45%;

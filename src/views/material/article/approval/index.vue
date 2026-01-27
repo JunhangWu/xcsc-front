@@ -97,6 +97,7 @@
           <el-table-column prop="approver" label="审批人" width="120" align="center" />
           <el-table-column prop="approvalTime" label="审批时间" width="180" align="center" />
           <el-table-column prop="approvalComments" label="审批意见" min-width="150" align="center" />
+          <el-table-column prop="companyName" label="所属公司" min-width="150" align="center" />
           <el-table-column label="操作" width="300" align="center" fixed="right">
             <template #default="scope">
               <el-button link type="primary" size="middle" @click="handleView(scope.row)">查看</el-button>

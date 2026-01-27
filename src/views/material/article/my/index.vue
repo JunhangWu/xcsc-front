@@ -90,23 +90,8 @@
       <el-table-column prop="approvalTime" label="审批时间" width="180" align="center" />
       <!-- 审批意见 -->
       <el-table-column prop="approvalComment" label="审批意见" width="180" align="center" />
-
-      <!-- 内容类型 -->
-      <!-- <el-table-column prop="contentType" label="内容类型" width="100" align="center" /> -->
-      <!-- 内容分类 -->
-      <!-- <el-table-column prop="contentCategory" label="内容分类" width="100" align="center" /> -->
-      <!-- 标签 -->
-      <!-- <el-table-column prop="tags" label="标签" min-width="150" show-overflow-tooltip /> -->
-      <!-- 操作时间 -->
-      <!-- <el-table-column prop="operationTime" label="操作时间" width="180" align="center" /> -->
-      <!-- 海投主题 -->
-      <!-- <el-table-column prop="theme" label="海投主题" width="100" align="center" /> -->
-      <!-- 质量评级 -->
-      <!-- <el-table-column prop="qualityRating" label="质量评级" width="100" align="center" /> -->
       <!-- 作者姓名 -->
       <el-table-column prop="authorName" label="作者姓名" width="180" align="center" />
-      <!-- 供稿渠道 -->
-      <!-- <el-table-column prop="contributionChannel" label="供稿渠道" width="120" align="center" /> -->
       <!-- 操作列 -->
       <el-table-column label="操作" width="280" align="center">
         <template #default="scope">
@@ -421,93 +406,6 @@ const handleAttachmentRemove = (file, fileLists) => {
   ElMessage.info('已删除附件文档')
 }
 
-// 模拟数据
-// const mockData = [
-//   {
-//     id: 1,
-//     title: '品质皖道通四海 铺展山水新动脉',
-//     submitTime: '2025-12-17 10:35',
-//     auditStatus: 'passed',
-//     contentType: '图文',
-//     contentCategory: '其他',
-//     tags: '安徽交控高速公路、高速公路、德上高速公路',
-//     operationTime: '2025-12-17 15:19',
-//     theme: '',
-//     qualityRating: '无',
-//     authorName: '',
-//     contributionChannel: '手动创建'
-//   },
-//   {
-//     id: 2,
-//     title: '通过交工验收！安徽这两条高速公路通车在即',
-//     submitTime: '2025-12-03 08:29',
-//     auditStatus: 'rejected',
-//     contentType: '图文',
-//     contentCategory: '其他',
-//     tags: '安徽交控高速公路建设、长三角一体化、亳州',
-//     operationTime: '2025-12-17 14:51',
-//     theme: '',
-//     qualityRating: '无',
-//     authorName: '',
-//     contributionChannel: '手动创建'
-//   },
-//   {
-//     id: 3,
-//     title: '获批！50亿元',
-//     submitTime: '2025-12-03 08:23',
-//     auditStatus: 'passed',
-//     contentType: '图文',
-//     contentCategory: '经济',
-//     tags: '上市公司、国有企业、债券融资、2016',
-//     operationTime: '2025-12-03 14:51',
-//     theme: '',
-//     qualityRating: '无',
-//     authorName: '',
-//     contributionChannel: '手动创建'
-//   },
-//   {
-//     id: 4,
-//     title: '这条串联四省的交通大动脉即将全线贯通已持续',
-//     submitTime: '2025-12-03 08:19',
-//     auditStatus: 'passed',
-//     contentType: '图文',
-//     contentCategory: '其他',
-//     tags: '黄山、德上高速、德上高速、安徽交控高速公路',
-//     operationTime: '2025-12-03 14:51',
-//     theme: '',
-//     qualityRating: '无',
-//     authorName: '',
-//     contributionChannel: '手动创建'
-//   },
-//   {
-//     id: 5,
-//     title: '年底前正式通车！徐淮阜高速亳州段通过交工验收',
-//     submitTime: '2025-11-19 12:05',
-//     auditStatus: 'passed',
-//     contentType: '图文',
-//     contentCategory: '其他',
-//     tags: '皖北、阜阳、亳州、高速公路、安徽交控高速公路',
-//     operationTime: '2025-11-19 18:12',
-//     theme: '',
-//     qualityRating: '无',
-//     authorName: '',
-//     contributionChannel: '手动创建'
-//   },
-//   {
-//     id: 6,
-//     title: '皖鄂新通道 山乡幸福路',
-//     submitTime: '2025-11-18 10:16',
-//     auditStatus: 'passed',
-//     contentType: '图文',
-//     contentCategory: '其他',
-//     tags: '蕲春、安徽交控高速公路、大别山革命老区、乡村振兴',
-//     operationTime: '2025-11-18 15:15',
-//     theme: '',
-//     qualityRating: '无',
-//     authorName: '',
-//     contributionChannel: '手动创建'
-//   }
-// ]
 
 // 获取审核状态标签类型
 const getStatusTagType = (status) => {

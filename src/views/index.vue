@@ -373,16 +373,18 @@ function getFolderData(folderBizId, mode = 'folder') {
   console.log('===folderBizId===', folderBizId);
   console.log('===params===', params);
 
-  // 1 获取文件夹列表
+  // 1 获取文件夹列表（无论浏览/搜索，都获取文件夹结构）
   getFolderList(params).then(res => {
     folderData.value = res.data || []
     console.log('===folderData.value===', folderData.value)
   })
 
-  // 2️ 获取文件列表（浏览或搜索）
-  if (folderBizId !== 0) {
+  // 2 获取文件列表（浏览：folderBizId !== 0 才请求；搜索：强制请求，忽略folderBizId）
+  // 判断条件   「搜索模式」OR「文件夹模式且folderBizId非0」
+  if (mode === 'search' || (mode === 'folder' && folderBizId !== 0)) {
     let param = {
-      folderId: folderBizId,
+      // 搜索模式下不传folderId，非搜索模式正常传
+      folderId: mode === 'search' ? undefined : folderBizId,
       fileTypeList: fileTypeObj[filterForm.fileType] || null,
       createStartTime: filterForm.dateRange[0]
           ? filterForm.dateRange[0] + ' 00:00:00'
@@ -406,9 +408,9 @@ function getFolderData(folderBizId, mode = 'folder') {
         targetList.value.forEach(file => {
           file.isFavorite = favoriteFileIds.includes(file.id)
         })
+        // 优化：异步赋值收藏状态后再打印，保证是最新数据
+        console.log(`===${mode === 'search' ? 'queryfileListData' : 'fileListData'}.value===`, targetList.value)
       })
-
-      console.log('===targetList.value===', targetList.value)
 
       // 搜索模式才显示搜索结果区域
       if (mode === 'search') {
@@ -924,6 +926,8 @@ function getAllFileListData() {
 
 // 点击板块分类（统一接收 dept 对象）
 const handleCategoryClick = (dept) => {
+  // 关闭搜索结果视图，切换到文件夹视图
+  showSearchResults.value = false;
   // 1. 重置搜索栏
   Object.assign(filterForm, {
     fileType: '',
@@ -961,18 +965,17 @@ const handleCategoryClick = (dept) => {
 
 // 查询处理
 const handleQuery = () => {
-  showSearchResults.value = false; // 确保在收藏模块中不进入搜索结果视图
+  // showSearchResults.value = false; // 不再强制关闭搜索视图
   if (activeSpace.value == 'all') {
-    folderData.value = [] // 不展示文件夹
-    getAllFileListData()
+    folderData.value = []
+    getFolderData(0, 'search') // 首页全局搜索，传mode='search'
   } else if (activeSpace.value == 'favorite') {
-    // 处理收藏模块的查询
-    folderData.value = [] // 不展示文件夹
-    getFavoriteFiles() // 重新获取并应用筛选条件
+    showSearchResults.value = false; // 收藏模块保持原逻辑
+    folderData.value = []
+    getFavoriteFiles()
   } else {
     const bizId =  curDeptRootFolderId.value
     getFolderData(bizId, 'search')
-    // getQueryData(bizId)
   }
 }
 

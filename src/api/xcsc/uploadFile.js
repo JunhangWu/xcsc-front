@@ -43,6 +43,32 @@ export function uploadFiles(data, config = {}) {
         ...config
     })
 }
+// 查询已上传分块
+export function checkChunks(query) {
+    return request({
+        url: '/file/check',
+        method: 'get',
+        params: query
+    })
+}
+// 上传单个分块
+export function uploadFileChunk(data, config = {}) {
+    return request({
+        url: '/file/chunk',
+        method: 'post',
+        data: data,
+        ...config
+    })
+}
+// 合并分块
+export function mergeFileChunks(data) {
+    return request({
+        url: '/file/merge',
+        method: 'post',
+        data: data
+    })
+}
+
 // 文件列表
 export function getFileList(query) {
     return request({

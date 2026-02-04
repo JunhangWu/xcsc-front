@@ -262,19 +262,22 @@
         </div>
       </el-upload>
         
-        <!-- 上传进度条 -->
-        <div v-if="showProgress" class="upload-progress-container" style="margin-top: 20px;">
-          <el-progress 
-            :percentage="uploadProgress" 
-            :status="uploadProgress === 100 ? 'success' : 'primary'"
-            :stroke-width="16"
-            :text-inside="true"
-          ></el-progress>
-          <div class="progress-text" style="margin-top: 8px; text-align: center; color: #606266;">
-            {{ uploadProgress === 100? `处理中，请稍等...` : '正在上传中，请稍候...' }}
-            <span v-if="uploadSpeed" style="margin-left: 20px; font-weight: bold;">
-              速率: {{ uploadSpeed }}
-            </span>
+        <!-- 每个文件的上传进度条 -->
+        <div v-if="showProgress" class="file-progress-container" style="margin-top: 20px;">
+          <div v-for="(fileStatus, index) in fileUploadStatus" :key="index" class="file-progress-item" style="margin-bottom: 15px;">
+            <div class="file-name" style="margin-bottom: 8px; font-weight: 500;">{{ fileStatus.fileName }}</div>
+            <el-progress 
+              :percentage="fileStatus.progress" 
+              :status="fileStatus.progress === 100 ? 'success' : 'primary'"
+              :stroke-width="12"
+              :text-inside="true"
+            ></el-progress>
+            <div class="file-progress-text" style="margin-top: 5px; font-size: 12px; color: #606266;">
+              {{ fileStatus.progress === 100? `处理中，请稍等...` : '正在上传中，请稍候...' }}
+              <span v-if="fileStatus.speed" style="margin-left: 15px;">
+                速率: {{ fileStatus.speed }}
+              </span>
+            </div>
           </div>
         </div>
         
@@ -303,7 +306,7 @@ import { api as viewerApi } from "v-viewer";
 import { parseTime, } from '@/utils/common'
 import { Search, VideoCamera, Document, Check, Edit, VideoPlay, Back, ArrowRight, FolderAdd, FolderOpened, Upload, UploadFilled, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile, updateFile } from "@/api/xcsc/uploadFile"
+import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile, updateFile, checkChunks, uploadFileChunk, mergeFileChunks } from "@/api/xcsc/uploadFile"
 import MarkDialog from './components/markDialog.vue'
 import EXIF from 'exif-js';
 // 修复压缩版的变量丢失 bug（关键：手动声明缺失的变量）
@@ -670,6 +673,7 @@ const showProgress = ref(false); // 是否显示进度条
 const uploadSpeed = ref(''); // 上传速率
 let lastLoaded = 0; // 上一次的已上传字节数
 let lastTime = 0; // 上一次的时间戳
+const fileUploadStatus = ref([]); // 存储每个文件的上传状态和进度
 function uploadFile() {
   fileList.value = []
   uploadDialogVisible.value = true
@@ -682,155 +686,263 @@ function cancelUpload() {
   uploadSpeed.value = ''
   lastLoaded = 0
   lastTime = 0
+  fileUploadStatus.value = []
 }
-async function confirmUpload() {
+// 全局变量：存储文件哈希和已上传分块（用于断点续传）
+const fileUploadCache = new Map(); 
+// 分块大小配置（16MB，可根据需求调整）
+const CHUNK_SIZE = 16 * 1024 * 1024; 
+
+// 工具函数：计算文件MD5哈希（需引入spark-md5库，npm install spark-md5）
+import SparkMD5 from 'spark-md5';
+async function calculateFastHash(file) {
+  return new Promise((resolve) => {
+    const spark = new SparkMD5.ArrayBuffer();
+    const reader = new FileReader();
+    const size = file.size;
+    const sampleSize = 2 * 1024 * 1024; // 每段抽样 2MB
+
+    // 抽样策略：开头 2MB + 中间 2MB + 结尾 2MB
+    const chunks = [file.slice(0, sampleSize)];
+    if (size > sampleSize) {
+      const mid = Math.floor(size / 2);
+      chunks.push(file.slice(mid, mid + sampleSize));
+      chunks.push(file.slice(size - sampleSize, size));
+    }
+
+    let current = 0;
+    reader.onload = (e) => {
+      spark.append(e.target.result);
+      current++;
+      if (current < chunks.length) {
+        readNext();
+      } else {
+        // 关键：混合文件总大小，进一步降低碰撞概率
+        spark.append(new TextEncoder().encode(size.toString()));
+        resolve(spark.end());
+      }
+    };
+
+    const readNext = () => reader.readAsArrayBuffer(chunks[current]);
+    readNext();
+  });
+}
+async function calculateFileHash(file) {
+  return new Promise((resolve) => {
+    const spark = new SparkMD5.ArrayBuffer();
+    const fileReader = new FileReader();
+    const chunkSize = 16 * 1024 * 1024; // 计算哈希时的切片大小（2MB）
+    const chunks = Math.ceil(file.size / chunkSize);
+    let currentChunk = 0;
+
+    fileReader.onload = function (e) {
+      spark.append(e.target.result);
+      currentChunk++;
+      if (currentChunk < chunks) {
+        loadNextChunk();
+      } else {
+        resolve(spark.end()); // 返回文件唯一哈希
+      }
+    };
+
+    function loadNextChunk() {
+      const start = currentChunk * chunkSize;
+      const end = Math.min(start + chunkSize, file.size);
+      fileReader.readAsArrayBuffer(file.slice(start, end));
+    }
+
+    loadNextChunk();
+  });
+}
+
+// 工具函数：查询已上传分块（后端接口）
+async function getUploadedChunks(fileHash) {
+  try {
+    const res = await checkChunks({ fileHash });
+    return res.data.uploadedChunks || []; // 后端返回已上传的分块索引数组
+  } catch (e) {
+    console.error('查询已上传分块失败', e);
+    return [];
+  }
+}
+
+// 工具函数：上传单个分块
+async function uploadChunk(fileHash, chunkIndex, chunk, folderId, folderPath, fileLastModified, fileIndex) {
+  const formData = new FormData();
+  formData.append('fileChunk', chunk);
+  formData.append('fileHash', fileHash);
+  formData.append('chunkIndex', chunkIndex);
+  formData.append('totalChunks', Math.ceil(chunk.fileSize / CHUNK_SIZE));
+  formData.append('folderId', folderId);
+  formData.append('folderPath', folderPath);
+  formData.append('eventTimes', fileLastModified);
+  formData.append('fileName', chunk.fileName);
+
+  // 分块上传进度监听（用于计算整体进度）
+  const config = {
+    onUploadProgress: (progressEvent) => {
+      if (progressEvent.total && fileUploadStatus.value[fileIndex]) {
+        // 计算单个分块的上传进度，更新对应文件的进度
+        const chunkProgress = (progressEvent.loaded / progressEvent.total) * 100;
+        const totalProgress = ((chunkIndex + chunkProgress/100) / chunk.totalChunks) * 100;
+        fileUploadStatus.value[fileIndex].progress = Math.min(Math.round(totalProgress), 100);
+        
+        // 计算对应文件的上传速率
+        const currentTime = Date.now();
+        const currentLoaded = progressEvent.loaded + (chunkIndex * CHUNK_SIZE);
+        if (fileUploadStatus.value[fileIndex].lastTime > 0) {
+          const timeDiff = (currentTime - fileUploadStatus.value[fileIndex].lastTime) / 1000;
+          const loadedDiff = currentLoaded - fileUploadStatus.value[fileIndex].lastLoaded;
+          if (timeDiff > 0) {
+            const speedBps = loadedDiff / timeDiff;
+            if (speedBps < 1024) {
+              fileUploadStatus.value[fileIndex].speed = `${speedBps.toFixed(2)} B/s`;
+            } else if (speedBps < 1024 * 1024) {
+              fileUploadStatus.value[fileIndex].speed = `${(speedBps / 1024).toFixed(2)} KB/s`;
+            } else {
+              fileUploadStatus.value[fileIndex].speed = `${(speedBps / (1024 * 1024)).toFixed(2)} MB/s`;
+            }
+          }
+        }
+        fileUploadStatus.value[fileIndex].lastLoaded = currentLoaded;
+        fileUploadStatus.value[fileIndex].lastTime = currentTime;
+      }
+    }
+  };
+
+  return uploadFileChunk(formData, config);
+}
+
+// 工具函数：合并分块
+async function mergeChunks(fileHash, fileName, totalChunks, folderId, folderPath, eventTimes, contentType) {
   // debugger
-  // // 再次检查所有文件总大小不超过5120MB
+  // console.log("执行到debugger之后");
+  return mergeFileChunks({
+    fileHash,
+    fileName,
+    totalChunks,
+    folderId,
+    folderPath,
+    eventTimes,
+    contentType
+  });
+}
+
+// 改造后的确认上传函数
+async function confirmUpload() {
+  debugger
+  console.log("执行到debugger之后");
+  // 1. 保留你原有文件大小校验逻辑（可选）
   // const totalSize = fileList.value.reduce((sum, f) => sum + ((f.raw || f.originFileObj || f).size || 0), 0);
-  // const maxTotalSize = 5120 * 1024 * 1024; // 500MB
+  // const maxTotalSize = 5120 * 1024 * 1024; // 5120MB
   // if (totalSize > maxTotalSize) {
   //   const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
   //   ElMessage.error(`所有文件总大小（${totalSizeMB}MB）超过限制（5120MB）`);
   //   return;
   // }
-  
-  // 设置上传中状态
+
+  // 2. 设置上传状态
   isUploading.value = true;
   uploadProgress.value = 0;
   showProgress.value = true;
-  
-  let formData = new FormData();
-  // files 是多个文件的数组集合，用于上传的文件流
-  let files = fileList.value.map(item => item.raw || item.originFileObj || item); // 兼容不同上传组件的文件对象
-  files.forEach((file, index) => {
-    formData.append("files", file);
-    formData.append("eventTimes",  parseTime(file.lastModifiedDate));
-  });
-  // console.log("eventTimes", parseTime(file.lastModifiedDate))
-  let folderPath = ''
-  formData.append("folderId", curFolderObj.bizId);
-  breadcrumbData.value.forEach((item, idx) => {
-    folderPath += item.filePath
-    if (idx !== breadcrumbData.value.length - 1) {
-      folderPath += '/'  
-    }
-  })
-  formData.append("folderPath", folderPath);
-  // console.log("formData", formData)
-  
-  // 重置速率计算变量
+  uploadSpeed.value = '';
   lastLoaded = 0;
   lastTime = 0;
-  uploadSpeed.value = '';
-  
-  // 配置上传进度监听
-  const config = {
-    onUploadProgress: (progressEvent) => {
-      if (progressEvent.total) {
-        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-        uploadProgress.value = percentCompleted;
-        
-        // 计算上传速率
-        const currentTime = Date.now();
-        const currentLoaded = progressEvent.loaded;
-        
-        if (lastTime > 0) {
-          const timeDiff = (currentTime - lastTime) / 1000; // 时间差（秒）
-          const loadedDiff = currentLoaded - lastLoaded; // 已上传字节差
-          
-          if (timeDiff > 0) {
-            const speedBps = loadedDiff / timeDiff; // 字节/秒
-            let speedText = '';
-            
-            if (speedBps < 1024) {
-              speedText = `${speedBps.toFixed(2)} B/s`;
-            } else if (speedBps < 1024 * 1024) {
-              speedText = `${(speedBps / 1024).toFixed(2)} KB/s`;
-            } else {
-              speedText = `${(speedBps / (1024 * 1024)).toFixed(2)} MB/s`;
-            }
-            
-            uploadSpeed.value = speedText;
-          }
-        }
-        
-        lastLoaded = currentLoaded;
-        lastTime = currentTime;
-      }
-    }
-  };
-  
-  // console.log("上传数据:",formData)
-  // 
-  // uploadFiles(formData, config).then(res => {
-  //   console.log("上传数据formData", Array.from(formData.entries()))
-  //   // 完成任务提交，进度设为100%（此处进度仅代表“请求提交完成”，非文件处理完成）
-  //   uploadProgress.value = 100;
-    
-  //   // 延迟显示提示消息，让用户看到100%的进度
-  //   setTimeout(() => {
-  //     // 核心修改：提示文案改为异步任务提交成功，而非文件上传完成
-  //     const successMsg = res?.data?.msg || '文件上传任务已提交，后台正在处理，请稍后查看结果！';
-  //     ElMessage.success(successMsg);
-  //     // 原有刷新文件夹数据逻辑保留（可选：若需立即刷新，可保留；若无需立即刷，可注释）
-  //     getFolderData(curFolderObj.bizId);
-  //   }, 300);
-  // }).catch(error => {
-  //   // 新增：捕获请求提交失败的异常，提示用户
-  //   uploadProgress.value = 0;
-  //   const errorMsg = error?.response?.data?.msg || '文件上传任务提交失败，请重试！';
-  //   ElMessage.error(errorMsg);
-  // }).finally(() => {
-  //   // 无论成功失败，都重置上传状态（原有逻辑保留）
-  //   setTimeout(() => {
-  //     isUploading.value = false;
-  //     uploadDialogVisible.value = false;
-  //     fileList.value = [];
-  //     uploadProgress.value = 0;
-  //     showProgress.value = false;
-  //     uploadSpeed.value = '';
-  //     lastLoaded = 0;
-  //     lastTime = 0;
-  //   }, 700);
-  // });
-  // 保留原有then/catch风格的优化版
-  uploadFiles(formData, config).then(res => {
-    console.log("上传数据formData", Array.from(formData.entries()));
-    uploadProgress.value = 100;
+  fileUploadStatus.value = []; // 清空文件上传状态
 
-    setTimeout(() => {
-      const successMsg = res?.data?.msg || '文件上传任务已提交，后台正在处理，请稍后查看结果！';
-      ElMessage.success({
-        message: successMsg,
-        duration: 5000,
-        showClose: true
-      });
-      // 空值校验
-      curFolderObj?.bizId && getFolderData(curFolderObj.bizId);
-    }, 300);
-  })
-  .catch(error => {
-    uploadProgress.value = 0;
-    const errorMsg = error?.response?.data?.msg || '文件上传任务提交失败，请重试！';
-    ElMessage.error({
-      message: errorMsg,
-      duration: 5000,
-      showClose: true
-    });
-    console.error('上传任务提交失败：', error); // 调试日志
-  })
-  .finally(() => {
-    setTimeout(() => {
-      isUploading.value = false;
-      uploadDialogVisible.value = false;
-      fileList.value = [];
-      uploadProgress.value = 0;
-      showProgress.value = false;
-      uploadSpeed.value = '';
-      lastLoaded = 0;
-      lastTime = 0;
-    }, 700);
+  // 3. 处理每个文件的分块上传
+  const files = fileList.value.map(item => item.raw || item.originFileObj || item);
+  const folderId = curFolderObj.bizId;
+  let folderPath = '';
+  breadcrumbData.value.forEach((item, idx) => {
+    folderPath += item.filePath;
+    if (idx !== breadcrumbData.value.length - 1) {
+      folderPath += '/';
+    }
   });
+
+  try {
+    // 遍历每个文件进行分块上传
+    for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
+      const file = files[fileIndex];
+      const fileName = file.name;
+      const fileSize = file.size;
+      const contentType = file.type;
+      const fileLastModified = parseTime(file.lastModifiedDate);
+      
+      // 初始化文件上传状态
+      fileUploadStatus.value.push({
+        fileName: fileName,
+        progress: 0,
+        speed: '',
+        lastLoaded: 0,
+        lastTime: 0
+      });
+      
+      // 3.1 计算文件哈希（用于秒传/断点续传）
+      const fileHash = await calculateFastHash(file);
+      ElMessage.info(`开始上传文件：${fileName}`);
+
+      // 3.2 查询已上传分块（断点续传核心）
+      const uploadedChunks = await getUploadedChunks(fileHash);
+      const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
+
+      // 3.3 秒传判断：如果所有分块都已上传，直接合并
+      if (uploadedChunks.length === totalChunks) {
+        await mergeChunks(fileHash, fileName, totalChunks, folderId, folderPath, fileLastModified, contentType);
+        ElMessage.success(`${fileName} 秒传成功！`);
+        fileUploadStatus.value[fileIndex].progress = 100;
+        continue;
+      }
+
+      // 3.4 分块上传：只传未上传的分块
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        // 跳过已上传的分块
+        if (uploadedChunks.includes(chunkIndex)) {
+          continue;
+        }
+
+        // 切分文件块
+        const start = chunkIndex * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, fileSize);
+        const chunk = file.slice(start, end);
+        // 给分块附加元信息
+        chunk.fileName = fileName;
+        chunk.fileSize = fileSize;
+        chunk.totalChunks = totalChunks;
+
+        // 上传当前分块
+        await uploadChunk(fileHash, chunkIndex, chunk, folderId, folderPath, fileLastModified, fileIndex);
+      }
+
+      // 3.5 所有分块上传完成，合并分块
+      await mergeChunks(fileHash, fileName, totalChunks, folderId, folderPath, fileLastModified, contentType);
+      ElMessage.success(`${fileName} 上传完成！`);
+      fileUploadStatus.value[fileIndex].progress = 100;
+    }
+
+    // 4. 所有文件上传完成
+    ElMessage.success('全部文件上传完成！');
+    // 关闭上传对话框
+    uploadDialogVisible.value = false;
+    // 刷新文件列表
+    getFolderData(curFolderObj.bizId);
+  } catch (e) {
+    console.error('上传失败', e);
+    ElMessage.error(`上传失败：${e.message}`);
+  } finally {
+    isUploading.value = false;
+    uploadDialogVisible.value = false;
+    fileList.value = [];
+    uploadProgress.value = 0;
+    showProgress.value = false;
+    uploadSpeed.value = '';
+    lastLoaded = 0;
+    lastTime = 0;
+    fileUploadStatus.value = [];
+    // 重置上传状态
+    isUploading.value = false;
+  }
 }
 // // 支持的文件格式
 // const supportedFormats = {

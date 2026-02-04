@@ -194,7 +194,7 @@
           
           <div v-else class="material-grid">
             <!-- 文件夹列表 -->
-            <div class="subFolder" v-for="(item, index) in folderData" :key="index"
+            <div class="subFolder" v-if="activeSpace !== 'all'" v-for="(item, index) in folderData" :key="index"
               @mouseenter="onSubFolderMouseEnter(item)" @mouseleave="onSubFolderMouseLeave(item)">
               <el-icon @click="selectFolder(item)">
                 <FolderOpened />
@@ -383,8 +383,8 @@ function getFolderData(folderBizId, mode = 'folder') {
   // 判断条件   「搜索模式」OR「文件夹模式且folderBizId非0」
   if (mode === 'search' || (mode === 'folder' && folderBizId !== 0)) {
     let param = {
-      // 搜索模式下不传folderId，非搜索模式正常传
-      folderId: mode === 'search' ? undefined : folderBizId,
+      //  搜索模式：folderId为0，文件夹模式：folderId为当前文件夹id
+      folderId: folderBizId,
       fileTypeList: fileTypeObj[filterForm.fileType] || null,
       createStartTime: filterForm.dateRange[0]
           ? filterForm.dateRange[0] + ' 00:00:00'
@@ -408,7 +408,6 @@ function getFolderData(folderBizId, mode = 'folder') {
         targetList.value.forEach(file => {
           file.isFavorite = favoriteFileIds.includes(file.id)
         })
-        // 优化：异步赋值收藏状态后再打印，保证是最新数据
         console.log(`===${mode === 'search' ? 'queryfileListData' : 'fileListData'}.value===`, targetList.value)
       })
 
@@ -427,6 +426,9 @@ function getFolderData(folderBizId, mode = 'folder') {
 function selectFolder(item, type) {
     console.log('====item==', item);
     Object.assign(curFolderObj, item)
+
+    curFolderId.value = item.bizId;
+
     if (type == 'isRootFolder') {
         //根文件夹
         breadcrumbData.value = [{
@@ -457,6 +459,7 @@ function clickBreadcrumb(item, index) {
         getFavoriteFiles() // 获取收藏文件并应用筛选条件
     } else {
         // 正常文件夹处理
+        curFolderId.value = item.bizId;
         getFolderData(item.bizId)
     }
     
@@ -473,22 +476,28 @@ function clickBreadcrumb(item, index) {
     }
 }
 
-//返回按钮
+// 返回按钮
 const backFolder = () => {
-    if (breadcrumbData.value.length == 1) {
-        // getFolderData(0)
-        return
+  if (breadcrumbData.value.length == 1) {
+    // 根目录无法返回，保持当前curFolderId
+    return
+  } else {
+    Object.assign(curFolderObj, {
+      filePath: breadcrumbData.value[breadcrumbData.value.length - 2].filePath,
+      bizId: breadcrumbData.value[breadcrumbData.value.length - 2].bizId,
+      id: breadcrumbData.value[breadcrumbData.value.length - 2].id
+    });
+    getFolderData(breadcrumbData.value[breadcrumbData.value.length - 2].bizId) //获取上一级文件夹的bizId
+    breadcrumbData.value.pop()
+    // 添加边界判断，避免数组越界
+    if (breadcrumbData.value.length > 0) {
+      curFolderId.value = breadcrumbData.value[breadcrumbData.value.length - 1].bizId;
     } else {
-        Object.assign(curFolderObj, {
-            filePath: breadcrumbData.value[breadcrumbData.value.length - 2].filePath,
-            bizId: breadcrumbData.value[breadcrumbData.value.length - 2].bizId,
-            id: breadcrumbData.value[breadcrumbData.value.length - 2].id
-        });
-        getFolderData(breadcrumbData.value[breadcrumbData.value.length - 2].bizId) //获取上一级文件夹的bizId
-        breadcrumbData.value.pop()
+      curFolderId.value = curDeptRootFolderId.value; // 回退到板块根文件夹
     }
-    console.log('===breadcrumbData.value===', breadcrumbData.value);
-}
+  }
+  console.log('===breadcrumbData.value===', breadcrumbData.value);
+};
 
 
 // 筛选表单
@@ -524,8 +533,10 @@ function downloadFile(material) {
 
 // 当前选中的个人空间
 const activeSpace = ref('all')
-// 当前选中的文件夹/板块
+// 当前选中的板块（根文件夹）
 const curDeptRootFolderId = ref('')
+//  当前选中的文件夹
+const curFolderId =  ref('')
 
 // 总文件数
 // const totalFiles = computed(() => materials.value.length)
@@ -863,33 +874,34 @@ const getFavoriteFiles = () => {
 
 // 点击个人空间
 const handleSpaceClick = (spaceId) => {
-    // 重置搜索栏
-    Object.assign(filterForm, {
-      fileType: '',
-      dateRange: [],
-      createBy: '',
-      annotationContent: '',
-      fileName: ''
-    })
-    activeSpace.value = spaceId
-    // activeCategory.value = '' // 清空板块分类选中状态
-    folderData.value = [] // 不展示文件夹
-    showSearchResults.value = false // 确保显示文件夹视图而不是搜索结果
-    
-    if (activeSpace.value == 'all') {
-        fileListData.value = []
-        getAllFileListData()
-    } else if (activeSpace.value == 'favorite') {
-        // 显示我的收藏
-        // breadcrumbData.value = [{ filePath: '我的收藏', bizId: 'favorite' }]
-        breadcrumbData.value = []
-        getFavoriteFiles()
-    }
-    
-    // 如果切换到板块分类视图，更新板块文件数量
-    // if (!spaceId) {
-    //     updateCategoryFileCounts();
-    // }
+  // 重置搜索栏
+  Object.assign(filterForm, {
+    fileType: '',
+    dateRange: [],
+    createBy: '',
+    annotationContent: '',
+    fileName: ''
+  })
+  activeSpace.value = spaceId
+  // 清除板块选中状态
+  activeDeptId.value = null
+  activeCategory.value = ''
+  folderData.value = [] // 不展示文件夹
+  showSearchResults.value = false // 确保显示文件夹视图而不是搜索结果
+  // 重置当前文件夹ID
+  curFolderId.value = ''
+
+  if (activeSpace.value == 'all') {
+    fileListData.value = []
+    // 清空文件夹对象，避免残留板块/子文件夹ID
+    Object.assign(curFolderObj, { filePath: '', bizId: '', id: '' })
+    // 所有文件不展示文件夹
+    folderData.value = []
+    getAllFileListData()
+  } else if (activeSpace.value == 'favorite') {
+    breadcrumbData.value = []
+    getFavoriteFiles()
+  }
 }
 
 // 获取当前用户能接触的所有文件（n天m个文件，后端有个数限制）
@@ -942,6 +954,8 @@ const handleCategoryClick = (dept) => {
   activeDeptId.value = dept.deptId
   activeSpace.value = ''
   curDeptRootFolderId.value =  dept.rootFolderId
+  // 进入板块主文件夹，初始化curFolderId为根文件夹ID
+  curFolderId.value = dept.rootFolderId;
 
   console.log('===activeCategory===', dept)
 
@@ -968,13 +982,14 @@ const handleQuery = () => {
   // showSearchResults.value = false; // 不再强制关闭搜索视图
   if (activeSpace.value == 'all') {
     folderData.value = []
-    getFolderData(0, 'search') // 首页全局搜索，传mode='search'
+    getFolderData(undefined, 'search') // 首页全局搜索，传mode='search'
   } else if (activeSpace.value == 'favorite') {
     showSearchResults.value = false; // 收藏模块保持原逻辑
     folderData.value = []
     getFavoriteFiles()
   } else {
-    const bizId =  curDeptRootFolderId.value
+    // 使用当前子文件夹ID搜索
+    const bizId =  curFolderId.value
     getFolderData(bizId, 'search')
   }
 }
@@ -1020,9 +1035,7 @@ const queryfileListData = ref([])//文件列表
 // 重置搜索，返回文件夹视图
 function resetSearch() {
   showSearchResults.value = false
-  if(curFolderObj.bizId == 0){
-    showFolder.value = true // 确保显示文件夹视图
-  }
+  // 重置筛选表单
   Object.assign(filterForm, {
     fileType: '',
     dateRange: [],
@@ -1030,9 +1043,25 @@ function resetSearch() {
     annotationContent: '',
     fileName: ''
   })
-  console.log(curFolderObj)
-  getFolderData(curFolderObj.bizId) // 获取根文件夹数据
+  console.log('返回文件夹视图-当前活跃空间：', activeSpace.value, '当前文件夹对象：', curFolderObj)
+
+  // 根据当前活跃空间分情况返回
+  if (activeSpace.value === 'all') {
+    // 所有文件模式：直接回到初始的所有文件视图
+    fileListData.value = []
+    folderData.value = []
+    getAllFileListData()
+  } else if (activeSpace.value === 'favorite') {
+    // 我的收藏模式：回到收藏视图
+    getFavoriteFiles()
+  } else {
+    // 板块/子文件夹模式：才用当前文件夹ID返回（原有逻辑）
+    if (curFolderObj.bizId) {
+      getFolderData(curFolderObj.bizId)
+    }
+  }
 }
+
 // 重置表单
 const handleReset = () => {
   Object.assign(filterForm, {
@@ -1044,7 +1073,8 @@ const handleReset = () => {
   })
   if (activeSpace.value == 'all') {
     folderData.value = [] // 不展示文件夹
-    getALlFileListData()
+    // getALlFileListData → getAllFileListData
+    getAllFileListData()
   } else if (activeSpace.value == 'favorite') {
     // 处理收藏模块的重置
     folderData.value = [] // 不展示文件夹

@@ -52,6 +52,8 @@ export function getFileList(query) {
     })
 }
 
+export const getCollectFileList = (params) => request({ url: '/file/collect/list', method: 'get', params });
+
 // 板块分类(按照公司/部门)
 export function getDeptCategoryList() {
     return request({

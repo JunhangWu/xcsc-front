@@ -307,7 +307,7 @@ import {
   FolderOpened
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getFolderList, getFileList, getFileIndexList, getCollectionList, addCollection, delCollection,  getDeptCategoryList } from "@/api/xcsc/uploadFile"
+import { getFolderList, getFileList, getCollectFileList, getFileIndexList, getCollectionList, addCollection, delCollection,  getDeptCategoryList } from "@/api/xcsc/uploadFile"
 import useUserStore from '@/store/modules/user'
 
 const router = useRouter()
@@ -589,28 +589,28 @@ onMounted(() => {
 
 // 更新文件列表中的收藏状态
 function updateFileFavoriteStatus() {
-  // 提取收藏列表中的文件id
   const favoriteFileIds = collectionList.value.map(item => item.fileId);
-  
-  // 更新fileListData中的收藏状态
+
+  // 处理 fileListData
   if (fileListData.value && fileListData.value.length > 0) {
     fileListData.value.forEach(file => {
-      file.isFavorite = favoriteFileIds.includes(file.id);
+      // 加固：设置默认值 false，避免 undefined
+      file.isFavorite = favoriteFileIds.includes(file.id) || false;
     });
   }
-  
-  // 同时更新查询结果列表中的收藏状态
+
+  // 处理 queryfileListData
   if (queryfileListData.value && queryfileListData.value.length > 0) {
     queryfileListData.value.forEach(file => {
-      file.isFavorite = favoriteFileIds.includes(file.id);
+      file.isFavorite = favoriteFileIds.includes(file.id) || false;
     });
   }
-  
-  // 更新所有文件列表中的收藏状态
+
+  // 处理 allFileListData
   for (const dateKey in allFileListData) {
     const dailyFiles = allFileListData[dateKey];
     dailyFiles.forEach(file => {
-      file.isFavorite = favoriteFileIds.includes(file.id);
+      file.isFavorite = favoriteFileIds.includes(file.id) || false;
     });
   }
 }
@@ -670,11 +670,10 @@ const sortedCategoriesByDept = computed(() => {
 
 // 收藏操作
 const toggleFavorite = (event, material) => {
-    event.stopPropagation() // 阻止事件冒泡，避免触发素材点击事件
+  event.stopPropagation()
 
-    if(material.isFavorite){
-      // 取消收藏 - 显示确认对话框
-      ElMessageBox.confirm(
+  if(material.isFavorite){
+    ElMessageBox.confirm(
         '确定要取消收藏该素材吗？',
         '取消收藏确认',
         {
@@ -682,59 +681,33 @@ const toggleFavorite = (event, material) => {
           cancelButtonText: '取消',
           type: 'warning'
         }
-      ).then(() => {
-        // 用户确认取消收藏
-        material.isFavorite = false
-        let params = {
-          fileId: material.id
+    ).then(() => {
+      // 1. 即时修改本地状态，视觉立即反馈
+      material.isFavorite = false
+      let params = { fileId: material.id }
+      delCollection(params).then(res => {
+        // 2. 仅更新收藏列表，无需调用 updateFileFavoriteStatus（本地已改）
+        getCollectionData()
+        ElMessage.success('取消收藏')
+        // 我的收藏页面移除该文件
+        if (activeSpace.value === 'favorite') {
+          const index = fileListData.value.findIndex(file => file.id === material.id)
+          if (index !== -1) fileListData.value.splice(index, 1)
         }
-        console.log('===params===', params)
-        delCollection(params).then(res => {
-          // 取消收藏成功后，更新收藏列表
-          getCollectionData().then(() => {
-            // 更新当前文件列表中的收藏状态
-            updateFileFavoriteStatus();
-          })
-          
-          console.log('===res===', res)
-          
-          // 显示操作反馈
-          ElMessage.success('取消收藏')
-          
-          // 如果当前在"我的收藏"页面，取消收藏后需要更新显示的文件列表
-          if (activeSpace.value === 'favorite') {
-              // 从显示的文件列表中移除该文件
-              const index = fileListData.value.findIndex(file => file.id === material.id)
-              if (index !== -1) {
-                  fileListData.value.splice(index, 1)
-              }
-          }
-        })
-      }).catch(() => {
-        // 用户取消操作，不做任何处理
-        console.log('用户取消了取消收藏操作')
       })
-    } else {
-      // 收藏
-      material.isFavorite = true
-      let params = {
-        fileId: material.id
-      }
-      addCollection(params).then(res => {
-        // 收藏成功后，更新收藏列表
-        getCollectionData().then(() => {
-          // 更新当前文件列表中的收藏状态
-          updateFileFavoriteStatus();
-        })
-        
-        console.log('===res===', res)
-        
-        // 显示操作反馈
-        ElMessage.success('收藏成功')
-      })
-    }
-    console.log('===material.isFavorite===', material.isFavorite)
-    console.log('===material===', material)
+    }).catch(() => {
+      console.log('用户取消了取消收藏操作')
+    })
+  } else {
+    // 1. 即时修改本地状态
+    material.isFavorite = true
+    let params = { fileId: material.id }
+    addCollection(params).then(res => {
+      // 2. 仅更新收藏列表
+      getCollectionData()
+      ElMessage.success('收藏成功')
+    })
+  }
 }
 
 // 下载素材
@@ -788,119 +761,69 @@ const personalSpace = ref([
   { id: 'favorite', name: '我的收藏', icon: Star }
 ])
 
-// 获取收藏文件的详细信息 - 重写版本
-const getFavoriteFiles = () => {
-    loading.value = true
-    // 清空当前文件列表
-    fileListData.value = []
-    
-    // 确保已加载收藏列表
-    getCollectionData().then(() => {
-        if (collectionList.value.length > 0) {
-            // 构建查询参数，模仿getALlFileListData的结构
-            let params = {
-                fileTypeList: fileTypeObj[filterForm.fileType] || null,
-                createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
-                createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
-                createBy: filterForm.createBy,
-                keyWords: filterForm.annotationContent,
-                fileName: filterForm.fileName
-            }
-            
-            // 如果filterForm.dateRange是空的，默认获取近30天的开始时间和结束时间
-            if (!filterForm.dateRange || filterForm.dateRange.length === 0) {
-                const endDate = new Date();
-                const startDate = new Date();
-                startDate.setDate(endDate.getDate() - 30);
-                const formatDate = (date) => {
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                    const day = String(date.getDate()).padStart(2, '0');
-                    return `${year}-${month}-${day}`;
-                };
-                filterForm.dateRange = [formatDate(startDate), formatDate(endDate)];
-                params.createStartTime = filterForm.dateRange[0] + ' 00:00:00';
-                params.createEndTime = filterForm.dateRange[1] + ' 23:59:59';
-            }
-            
-            console.log('执行收藏文件查询:', params)
-            
-            // 调用getFileIndexList获取所有文件，然后根据收藏状态过滤
-            getFileIndexList(params).then(res => {
-                const allFilesData = res.data;
-                const favoriteFileIds = new Set(collectionList.value.map(item => item.fileId));
-                
-                // 按日期组织收藏文件
-                const favoriteFilesByDate = {};
-                
-                // 遍历所有文件，过滤出收藏的文件并按日期分组
-                for (const dateKey in allFilesData) {
-                    const dailyFiles = allFilesData[dateKey];
-                    const favoriteDailyFiles = dailyFiles.filter(file => {
-                        const isFavorite = favoriteFileIds.has(file.id);
-                        file.isFavorite = isFavorite;
-                        return isFavorite;
-                    });
-                    
-                    if (favoriteDailyFiles.length > 0) {
-                        favoriteFilesByDate[dateKey] = favoriteDailyFiles;
-                    }
-                }
-                
-                // 转换为平面数组用于显示
-                const favoriteFiles = [];
-                for (const dateKey in favoriteFilesByDate) {
-                    favoriteFilesByDate[dateKey].forEach(file => {
-                        favoriteFiles.push(file);
-                    });
-                }
-                
-                // 设置文件列表数据
-                fileListData.value = favoriteFiles;
-                console.log('显示的收藏文件:', favoriteFiles);
-                loading.value = false;
-            }).catch(error => {
-                console.error('获取文件列表失败:', error);
-                loading.value = false;
-            });
-        } else {
-            loading.value = false;
-        }
-    }).catch(error => {
-        console.error('获取收藏文件失败:', error);
-        loading.value = false;
-    });
-}
+// 获取收藏文件的详细信息 - 核心优化：直调后端/collect/list接口，极简精简
+const getFavoriteFiles = async (mode = 'normal') => {
+  loading.value = true;
+  const targetList = mode === 'search' ? queryfileListData : fileListData;
+  targetList.value = [];
+
+  try {
+    const params = {
+      fileTypeList: fileTypeObj[filterForm.fileType] || null,
+      createStartTime: filterForm.dateRange?.[0] ? `${filterForm.dateRange[0]} 00:00:00` : null,
+      createEndTime: filterForm.dateRange?.[1] ? `${filterForm.dateRange[1]} 23:59:59` : null,
+      createBy: filterForm.createBy,
+      annotationContent: filterForm.annotationContent,
+      fileName: filterForm.fileName
+    };
+
+    if (!filterForm.dateRange || filterForm.dateRange.length === 0) {
+      const end = new Date();
+      const start = new Date(end.setDate(end.getDate() - 30));
+      const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,0)}-${String(d.getDate()).padStart(2,0)}`;
+      filterForm.dateRange = [fmt(start), fmt(new Date())];
+      params.createStartTime = `${filterForm.dateRange[0]} 00:00:00`;
+      params.createEndTime = `${filterForm.dateRange[1]} 23:59:59`;
+    }
+
+    const res = await getCollectFileList(params);
+    const collectFiles = res.data || [];
+
+    targetList.value = collectFiles.map(file => ({ ...file, isFavorite: true }));
+
+    if (collectFiles.length === 0) {
+      ElMessage.info(mode === 'search' ? '该筛选条件下无收藏文件' : '暂无收藏文件，快去收藏吧～');
+    } else if (mode === 'search') {
+      ElMessage.success(`找到${collectFiles.length}个符合条件的收藏文件`);
+    }
+
+  } catch (err) {
+    console.error('收藏文件查询失败：', err);
+    ElMessage.error(mode === 'search' ? '收藏搜索失败，请稍后重试' : '查询收藏失败，请稍后重试');
+  } finally {
+    loading.value = false;
+  }
+};
 
 // 点击个人空间
 const handleSpaceClick = (spaceId) => {
-  // 重置搜索栏
-  Object.assign(filterForm, {
-    fileType: '',
-    dateRange: [],
-    createBy: '',
-    annotationContent: '',
-    fileName: ''
-  })
-  activeSpace.value = spaceId
-  // 清除板块选中状态
-  activeDeptId.value = null
-  activeCategory.value = ''
-  folderData.value = [] // 不展示文件夹
-  showSearchResults.value = false // 确保显示文件夹视图而不是搜索结果
-  // 重置当前文件夹ID
-  curFolderId.value = ''
+  // 重置筛选表单
+  Object.assign(filterForm, { fileType: '', dateRange: [], createBy: '', annotationContent: '', fileName: '' });
+  activeSpace.value = spaceId;
+  activeDeptId.value = null;
+  activeCategory.value = '';
+  folderData.value = [];
+  showSearchResults.value = false; // 初始关闭搜索区域
+  curFolderId.value = '';
+  breadcrumbData.value = [];
 
   if (activeSpace.value == 'all') {
-    fileListData.value = []
-    // 清空文件夹对象，避免残留板块/子文件夹ID
-    Object.assign(curFolderObj, { filePath: '', bizId: '', id: '' })
-    // 所有文件不展示文件夹
-    folderData.value = []
-    getAllFileListData()
+    fileListData.value = [];
+    Object.assign(curFolderObj, { filePath: '', bizId: '', id: '' });
+    getAllFileListData();
   } else if (activeSpace.value == 'favorite') {
-    breadcrumbData.value = []
-    getFavoriteFiles()
+    // 初始进入：普通模式加载收藏列表
+    getFavoriteFiles('normal');
   }
 }
 
@@ -979,17 +902,17 @@ const handleCategoryClick = (dept) => {
 
 // 查询处理
 const handleQuery = () => {
-  // showSearchResults.value = false; // 不再强制关闭搜索视图
   if (activeSpace.value == 'all') {
     folderData.value = []
-    getFolderData(undefined, 'search') // 首页全局搜索，传mode='search'
+    getFolderData(undefined, 'search')
   } else if (activeSpace.value == 'favorite') {
-    showSearchResults.value = false; // 收藏模块保持原逻辑
+    // 显示搜索结果区域
+    showSearchResults.value = true;
     folderData.value = []
-    getFavoriteFiles()
+    // 传search模式，告知接口是搜索行为
+    getFavoriteFiles('search');
   } else {
-    // 使用当前子文件夹ID搜索
-    const bizId =  curFolderId.value
+    const bizId = curFolderId.value
     getFolderData(bizId, 'search')
   }
 }
@@ -1034,54 +957,33 @@ const queryfileListData = ref([])//文件列表
 // }
 // 重置搜索，返回文件夹视图
 function resetSearch() {
-  showSearchResults.value = false
+  showSearchResults.value = false; // 关闭搜索结果区域
   // 重置筛选表单
-  Object.assign(filterForm, {
-    fileType: '',
-    dateRange: [],
-    createBy: '',
-    annotationContent: '',
-    fileName: ''
-  })
-  console.log('返回文件夹视图-当前活跃空间：', activeSpace.value, '当前文件夹对象：', curFolderObj)
+  Object.assign(filterForm, { fileType: '', dateRange: [], createBy: '', annotationContent: '', fileName: '' });
 
-  // 根据当前活跃空间分情况返回
   if (activeSpace.value === 'all') {
-    // 所有文件模式：直接回到初始的所有文件视图
-    fileListData.value = []
-    folderData.value = []
-    getAllFileListData()
+    fileListData.value = [];
+    folderData.value = [];
+    getAllFileListData();
   } else if (activeSpace.value === 'favorite') {
-    // 我的收藏模式：回到收藏视图
-    getFavoriteFiles()
-  } else {
-    // 板块/子文件夹模式：才用当前文件夹ID返回（原有逻辑）
-    if (curFolderObj.bizId) {
-      getFolderData(curFolderObj.bizId)
-    }
+    // 收藏重置：回到普通收藏列表
+    getFavoriteFiles('normal');
+  } else if (curFolderObj.bizId) {
+    getFolderData(curFolderObj.bizId);
   }
 }
 
-// 重置表单
+// 重置筛选表单
 const handleReset = () => {
-  Object.assign(filterForm, {
-    fileType: '',
-    dateRange: [],
-    createBy: '',
-    annotationContent: '',
-    fileName: ''
-  })
+  Object.assign(filterForm, { fileType: '', dateRange: [], createBy: '', annotationContent: '', fileName: '' });
   if (activeSpace.value == 'all') {
-    folderData.value = [] // 不展示文件夹
-    // getALlFileListData → getAllFileListData
-    getAllFileListData()
+    folderData.value = [];
+    getAllFileListData();
   } else if (activeSpace.value == 'favorite') {
-    // 处理收藏模块的重置
-    folderData.value = [] // 不展示文件夹
-    getFavoriteFiles() // 重新获取所有收藏文件（无筛选）
-  } else {
-    const pid = getCategoryPid(activeCategory.value)
-    getFolderData(pid)
+    // 收藏表单重置：回到无筛选的收藏列表
+    getFavoriteFiles('normal');
+  } else if (getCategoryPid(activeCategory.value)) {
+    getFolderData(getCategoryPid(activeCategory.value));
   }
 }
 

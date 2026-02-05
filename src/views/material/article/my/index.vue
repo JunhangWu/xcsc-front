@@ -26,17 +26,17 @@
 
     <!-- 高级搜索区域 -->
     <el-form :model="queryParams" ref="queryRef" :inline="true" class="advanced-search-form" v-if="showAdvancedSearch">
-      <el-form-item label="审核状态">
+      <el-form-item label="审批状态">
         <el-select v-model="queryParams.approvalStatus" placeholder="请选择" clearable style="width: 150px;">
           <el-option label="通过" value=1 />
           <el-option label="不通过" value=2 />
           <el-option label="待审核" value=0 />
         </el-select>
       </el-form-item>
-      <el-form-item label="审批人">
+      <el-form-item label="核稿人">
         <el-input
           v-model="queryParams.approver"
-          placeholder="请输入审批人"
+          placeholder="请输入核稿人"
           clearable
           style="width: 200px;"
         />
@@ -76,6 +76,8 @@
       </el-table-column>
       <!-- 提交时间 -->
       <el-table-column prop="createTime" label="提交时间" width="180" align="center" />
+      <!-- 核稿人 -->
+      <el-table-column prop="approver" label="核稿人" width="120" align="center" />
       <!-- 审核状态 -->
       <el-table-column prop="approvalStatus" label="审批状态" width="180" align="center">
         <template #default="scope">
@@ -84,8 +86,6 @@
           </el-tag>
         </template>
       </el-table-column>
-      <!-- 审批人 -->
-      <el-table-column prop="approver" label="审批人" width="120" align="center" />
       <!-- 审批时间 -->
       <el-table-column prop="approvalTime" label="审批时间" width="180" align="center" />
       <!-- 审批意见 -->
@@ -93,7 +93,7 @@
       <!-- 作者姓名 -->
       <el-table-column prop="authorName" label="作者姓名" width="180" align="center" />
       <!-- 操作列 -->
-      <el-table-column label="操作" width="280" align="center">
+      <el-table-column label="操作" width="280" align="center" fixed="right">
         <template #default="scope">
           <el-button link type="primary" size="middle" @click="handleReedit(scope.row)" :disabled="scope.row.approvalStatus !== 0">重新编辑</el-button>
           <el-button link type="primary" size="middle" @click="handleView(scope.row)">查看</el-button>
@@ -130,8 +130,8 @@
         </div>
         <!-- 栏花预览 -->
         <div v-if="currentArticle.columnOrnamentUrl" class="flower-preview">
-          <h4 class="flower-title">插图：</h4>
-          <img :src="currentArticle.columnOrnamentUrl" alt="栏花" class="flower-image">
+          <h4 class="flower-title">封面图：</h4>
+          <img :src="currentArticle.columnOrnamentUrl" alt="封面图" class="flower-image">
         </div>
         <div class="article-content" v-html="currentArticle.content"></div>
       </div>
@@ -188,7 +188,7 @@
           </div>
         </el-form-item>
         <!-- 栏花上传 -->
-        <el-form-item label="插图：">
+        <el-form-item label="封面图：">
           <el-upload 
             v-model:file-list="fileList" 
             class="upload-demo flower-upload" 

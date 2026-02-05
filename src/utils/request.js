@@ -37,6 +37,10 @@ service.interceptors.request.use(config => {
     config.url = url;
   }
   if (!isRepeatSubmit && (config.method === 'post' || config.method === 'put')) {
+    if (config.headers && config.headers.skipRepeatSubmit) {
+      // 如果调用接口时，在headers里手工设置了（skipRepeatSubmit: true）跳过重复提交检查，则直接返回config
+      return config;
+    }
     const requestObj = {
       url: config.url,
       data: typeof config.data === 'object' ? JSON.stringify(config.data) : config.data,

@@ -87,6 +87,7 @@
           </el-table-column>
           <el-table-column prop="authorName" label="作者姓名" width="120" align="center" />
           <el-table-column prop="createTime" label="提交时间" width="180" align="center" />
+          <el-table-column prop="approver" label="核稿人" width="120" align="center" />
           <el-table-column prop="approvalStatus" label="审批状态" width="120" align="center">
             <template #default="scope">
               <el-tag :type="getStatusTagType(scope.row.approvalStatus)">
@@ -94,11 +95,10 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="approver" label="审批人" width="120" align="center" />
           <el-table-column prop="approvalTime" label="审批时间" width="180" align="center" />
           <el-table-column prop="approvalComments" label="审批意见" min-width="150" align="center" />
-          <el-table-column prop="companyName" label="所属公司" min-width="150" align="center" />
-          <el-table-column label="操作" width="300" align="center" fixed="right">
+          <!-- <el-table-column prop="companyName" label="所属公司" min-width="150" align="center" /> -->
+          <el-table-column label="操作" width="200" align="center" fixed="right">
             <template #default="scope">
               <el-button link type="primary" size="middle" @click="handleView(scope.row)">查看</el-button>
               <el-button link type="success" size="middle" @click="handleApprove(scope.row)" v-if="activeTab === 'pending' && scope.row.approvalStatus === 1">通过</el-button>
@@ -162,7 +162,7 @@
             <el-radio :label="2">不通过</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="审批意见" v-if="approveForm.approvalStatus === 2">
+        <el-form-item label="审批意见" v-if="approveForm.approvalStatus === 2" :required="false">
           <el-input
             v-model="approveForm.approvalComments"
             type="textarea"
@@ -376,10 +376,10 @@ const handleAttachments = async (row) => {
 }
 
 const confirmApprove = async () => {
-  if (approveForm.approvalStatus === 2 && !approveForm.approvalComments.trim()) {
-    ElMessage.warning('请输入不通过的原因')
-    return
-  }
+  // if (approveForm.approvalStatus === 2 && !approveForm.approvalComments.trim()) {
+  //   ElMessage.warning('请输入不通过的原因')
+  //   return
+  // }
 
   try {
     const updateData = {

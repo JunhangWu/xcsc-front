@@ -24,10 +24,10 @@
     </div>
 
     <div class="author-section">
-      <h4 class="common-title">审核人：</h4>
+      <h4 class="common-title">核稿人：</h4>
       <el-input
         v-model="articleReviewer"
-        placeholder="请输入审核人姓名"
+        placeholder="请输入核稿人姓名"
         maxlength="30"
         show-word-limit
         clearable
@@ -35,7 +35,7 @@
     </div>
 
     <div class="author-section">
-      <h4 class="common-title">插图：</h4>
+      <h4 class="common-title">封面图：</h4>
       <!-- 栏花上传区域 -->
       <el-upload 
         v-model:file-list="fileList" 

@@ -48,7 +48,10 @@ export function checkChunks(query) {
     return request({
         url: '/file/check',
         method: 'get',
-        params: query
+        params: query,
+        headers: {
+            'skipRepeatSubmit': true
+        },
     })
 }
 // 上传单个分块
@@ -57,6 +60,9 @@ export function uploadFileChunk(data, config = {}) {
         url: '/file/chunk',
         method: 'post',
         data: data,
+        headers: {
+            'skipRepeatSubmit': true
+        },
         ...config
     })
 }
@@ -65,7 +71,10 @@ export function mergeFileChunks(data) {
     return request({
         url: '/file/merge',
         method: 'post',
-        data: data
+        data: data,
+        headers: {
+            'skipRepeatSubmit': true
+        },
     })
 }
 

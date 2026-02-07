@@ -640,7 +640,9 @@ const isAdmin = computed(() => {
 // 判断部门是否可点击
 const canClickDept = (dept) => {
   if (isAdmin.value) return true
-  return Number(dept.deptId) === Number(userStore.deptId)
+  // leader为"all" 或 部门ID匹配 都可点击
+  // 注：这里共享文件夹为便捷开发，利用了现有的dept表的leader字段
+  return Number(dept.deptId) === Number(userStore.deptId) || dept.leader === "all"
 }
 
 // 点击部门处理（真正业务逻辑）

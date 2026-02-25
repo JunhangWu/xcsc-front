@@ -43,6 +43,66 @@
             搜索结果：共 {{ queryfileListData.length }} 个文件
           </div>
         </div>
+        <div class="pageTopRight">
+          <el-dropdown trigger="click" @command="switchViewMode" popper-class="view-mode-dropdown">
+            <el-button class="view-mode-trigger" text>
+              <el-icon>
+                <Grid />
+              </el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="list">
+                  <span class="view-mode-option">
+                    <span class="view-mode-prefix">
+                      <el-icon v-if="viewMode === 'list'" class="view-mode-check">
+                        <Check />
+                      </el-icon>
+                    </span>
+                    <span :class="{ 'is-active': viewMode === 'list' }">列表模式</span>
+                  </span>
+                </el-dropdown-item>
+                <el-dropdown-item command="thumbnail">
+                  <span class="view-mode-option">
+                    <span class="view-mode-prefix">
+                      <el-icon v-if="viewMode === 'thumbnail'" class="view-mode-check">
+                        <Check />
+                      </el-icon>
+                    </span>
+                    <span :class="{ 'is-active': viewMode === 'thumbnail' }">大图模式</span>
+                  </span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </div>
+      <div class="sort-controls" v-if="viewMode === 'thumbnail'">
+        <span class="sort-label">排序方式：</span>
+        <el-button :type="sortField === 'name' ? 'primary' : 'default'" @click="sortFiles('name')" size="small">
+          名称
+          <el-icon v-if="sortField === 'name'" :class="{ 'is-reverse': sortOrder === 'desc' }">
+            <ArrowUp />
+          </el-icon>
+        </el-button>
+        <el-button :type="sortField === 'size' ? 'primary' : 'default'" @click="sortFiles('size')" size="small">
+          大小
+          <el-icon v-if="sortField === 'size'" :class="{ 'is-reverse': sortOrder === 'desc' }">
+            <ArrowUp />
+          </el-icon>
+        </el-button>
+        <el-button :type="sortField === 'date' ? 'primary' : 'default'" @click="sortFiles('date')" size="small">
+          创建日期
+          <el-icon v-if="sortField === 'date'" :class="{ 'is-reverse': sortOrder === 'desc' }">
+            <ArrowUp />
+          </el-icon>
+        </el-button>
+        <el-button :type="sortField === 'type' ? 'primary' : 'default'" @click="sortFiles('type')" size="small">
+          类型
+          <el-icon v-if="sortField === 'type'" :class="{ 'is-reverse': sortOrder === 'desc' }">
+            <ArrowUp />
+          </el-icon>
+        </el-button>
       </div>
 
       <div class="card-body">
@@ -54,7 +114,7 @@
           <div v-else-if="queryfileListData.length == 0" class="empty-state">
             <el-empty description="未找到匹配的文件" />
           </div>
-          <div v-else class="material-grid">
+          <div v-else-if="viewMode === 'thumbnail'" class="material-grid">
             <!-- 搜索结果文件列表 -->
             <div v-for="material in queryfileListData" :key="material.id" class="material-item"
               @mouseenter="onSubFolderMouseEnter(material)" @mouseleave="onSubFolderMouseLeave(material)">
@@ -85,6 +145,7 @@
               <div class="material-details">
                 <div class="fileName" :title="material.fileName">{{ material.fileName }}</div>
                 <div class="file-id">ID: {{ material.id }}</div>
+                <div class="file-id">大小: {{ formatFileSize(material.fileSize) }}</div>
                 <div class="file-status">
                   <el-tag :type="getStatusTagType(material.annotationStatus)" size="medium">
                     {{ getStatusText(material.annotationStatus) }}
@@ -105,6 +166,99 @@
                 </el-button> -->
               </div>
             </div>
+          </div>
+          <div v-else class="material-table-wrapper">
+            <el-table :data="queryfileListData" class="material-table" :row-key="getListRowKey">
+              <el-table-column min-width="360">
+                <template #header>
+                  <div class="sortable-header" @click="sortFiles('name')">
+                    文件名
+                    <el-icon v-if="sortField === 'name'" class="sort-arrow" :class="{ 'is-reverse': sortOrder === 'desc' }">
+                      <ArrowUp />
+                    </el-icon>
+                  </div>
+                </template>
+                <template #default="{ row }">
+                  <div class="table-file-cell">
+                    <img
+                      v-if="isImage(row.minioPath)"
+                      class="table-thumb"
+                      :src="row.coverPath || row.minioPath"
+                      :alt="row.fileName"
+                      @click.stop="previewImg(row)"
+                    />
+                    <img
+                      v-else-if="isVideo(row.minioPath) && row.coverPath"
+                      class="table-thumb"
+                      :src="row.coverPath"
+                      :alt="row.fileName"
+                      @click.stop="previewVideo(row)"
+                    />
+                    <span v-else-if="isVideo(row.minioPath)" class="table-type-icon" @click.stop="previewVideo(row)">
+                      <el-icon>
+                        <VideoPlay />
+                      </el-icon>
+                    </span>
+                    <span v-else class="table-type-icon" @click.stop="downloadFile(row)">
+                      <el-icon>
+                        <Document />
+                      </el-icon>
+                    </span>
+                    <span class="table-file-name-text" :title="row.fileName" @click="handleListNameClick(row)">
+                      {{ row.fileName }}
+                    </span>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column width="160">
+                <template #header>
+                  <div class="sortable-header" @click="sortFiles('size')">
+                    大小
+                    <el-icon v-if="sortField === 'size'" class="sort-arrow" :class="{ 'is-reverse': sortOrder === 'desc' }">
+                      <ArrowUp />
+                    </el-icon>
+                  </div>
+                </template>
+                <template #default="{ row }">
+                  {{ formatFileSize(row.fileSize) }}
+                </template>
+              </el-table-column>
+              <el-table-column width="160">
+                <template #header>
+                  <div class="sortable-header" @click="sortFiles('type')">
+                    类型
+                    <el-icon v-if="sortField === 'type'" class="sort-arrow" :class="{ 'is-reverse': sortOrder === 'desc' }">
+                      <ArrowUp />
+                    </el-icon>
+                  </div>
+                </template>
+                <template #default="{ row }">
+                  {{ getListFileType(row) }}
+                </template>
+              </el-table-column>
+              <el-table-column width="200">
+                <template #header>
+                  <div class="sortable-header" @click="sortFiles('date')">
+                    修改时间
+                    <el-icon v-if="sortField === 'date'" class="sort-arrow" :class="{ 'is-reverse': sortOrder === 'desc' }">
+                      <ArrowUp />
+                    </el-icon>
+                  </div>
+                </template>
+                <template #default="{ row }">
+                  {{ formatDateTime(row.updateTime || row.createTime) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="220">
+                <template #default="{ row }">
+                  <div class="table-actions">
+                    <el-button link type="primary" @click.stop="showMaterialDetail(row)">标注</el-button>
+                    <el-button link type="primary" @click.stop="editFile(row)">重命名</el-button>
+                    <el-button link type="danger" @click.stop="deleteFileinQuery(row)">删除</el-button>
+                  </div>
+                </template>
+              </el-table-column>
+            </el-table>
           </div>
         </div>
       </div>
@@ -129,18 +283,81 @@
             </div>
           </div>
         </div>
-        <div class="btnList">
-          <el-button type="primary" plain @click="handleAddFolder" size="default">
-            <el-icon style="margin-right: 6px;">
-              <FolderAdd />
-            </el-icon>新建文件夹
-          </el-button>
-          <el-button type="primary" plain @click="uploadFile" size="default">
-            <el-icon style="margin-right: 6px;">
-              <Upload />
-            </el-icon>上传文件
-          </el-button>
+        <div class="pageTopRight">
+          <div class="btnList">
+            <el-button type="primary" plain @click="handleAddFolder" size="default">
+              <el-icon style="margin-right: 6px;">
+                <FolderAdd />
+              </el-icon>新建文件夹
+            </el-button>
+            <el-button type="primary" plain @click="uploadFile" size="default">
+              <el-icon style="margin-right: 6px;">
+                <Upload />
+              </el-icon>上传文件
+            </el-button>
+          </div>
+          <el-dropdown trigger="click" @command="switchViewMode" popper-class="view-mode-dropdown">
+            <el-button class="view-mode-trigger" text>
+              <el-icon>
+                <Grid />
+              </el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="list">
+                  <span class="view-mode-option">
+                    <span class="view-mode-prefix">
+                      <el-icon v-if="viewMode === 'list'" class="view-mode-check">
+                        <Check />
+                      </el-icon>
+                    </span>
+                    <span :class="{ 'is-active': viewMode === 'list' }">列表模式</span>
+                  </span>
+                </el-dropdown-item>
+                <el-dropdown-item command="thumbnail">
+                  <span class="view-mode-option">
+                    <span class="view-mode-prefix">
+                      <el-icon v-if="viewMode === 'thumbnail'" class="view-mode-check">
+                        <Check />
+                      </el-icon>
+                    </span>
+                    <span :class="{ 'is-active': viewMode === 'thumbnail' }">大图模式</span>
+                  </span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
+      </div>
+      <div class="file-count-info">
+        共 {{ fileListData.length }} 个文件，{{ folderData.length }} 个文件夹
+      </div>
+      <div class="sort-controls" v-if="viewMode === 'thumbnail'">
+        <span class="sort-label">排序方式：</span>
+        <el-button :type="sortField === 'name' ? 'primary' : 'default'" @click="sortFiles('name')" size="small">
+          名称
+          <el-icon v-if="sortField === 'name'" :class="{ 'is-reverse': sortOrder === 'desc' }">
+            <ArrowUp />
+          </el-icon>
+        </el-button>
+        <el-button :type="sortField === 'size' ? 'primary' : 'default'" @click="sortFiles('size')" size="small">
+          大小
+          <el-icon v-if="sortField === 'size'" :class="{ 'is-reverse': sortOrder === 'desc' }">
+            <ArrowUp />
+          </el-icon>
+        </el-button>
+        <el-button :type="sortField === 'date' ? 'primary' : 'default'" @click="sortFiles('date')" size="small">
+          创建日期
+          <el-icon v-if="sortField === 'date'" :class="{ 'is-reverse': sortOrder === 'desc' }">
+            <ArrowUp />
+          </el-icon>
+        </el-button>
+        <el-button :type="sortField === 'type' ? 'primary' : 'default'" @click="sortFiles('type')" size="small">
+          类型
+          <el-icon v-if="sortField === 'type'" :class="{ 'is-reverse': sortOrder === 'desc' }">
+            <ArrowUp />
+          </el-icon>
+        </el-button>
       </div>
 
       <div class="card-body">
@@ -152,7 +369,7 @@
           <div v-else-if="folderData.length == 0 && fileListData.length == 0" class="empty-state">
             <el-empty description="暂无内容" />
           </div>
-          <div v-else class="material-grid">
+          <div v-else-if="viewMode === 'thumbnail'" class="material-grid">
             <!-- 文件夹列表 -->
             <div class="subFolder" v-for="(item, index) in folderData" :key="index"
               @mouseenter="onSubFolderMouseEnter(item)" @mouseleave="onSubFolderMouseLeave(item)">
@@ -201,6 +418,7 @@
               <div class="material-details">
                 <div class="fileName" :title="material.fileName">{{ material.fileName }}</div>
                 <div class="file-id">ID: {{ material.id }}</div>
+                <div class="file-id">大小: {{ formatFileSize(material.fileSize) }}</div>
                 <div class="file-status">
                   <!-- 待标注:0  AI标注:1  人工修改:2-->
                   <el-tag :type="getStatusTagType(material.annotationStatus)" size="medium">
@@ -223,6 +441,114 @@
               </div>
 
             </div>
+          </div>
+          <div v-else class="material-table-wrapper">
+            <el-table :data="listViewRows" class="material-table" :row-key="getListRowKey">
+              <el-table-column min-width="360">
+                <template #header>
+                  <div class="sortable-header" @click="sortFiles('name')">
+                    文件名
+                    <el-icon v-if="sortField === 'name'" class="sort-arrow" :class="{ 'is-reverse': sortOrder === 'desc' }">
+                      <ArrowUp />
+                    </el-icon>
+                  </div>
+                </template>
+                <template #default="{ row }">
+                  <div v-if="row._rowType === 'folder'" class="table-file-cell">
+                    <span class="table-type-icon folder" @click="selectFolder(row)">
+                      <el-icon>
+                        <FolderOpened />
+                      </el-icon>
+                    </span>
+                    <span class="table-file-name-text" :title="row.filePath" @click="selectFolder(row)">
+                      {{ row.filePath }}
+                    </span>
+                  </div>
+                  <div v-else class="table-file-cell">
+                    <img
+                      v-if="isImage(row.minioPath)"
+                      class="table-thumb"
+                      :src="row.coverPath || row.minioPath"
+                      :alt="row.fileName"
+                      @click.stop="previewImg(row)"
+                    />
+                    <img
+                      v-else-if="isVideo(row.minioPath) && row.coverPath"
+                      class="table-thumb"
+                      :src="row.coverPath"
+                      :alt="row.fileName"
+                      @click.stop="previewVideo(row)"
+                    />
+                    <span v-else-if="isVideo(row.minioPath)" class="table-type-icon" @click.stop="previewVideo(row)">
+                      <el-icon>
+                        <VideoPlay />
+                      </el-icon>
+                    </span>
+                    <span v-else class="table-type-icon" @click.stop="downloadFile(row)">
+                      <el-icon>
+                        <Document />
+                      </el-icon>
+                    </span>
+                    <span class="table-file-name-text" :title="row.fileName" @click="handleListNameClick(row)">
+                      {{ row.fileName }}
+                    </span>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column width="160">
+                <template #header>
+                  <div class="sortable-header" @click="sortFiles('size')">
+                    大小
+                    <el-icon v-if="sortField === 'size'" class="sort-arrow" :class="{ 'is-reverse': sortOrder === 'desc' }">
+                      <ArrowUp />
+                    </el-icon>
+                  </div>
+                </template>
+                <template #default="{ row }">
+                  {{ getListRowSize(row) }}
+                </template>
+              </el-table-column>
+              <el-table-column width="160">
+                <template #header>
+                  <div class="sortable-header" @click="sortFiles('type')">
+                    类型
+                    <el-icon v-if="sortField === 'type'" class="sort-arrow" :class="{ 'is-reverse': sortOrder === 'desc' }">
+                      <ArrowUp />
+                    </el-icon>
+                  </div>
+                </template>
+                <template #default="{ row }">
+                  {{ getListFileType(row) }}
+                </template>
+              </el-table-column>
+              <el-table-column width="200">
+                <template #header>
+                  <div class="sortable-header" @click="sortFiles('date')">
+                    修改时间
+                    <el-icon v-if="sortField === 'date'" class="sort-arrow" :class="{ 'is-reverse': sortOrder === 'desc' }">
+                      <ArrowUp />
+                    </el-icon>
+                  </div>
+                </template>
+                <template #default="{ row }">
+                  {{ getListRowTime(row) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="250">
+                <template #default="{ row }">
+                  <div v-if="row._rowType === 'folder'" class="table-actions">
+                    <el-button link type="primary" @click.stop="selectFolder(row)">打开</el-button>
+                    <el-button link type="primary" @click.stop="editFolder(row)" v-hasPermi="['xcsc:FilePathMapping:edit']">重命名</el-button>
+                    <el-button link type="danger" @click.stop="deleteFolder(row)">删除</el-button>
+                  </div>
+                  <div v-else class="table-actions">
+                    <el-button link type="primary" @click.stop="showMaterialDetail(row)">标注</el-button>
+                    <el-button link type="primary" @click.stop="editFile(row)">重命名</el-button>
+                    <el-button link type="danger" @click.stop="deleteFile(row)">删除</el-button>
+                  </div>
+                </template>
+              </el-table-column>
+            </el-table>
           </div>
         </div>
       </div>
@@ -304,7 +630,7 @@ const { proxy } = getCurrentInstance();
 import { ref, reactive, onMounted, computed } from 'vue'
 import { api as viewerApi } from "v-viewer";
 import { parseTime, } from '@/utils/common'
-import { Search, VideoCamera, Document, Check, Edit, VideoPlay, Back, ArrowRight, FolderAdd, FolderOpened, Upload, UploadFilled, Delete } from '@element-plus/icons-vue'
+import { Search, VideoCamera, Document, Check, Edit, VideoPlay, Back, ArrowRight, ArrowUp, FolderAdd, FolderOpened, Upload, UploadFilled, Delete, Grid } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile, updateFile, checkChunks, uploadFileChunk, mergeFileChunks } from "@/api/xcsc/uploadFile"
 import MarkDialog from './components/markDialog.vue'
@@ -319,6 +645,12 @@ import download from '../../../plugins/download';
 const searchKeyword = ref('')
 const statusFilter = ref('')
 const showSearchResults = ref(false) // 控制是否显示搜索结果
+
+// 排序相关
+const sortField = ref('name') // 当前排序字段：name, size, date
+const sortOrder = ref('asc') // 当前排序方向：asc, desc
+const viewMode = ref('thumbnail') // 当前展示模式：thumbnail, list
+const nameCollator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' })
 
 // 素材列表
 const loading = ref(false)
@@ -399,6 +731,18 @@ const backFolder = () => {
 // 获取文件夹及文件列表数据
 const folderData = ref([]) //文件夹列表
 const fileListData = ref([])//文件列表
+const listViewRows = computed(() => {
+  const folders = folderData.value.map(item => ({ ...item, _rowType: 'folder' }))
+  const files = fileListData.value.map(item => ({ ...item, _rowType: 'file' }))
+  return [...folders, ...files]
+})
+
+function switchViewMode(mode) {
+  if (mode === 'thumbnail' || mode === 'list') {
+    viewMode.value = mode
+  }
+}
+
 function getFolderData(pid) {
   let params = {
     pid: pid,
@@ -965,10 +1309,12 @@ function getFileName(path) {
 
 // 格式化文件大小
 function formatFileSize(bytes) {
-  if (!bytes) return '未知';
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    //TODO
+  // if (!bytes) return '未知';
+  // if (bytes < 1024) return bytes + ' B';
+  // if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+  // return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  return bytes + ' MB';
 }
 
 // 获取文件类型
@@ -983,6 +1329,59 @@ function formatDate(dateStr) {
   if (!dateStr) return '未知';
   const date = new Date(dateStr);
   return date.getFullYear() + '/' + String(date.getMonth() + 1).padStart(2, '0') + '/' + String(date.getDate()).padStart(2, '0');
+}
+
+function formatDateTime(dateStr) {
+  if (!dateStr) return '--';
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return '--';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hour}:${minute}`;
+}
+
+function getListRowKey(row) {
+  if (row?._rowType === 'folder') {
+    return `folder-${row.bizId || row.id || row.filePath}`;
+  }
+  return `file-${row?.id || row?.fileName || ''}`;
+}
+
+function getListFileType(row) {
+  if (row?._rowType === 'folder') return '文件夹';
+  const fileType = getFileType(row?.minioPath || '');
+  if (fileType === '未知') return fileType;
+  return `${fileType.toLowerCase()}文件`;
+}
+
+function getListRowSize(row) {
+  if (row?._rowType === 'folder') return '--';
+  return formatFileSize(row?.fileSize);
+}
+
+function getListRowTime(row) {
+  return formatDateTime(row?.updateTime || row?.createTime);
+}
+
+function handleListNameClick(row) {
+  if (!row) return;
+  if (row._rowType === 'folder') {
+    selectFolder(row);
+    return;
+  }
+  const filePath = row.minioPath || '';
+  if (isImage(filePath)) {
+    previewImg(row);
+    return;
+  }
+  if (isVideo(filePath)) {
+    previewVideo(row);
+    return;
+  }
+  downloadFile(row);
 }
 // 检查文件格式是否支持
 // const isSupportedFormat = (filename) => {
@@ -1218,6 +1617,60 @@ function showMaterialDetail(material) {
   markDialogRef.value.open(material)
 }
 
+// 排序文件
+function sortFiles(field) {
+  // 如果点击的是当前排序字段，则切换排序方向
+  if (sortField.value === field) {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    // 否则，设置新的排序字段和默认排序方向
+    sortField.value = field
+    sortOrder.value = 'asc'
+  }
+  
+  // 根据当前视图对相应的文件列表进行排序
+  if (showSearchResults.value) {
+    sortFileList(queryfileListData)
+  } else {
+    sortFileList(fileListData)
+  }
+}
+
+// 具体的排序实现
+function sortFileList(fileList) {
+  const order = sortOrder.value === 'asc' ? 1 : -1
+  
+  fileList.value = [...fileList.value].sort((a, b) => {
+    switch (sortField.value) {
+      case 'name':
+        // 按文件名排序
+        const nameA = (a.fileName || '').toLowerCase()
+        const nameB = (b.fileName || '').toLowerCase()
+        return nameCollator.compare(nameA, nameB) * order
+      
+      case 'size':
+        // 按文件大小排序
+        const sizeA = a.fileSize || 0
+        const sizeB = b.fileSize || 0
+        return (sizeA - sizeB) * order
+      
+      case 'date':
+        // 按创建日期排序
+        const dateA = new Date(a.createTime || 0).getTime()
+        const dateB = new Date(b.createTime || 0).getTime()
+        return (dateA - dateB) * order
+      
+      case 'type':
+        // 按文件类型排序
+        const typeA = getFileType(a.minioPath || '').toLowerCase()
+        const typeB = getFileType(b.minioPath || '').toLowerCase()
+        return nameCollator.compare(typeA, typeB) * order
+      
+      default:
+        return 0
+    }
+  })
+}
 
 </script>
 
@@ -1373,6 +1826,50 @@ function showMaterialDetail(material) {
     display: flex;
     gap: 12px;
   }
+
+  .pageTopRight {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .view-mode-trigger {
+    font-size: 18px;
+    color: #606266;
+    padding: 6px;
+    border-radius: 4px;
+    border: none;
+
+    &:hover,
+    &:focus-visible {
+      color: #409eff;
+      background: #ecf5ff;
+    }
+  }
+
+}
+
+:deep(.view-mode-dropdown .view-mode-option) {
+  display: inline-flex;
+  align-items: center;
+  min-width: 72px;
+}
+
+:deep(.view-mode-dropdown .view-mode-prefix) {
+  width: 16px;
+  margin-right: 6px;
+  flex: 0 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:deep(.view-mode-dropdown .view-mode-check) {
+  color: #409eff;
+}
+
+:deep(.view-mode-dropdown .view-mode-option .is-active) {
+  color: #409eff;
 }
 
 .search-filter {
@@ -1395,6 +1892,126 @@ function showMaterialDetail(material) {
   font-size: 16px;
   color: #606266;
   font-weight: 500;
+}
+
+.file-count-info {
+  padding: 12px 20px;
+  font-size: 14px;
+  color: #606266;
+  // background: #ffffff;
+  // border-bottom: 1px solid #e4e7ed;
+}
+
+.sort-controls {
+  padding: 8px 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e4e7ed;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  
+  .sort-label {
+    font-size: 14px;
+    color: #606266;
+    font-weight: 500;
+  }
+  
+  :deep(.el-button) {
+    margin-right: 8px;
+    
+    .el-icon {
+      margin-left: 4px;
+      transition: transform 0.3s ease;
+      
+      &.is-reverse {
+        transform: rotate(180deg);
+      }
+    }
+  }
+}
+
+.sort-arrow {
+  margin-left: 4px;
+  transition: transform 0.3s ease;
+}
+
+.sort-arrow.is-reverse {
+  transform: rotate(180deg);
+}
+
+.sortable-header {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+
+  &:hover {
+    color: #409eff;
+  }
+}
+
+.material-table-wrapper {
+  width: 100%;
+}
+
+.table-file-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.table-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #f5f7fa;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.table-type-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  background: #f5f7fa;
+  color: #909399;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.table-type-icon.folder {
+  color: #e6a23c;
+  width: 48px;
+  height: 48px;
+  
+  :deep(.el-icon) {
+    font-size: 24px;
+  }
+}
+
+.table-file-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #303133;
+  cursor: pointer;
+
+  &:hover {
+    color: #409eff;
+  }
+}
+
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .card-body {
@@ -1678,6 +2295,11 @@ function showMaterialDetail(material) {
     align-items: stretch;
   }
 
+  .pageTopRight {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .btnList {
     justify-content: center;
   }
@@ -1704,5 +2326,28 @@ function showMaterialDetail(material) {
 /* 图片预览防止被弹框遮盖 */
 .viewer-container {
   z-index: 9999 !important;
+}
+
+.view-mode-dropdown .view-mode-option {
+  display: inline-flex;
+  align-items: center;
+  min-width: 72px;
+}
+
+.view-mode-dropdown .view-mode-prefix {
+  width: 16px;
+  margin-right: 6px;
+  flex: 0 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.view-mode-dropdown .view-mode-check {
+  color: #409eff;
+}
+
+.view-mode-dropdown .view-mode-option .is-active {
+  color: #409eff;
 }
 </style>

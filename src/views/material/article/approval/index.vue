@@ -137,10 +137,18 @@
         </div>
         <!-- 栏花预览 -->
         <div v-if="currentArticle.columnOrnamentUrl" class="flower-preview">
-          <h4 class="flower-title">栏花：</h4>
+          <h4 class="flower-title">封面图：</h4>
           <img :src="currentArticle.columnOrnamentUrl" alt="栏花" class="flower-image">
         </div>
-        <div class="article-content" v-html="currentArticle.content"></div>
+        <!-- 正文内容或附件链接 -->
+        <div v-if="currentArticle.content && currentArticle.content.replace(/<[^>]+>/g, '').trim()" class="article-content" v-html="currentArticle.content"></div>
+        <div v-else-if="currentArticle.attachmentUrl" class="attachment-link-section">
+          <h4 class="attachment-title">附件：</h4>
+          <el-link type="primary" :underline="true" @click="handleAttachments(currentArticle)">{{ currentArticle.attachmentName || getAttachmentName(currentArticle.attachmentUrl) }}</el-link>
+        </div>
+        <div v-else class="empty-content">
+          <p>暂无正文内容</p>
+        </div>
       </div>
       <template #footer>
         <el-button @click="viewDialogVisible = false">关闭</el-button>
@@ -157,7 +165,7 @@
     >
       <el-form :model="approveForm" label-width="100px">
         <el-form-item label="审批结果">
-          <el-radio-group v-model="approveForm.approvalStatus">
+          <el-radio-group v-model="approveForm.approvalStatus" @change="handleApprovalStatusChange">
             <el-radio :label="1">通过</el-radio>
             <el-radio :label="2">不通过</el-radio>
           </el-radio-group>
@@ -185,7 +193,7 @@
 import { ref, reactive, onMounted, computed, useSSRContext } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, ArrowUp, Clock, CircleCheck } from '@element-plus/icons-vue'
-import { listArticle, getArticle, updateArticle, exportHtmlToWord, approvalArticle} from "@/api/xcsc/article"
+import { listArticle, listAllArticle, getArticle, updateArticle, exportHtmlToWord, approvalArticle} from "@/api/xcsc/article"
 import { downloadFile } from "@/api/xcsc/uploadFile"
 import useUserStore from '@/store/modules/user'
 import { parseTime } from '@/utils/common'
@@ -259,6 +267,21 @@ const getStatusText = (status) => {
   }
 }
 
+// 从附件URL中提取文件名
+const getAttachmentName = (url) => {
+  if (!url) return '附件'
+  try {
+    // 从URL中提取文件名
+    const parts = url.split('/')
+    const fileName = parts[parts.length - 1]
+    // 解码URL编码的文件名
+    return decodeURIComponent(fileName)
+  } catch (error) {
+    console.error('提取附件名失败:', error)
+    return '附件'
+  }
+}
+
 const getList = async () => {
   loading.value = true
   try {
@@ -276,7 +299,7 @@ const getList = async () => {
       queryParams.approvalStatus = ''
     }
     
-    const response = await listArticle(queryParams)
+    const response = await listAllArticle(queryParams)
     let filteredList = response.rows || []
     
     if (activeTab.value === 'approved') {
@@ -284,12 +307,12 @@ const getList = async () => {
     }
     
     articleList.value = filteredList
-    total.value = activeTab.value === 'approved' ? filteredList.length : (response.total || 0)
+    total.value = response.total || 0
     
     if (activeTab.value === 'pending') {
       pendingCount.value = total.value
     } else {
-      const pendingResponse = await listArticle({ ...queryParams, approvalStatus: 0, pageNum: 1, pageSize: 1 })
+      const pendingResponse = await listAllArticle({ ...queryParams, approvalStatus: 0, pageNum: 1, pageSize: 1 })
       pendingCount.value = pendingResponse.total || 0
     }
   } catch (error) {
@@ -372,6 +395,12 @@ const handleAttachments = async (row) => {
   } catch (error) {
     ElMessage.error('下载附件失败')
     console.error('下载附件失败:', error)
+  }
+}
+
+const handleApprovalStatusChange = (value) => {
+  if (value === 1) {
+    approveForm.approvalComments = ''
   }
 }
 
@@ -596,5 +625,30 @@ onMounted(() => {
   max-height: 300px;
   border-radius: 4px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* 附件链接部分样式 */
+.attachment-link-section {
+  margin: 20px 0;
+  padding: 15px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+
+.attachment-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 10px;
+}
+
+/* 空内容部分样式 */
+.empty-content {
+  margin: 20px 0;
+  padding: 40px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  text-align: center;
+  color: #909399;
 }
 </style>

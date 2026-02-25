@@ -133,7 +133,15 @@
           <h4 class="flower-title">封面图：</h4>
           <img :src="currentArticle.columnOrnamentUrl" alt="封面图" class="flower-image">
         </div>
-        <div class="article-content" v-html="currentArticle.content"></div>
+        <!-- 正文内容或附件链接 -->
+        <div v-if="currentArticle.content && currentArticle.content.replace(/<[^>]+>/g, '').trim()" class="article-content" v-html="currentArticle.content"></div>
+        <div v-else-if="currentArticle.attachmentUrl" class="attachment-link-section">
+          <h4 class="attachment-title">附件：</h4>
+          <el-link type="primary" :underline="true" @click="handleAttachments(currentArticle)">{{ currentArticle.attachmentName || getAttachmentName(currentArticle.attachmentUrl) }}</el-link>
+        </div>
+        <div v-else class="empty-content">
+          <p>暂无正文内容</p>
+        </div>
       </div>
       <template #footer>
         <el-button @click="viewDialogVisible = false">关闭</el-button>
@@ -431,6 +439,21 @@ const getStatusText = (status) => {
       return '待审批'
     default:
       return '未知'
+  }
+}
+
+// 从附件URL中提取文件名
+const getAttachmentName = (url) => {
+  if (!url) return '附件'
+  try {
+    // 从URL中提取文件名
+    const parts = url.split('/')
+    const fileName = parts[parts.length - 1]
+    // 解码URL编码的文件名
+    return decodeURIComponent(fileName)
+  } catch (error) {
+    console.error('提取附件名失败:', error)
+    return '附件'
   }
 }
 
@@ -760,5 +783,30 @@ onMounted(() => {
 
 .header-right {
   margin-left: 20px;
+}
+
+/* 附件链接部分样式 */
+.attachment-link-section {
+  margin: 20px 0;
+  padding: 15px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+
+.attachment-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 10px;
+}
+
+/* 空内容部分样式 */
+.empty-content {
+  margin: 20px 0;
+  padding: 40px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  text-align: center;
+  color: #909399;
 }
 </style>

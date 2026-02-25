@@ -65,7 +65,7 @@
 
     <div class="editor-section">
       <!-- WangEditor 富文本编辑器 核心组件 -->
-      <h4 class="required-title">正文：</h4>
+      <h4 class="common-title">正文：</h4>
       <div style="border: 1px solid #ccc; border-radius: 4px;">
         <Toolbar
           style="border-bottom: 1px solid #ccc; padding: 6px 10px"
@@ -312,11 +312,6 @@ async function handleSubmit() {
 
   // 从编辑器实例获取 HTML 内容
   const contentHtml = editorRef.value?.getHtml() || ''
-  const pureText = contentHtml.replace(/<[^>]+>/g, '').trim()
-  if (pureText.length === 0) {
-    ElMessage.warning('请输入文章正文内容，不能为空')
-    return
-  }
 
   // 创建 FormData 并填充数据
   const formData = new FormData();

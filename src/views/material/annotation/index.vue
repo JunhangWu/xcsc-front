@@ -44,6 +44,11 @@
           </div>
         </div>
         <div class="pageTopRight">
+          <el-button type="primary" plain @click="refreshData" size="default">
+            <el-icon style="margin-right: 6px;">
+              <Refresh />
+            </el-icon>刷新
+          </el-button>
           <el-dropdown trigger="click" @command="switchViewMode" popper-class="view-mode-dropdown">
             <el-button class="view-mode-trigger" text>
               <el-icon>
@@ -285,6 +290,16 @@
         </div>
         <div class="pageTopRight">
           <div class="btnList">
+            <el-button type="primary" plain @click="refreshData" size="default">
+              <el-icon style="margin-right: 6px;">
+                <Refresh />
+              </el-icon>刷新
+            </el-button>
+            <el-button type="primary" plain @click="renameFilesByFolderName" size="default">
+              <el-icon style="margin-right: 6px;">
+                <DocumentCopy />
+              </el-icon>按文件夹名重命名文件
+            </el-button>
             <el-button type="primary" plain @click="handleAddFolder" size="default">
               <el-icon style="margin-right: 6px;">
                 <FolderAdd />
@@ -294,6 +309,12 @@
               <el-icon style="margin-right: 6px;">
                 <Upload />
               </el-icon>上传文件
+            </el-button>
+            <el-button type="primary" plain @click="toggleUploadList" size="default" class="upload-list-btn">
+              <el-icon style="margin-right: 6px;">
+                <Files />
+              </el-icon>传输列表
+              <span v-if="uploadTaskCount > 0" class="task-count-badge">{{ uploadTaskCount }}</span>
             </el-button>
           </div>
           <el-dropdown trigger="click" @command="switchViewMode" popper-class="view-mode-dropdown">
@@ -619,6 +640,55 @@
 
     <!-- 素材标注弹框 -->
     <MarkDialog ref="markDialogRef" @updateFileList="getFolderData(curFolderObj.bizId)"></MarkDialog>
+
+    <!-- 上传管理面板 -->
+    <div v-if="uploadManagerVisible" class="upload-manager-panel">
+      <div class="upload-manager-header">
+        <span>上传管理</span>
+        <el-icon @click="toggleUploadList" style="cursor: pointer; color: #909399;">
+          <Close />
+        </el-icon>
+      </div>
+      <div class="upload-manager-body">
+        <div v-if="uploadTasks.length === 0" class="upload-manager-empty">
+          <el-empty description="暂无上传任务" />
+        </div>
+        <div v-for="task in uploadTasks" :key="task.id" class="upload-task-item">
+          <div class="upload-task-header">
+            <span class="upload-task-name">{{ task.fileName }}</span>
+            <span :class="['upload-task-status', task.status]">{{ getTaskStatusText(task.status) }}</span>
+          </div>
+          <div class="upload-task-progress">
+            <el-progress 
+              :percentage="task.progress" 
+              :status="task.progress === 100 ? 'success' : 'primary'"
+              :stroke-width="10"
+            ></el-progress>
+          </div>
+          <div class="upload-task-info">
+            <span>速度: {{ task.speed || '0 B/s' }}</span>
+            <span>进度: {{ task.progress }}%</span>
+          </div>
+          <div class="upload-task-actions">
+            <el-button v-if="task.status === 'uploading'" class="upload-task-action-btn" type="default" size="small" @click="pauseTask(task.id)">
+              <el-icon><VideoPause /></el-icon>
+            </el-button>
+            <el-button v-else-if="task.status === 'paused'" class="upload-task-action-btn" type="default" size="small" @click="resumeTask(task.id)">
+              <el-icon><VideoPlay /></el-icon>
+            </el-button>
+            <el-button class="upload-task-action-btn is-cancel" type="default" size="small" @click="cancelTask(task.id)">
+              <el-icon><Delete /></el-icon>
+            </el-button>
+          </div>
+        </div>
+      </div>
+      <div class="upload-manager-footer">
+        <span>共 {{ uploadTasks.length }} 个任务</span>
+        <el-button type="primary" size="small" @click="clearCompletedTasks">
+          清空已完成
+        </el-button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -630,7 +700,7 @@ const { proxy } = getCurrentInstance();
 import { ref, reactive, onMounted, computed } from 'vue'
 import { api as viewerApi } from "v-viewer";
 import { parseTime, } from '@/utils/common'
-import { Search, VideoCamera, Document, Check, Edit, VideoPlay, Back, ArrowRight, ArrowUp, FolderAdd, FolderOpened, Upload, UploadFilled, Delete, Grid } from '@element-plus/icons-vue'
+import { Search, VideoCamera, Document, Check, Edit, VideoPlay, VideoPause, Back, ArrowRight, ArrowUp, FolderAdd, FolderOpened, Upload, UploadFilled, Delete, Grid, Close, List, Files, DocumentCopy, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile, updateFile, checkChunks, uploadFileChunk, mergeFileChunks } from "@/api/xcsc/uploadFile"
 import MarkDialog from './components/markDialog.vue'
@@ -782,6 +852,59 @@ function getQueryData() {
   })
 }
 
+function refreshData() {
+  if (showSearchResults.value) {
+    getQueryData()
+    return
+  }
+  const pid = curFolderObj.bizId || 0
+  getFolderData(pid)
+}
+function getCurrentFolderPath() {
+  let folderPath = ''
+  breadcrumbData.value.forEach((item, idx) => {
+    folderPath += item.filePath
+    if (idx !== breadcrumbData.value.length - 1) {
+      folderPath += '/'  
+    }
+  })
+  return folderPath
+}
+
+function getFileExtension(name) {
+  if (!name) return ''
+  const dotIndex = name.lastIndexOf('.')
+  return dotIndex > -1 ? name.substring(dotIndex) : ''
+}
+
+function renameFilesByFolderName() {
+  if (showFolder.value || !curFolderObj.bizId) {
+    ElMessage.warning('请选择一个文件夹')
+    return
+  }
+  if (fileListData.value.length === 0) {
+    ElMessage.warning('当前文件夹下没有文件')
+    return
+  }
+  const folderName = curFolderObj.filePath || '文件'
+  const folderPath = getCurrentFolderPath()
+  proxy.$modal.confirm(`确定将当前文件夹下的${fileListData.value.length}个文件重命名为"${folderName}1"..."${folderName}${fileListData.value.length}"吗?`).then(() => {
+    const updatePromises = fileListData.value.map((file, idx) => {
+      const ext = getFileExtension(file.fileName || getFileName(file.minioPath))
+      const newName = `${folderName}${idx + 1}${ext}`
+      const params = {
+        id: file.id,
+        fileName: newName,
+        localPath: `${folderPath}/${newName}`,
+      }
+      return updateFile(params)
+    })
+    return Promise.all(updatePromises)
+  }).then(() => {
+    ElMessage.success('批量重命名成功！')
+    getFolderData(curFolderObj.bizId)
+  }).catch(() => { })
+}
 
 //新建文件夹
 const handleFolderType = ref('add') // add edit edit_file
@@ -1018,6 +1141,74 @@ const uploadSpeed = ref(''); // 上传速率
 let lastLoaded = 0; // 上一次的已上传字节数
 let lastTime = 0; // 上一次的时间戳
 const fileUploadStatus = ref([]); // 存储每个文件的上传状态和进度
+
+// 上传管理
+const uploadManagerVisible = ref(false) // 上传管理面板显示状态
+const uploadTasks = ref([]) // 上传任务列表
+let taskIdCounter = 1 // 任务ID计数器
+
+// 计算当前任务数量（用于徽章显示）
+const uploadTaskCount = computed(() => {
+  return uploadTasks.value.filter(task => task.status !== 'completed' && task.status !== 'failed').length
+})
+
+// 切换上传管理面板显示状态
+function toggleUploadList() {
+  uploadManagerVisible.value = !uploadManagerVisible.value
+}
+
+// 获取任务状态文本
+function getTaskStatusText(status) {
+  const statusMap = {
+    waiting: '等待中',
+    uploading: '上传中',
+    paused: '暂停中',
+    completed: '已完成',
+    failed: '失败'
+  }
+  return statusMap[status] || '未知'
+}
+
+// 暂停任务
+function pauseTask(taskId) {
+  const task = uploadTasks.value.find(t => t.id === taskId)
+  if (task && task.status === 'uploading') {
+    task.status = 'paused'
+    task.isPaused = true
+    ElMessage.info(`已暂停上传：${task.fileName}`)
+  }
+}
+
+// 继续任务
+function resumeTask(taskId) {
+  const task = uploadTasks.value.find(t => t.id === taskId)
+  if (task && task.status === 'paused') {
+    task.status = 'uploading'
+    task.isPaused = false
+    ElMessage.info(`已继续上传：${task.fileName}`)
+    // 继续由原有上传流程恢复
+  }
+}
+
+// 取消任务
+function cancelTask(taskId) {
+  const taskIndex = uploadTasks.value.findIndex(t => t.id === taskId)
+  if (taskIndex !== -1) {
+    const task = uploadTasks.value[taskIndex]
+    // 取消正在进行的上传请求
+    if (task.cancelSource && typeof task.cancelSource.cancel === 'function') {
+      task.cancelSource.cancel('上传任务已取消');
+    }
+    task.status = 'cancelled'
+    uploadTasks.value.splice(taskIndex, 1)
+    ElMessage.info(`已取消上传：${task.fileName}`)
+  }
+}
+
+// 清空已完成的任务
+function clearCompletedTasks() {
+  uploadTasks.value = uploadTasks.value.filter(task => task.status !== 'completed' && task.status !== 'failed')
+}
 function uploadFile() {
   fileList.value = []
   uploadDialogVisible.value = true
@@ -1039,6 +1230,33 @@ const CHUNK_SIZE = 16 * 1024 * 1024;
 
 // 工具函数：计算文件MD5哈希（需引入spark-md5库，npm install spark-md5）
 import SparkMD5 from 'spark-md5';
+function getChunkSizeByIndex(fileSize, chunkIndex) {
+  const start = chunkIndex * CHUNK_SIZE;
+  if (start >= fileSize) {
+    return 0;
+  }
+  return Math.min(CHUNK_SIZE, fileSize - start);
+}
+
+function calcUploadedBytes(uploadedChunks, fileSize) {
+  if (!Array.isArray(uploadedChunks) || uploadedChunks.length === 0) {
+    return 0;
+  }
+  return uploadedChunks.reduce((sum, idx) => sum + getChunkSizeByIndex(fileSize, idx), 0);
+}
+
+function formatSpeed(speedBps) {
+  if (!Number.isFinite(speedBps) || speedBps <= 0) {
+    return '0 B/s';
+  }
+  if (speedBps < 1024) {
+    return `${speedBps.toFixed(2)} B/s`;
+  }
+  if (speedBps < 1024 * 1024) {
+    return `${(speedBps / 1024).toFixed(2)} KB/s`;
+  }
+  return `${(speedBps / (1024 * 1024)).toFixed(2)} MB/s`;
+}
 async function calculateFastHash(file) {
   return new Promise((resolve) => {
     const spark = new SparkMD5.ArrayBuffer();
@@ -1126,35 +1344,34 @@ async function uploadChunk(fileHash, chunkIndex, chunk, folderId, folderPath, fi
   const config = {
     onUploadProgress: (progressEvent) => {
       if (progressEvent.total && fileUploadStatus.value[fileIndex]) {
-        // 计算单个分块的上传进度，更新对应文件的进度
-        const chunkProgress = (progressEvent.loaded / progressEvent.total) * 100;
-        const totalProgress = ((chunkIndex + chunkProgress/100) / chunk.totalChunks) * 100;
-        fileUploadStatus.value[fileIndex].progress = Math.min(Math.round(totalProgress), 100);
+        const status = fileUploadStatus.value[fileIndex];
+        const baseUploadedBytes = status.uploadedBytes || 0;
+        const currentLoaded = baseUploadedBytes + progressEvent.loaded;
+        const progress = (currentLoaded / chunk.fileSize) * 100;
+        status.progress = Math.min(Math.round(progress), 100);
         
-        // 计算对应文件的上传速率
+        // 计算对应文件的实时上传速率
         const currentTime = Date.now();
-        const currentLoaded = progressEvent.loaded + (chunkIndex * CHUNK_SIZE);
-        if (fileUploadStatus.value[fileIndex].lastTime > 0) {
-          const timeDiff = (currentTime - fileUploadStatus.value[fileIndex].lastTime) / 1000;
-          const loadedDiff = currentLoaded - fileUploadStatus.value[fileIndex].lastLoaded;
+        if (status.lastTime > 0) {
+          const timeDiff = (currentTime - status.lastTime) / 1000;
+          const loadedDiff = currentLoaded - status.lastLoaded;
           if (timeDiff > 0) {
-            const speedBps = loadedDiff / timeDiff;
-            if (speedBps < 1024) {
-              fileUploadStatus.value[fileIndex].speed = `${speedBps.toFixed(2)} B/s`;
-            } else if (speedBps < 1024 * 1024) {
-              fileUploadStatus.value[fileIndex].speed = `${(speedBps / 1024).toFixed(2)} KB/s`;
-            } else {
-              fileUploadStatus.value[fileIndex].speed = `${(speedBps / (1024 * 1024)).toFixed(2)} MB/s`;
-            }
+            status.speed = formatSpeed(loadedDiff / timeDiff);
           }
         }
-        fileUploadStatus.value[fileIndex].lastLoaded = currentLoaded;
-        fileUploadStatus.value[fileIndex].lastTime = currentTime;
+        status.lastLoaded = currentLoaded;
+        status.lastTime = currentTime;
       }
     }
   };
 
-  return uploadFileChunk(formData, config);
+  const res = await uploadFileChunk(formData, config);
+  if (fileUploadStatus.value[fileIndex]) {
+    const status = fileUploadStatus.value[fileIndex];
+    status.uploadedBytes = (status.uploadedBytes || 0) + chunk.size;
+    status.lastLoaded = status.uploadedBytes;
+  }
+  return res;
 }
 
 // 工具函数：合并分块
@@ -1174,8 +1391,6 @@ async function mergeChunks(fileHash, fileName, totalChunks, folderId, folderPath
 
 // 改造后的确认上传函数
 async function confirmUpload() {
-  debugger
-  console.log("执行到debugger之后");
   // 1. 保留你原有文件大小校验逻辑（可选）
   // const totalSize = fileList.value.reduce((sum, f) => sum + ((f.raw || f.originFileObj || f).size || 0), 0);
   // const maxTotalSize = 5120 * 1024 * 1024; // 5120MB
@@ -1185,16 +1400,7 @@ async function confirmUpload() {
   //   return;
   // }
 
-  // 2. 设置上传状态
-  isUploading.value = true;
-  uploadProgress.value = 0;
-  showProgress.value = true;
-  uploadSpeed.value = '';
-  lastLoaded = 0;
-  lastTime = 0;
-  fileUploadStatus.value = []; // 清空文件上传状态
-
-  // 3. 处理每个文件的分块上传
+  // 2. 处理每个文件的分块上传
   const files = fileList.value.map(item => item.raw || item.originFileObj || item);
   const folderId = curFolderObj.bizId;
   let folderPath = '';
@@ -1205,87 +1411,195 @@ async function confirmUpload() {
     }
   });
 
+  // 3. 为每个文件创建上传任务
+  const tasks = [];
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const task = reactive({
+      id: taskIdCounter++,
+      fileName: file.name,
+      progress: 0,
+      speed: '0 B/s',
+      status: 'waiting',
+      file: file,
+      folderId: folderId,
+      folderPath: folderPath,
+      fileLastModified: parseTime(file.lastModifiedDate),
+      contentType: file.type,
+      fileSize: file.size,
+      totalBytes: file.size,
+      uploadedBytes: 0,
+      lastLoaded: 0,
+      lastTime: 0,
+      chunks: [],
+      uploadedChunks: [],
+      isPaused: false,
+      isProcessing: false,
+      cancelToken: null,
+      cancelSource: null
+    });
+    uploadTasks.value.push(task);
+    tasks.push(task);
+  }
+
+  // 4. 关闭上传对话框并显示提示
+  uploadDialogVisible.value = false;
+  ElMessage.success('任务已添加后台运行！');
+
+  // 5. 后台执行上传任务
+  for (let task of tasks) {
+    await processUploadTask(task);
+  }
+
+  // 6. 上传完成后刷新文件列表
+  getFolderData(curFolderObj.bizId);
+}
+
+// 处理单个上传任务
+async function processUploadTask(task) {
+  if (task.isProcessing) {
+    return;
+  }
+  task.isProcessing = true;
+
   try {
-    // 遍历每个文件进行分块上传
-    for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
-      const file = files[fileIndex];
-      const fileName = file.name;
-      const fileSize = file.size;
-      const contentType = file.type;
-      const fileLastModified = parseTime(file.lastModifiedDate);
-      
-      // 初始化文件上传状态
-      fileUploadStatus.value.push({
-        fileName: fileName,
-        progress: 0,
-        speed: '',
-        lastLoaded: 0,
-        lastTime: 0
-      });
-      
-      // 3.1 计算文件哈希（用于秒传/断点续传）
-      const fileHash = await calculateFastHash(file);
-      ElMessage.info(`开始上传文件：${fileName}`);
+    // 更新任务状态为上传中
+    task.status = 'uploading';
+    
+    const file = task.file;
+    const fileName = task.fileName;
+    const fileSize = task.fileSize;
+    const contentType = task.contentType;
+    const fileLastModified = task.fileLastModified;
+    const folderId = task.folderId;
+    const folderPath = task.folderPath;
+    
+    // 计算文件哈希（用于秒传/断点续传）
+    const fileHash = await calculateFastHash(file);
+    
+    // 查询已上传分块（断点续传核心）
+    const uploadedChunks = await getUploadedChunks(fileHash);
+    const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
+    const uploadedBytes = calcUploadedBytes(uploadedChunks, fileSize);
+    task.uploadedBytes = uploadedBytes;
+    task.lastLoaded = uploadedBytes;
+    if (uploadedBytes > 0) {
+      task.progress = Math.min(Math.round((uploadedBytes / fileSize) * 100), 100);
+    }
 
-      // 3.2 查询已上传分块（断点续传核心）
-      const uploadedChunks = await getUploadedChunks(fileHash);
-      const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
+    // 秒传判断：如果所有分块都已上传，直接合并
+    if (uploadedChunks.length === totalChunks) {
+      await mergeChunks(fileHash, fileName, totalChunks, folderId, folderPath, fileLastModified, contentType);
+      task.progress = 100;
+      task.status = 'completed';
+      ElMessage.success(`${fileName} 秒传成功！`);
+      return;
+    }
 
-      // 3.3 秒传判断：如果所有分块都已上传，直接合并
-      if (uploadedChunks.length === totalChunks) {
-        await mergeChunks(fileHash, fileName, totalChunks, folderId, folderPath, fileLastModified, contentType);
-        ElMessage.success(`${fileName} 秒传成功！`);
-        fileUploadStatus.value[fileIndex].progress = 100;
+    // 分块上传：只传未上传的分块
+    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+      // 检查任务是否被暂停
+      while (task.status === 'paused') {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // 检查任务是否被取消
+      if (task.status === 'cancelled') {
+        return;
+      }
+
+      // 跳过已上传的分块
+      if (uploadedChunks.includes(chunkIndex)) {
         continue;
       }
 
-      // 3.4 分块上传：只传未上传的分块
-      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-        // 跳过已上传的分块
-        if (uploadedChunks.includes(chunkIndex)) {
-          continue;
-        }
+      // 切分文件块
+      const start = chunkIndex * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, fileSize);
+      const chunk = file.slice(start, end);
+      // 给分块附加元信息
+      chunk.fileName = fileName;
+      chunk.fileSize = fileSize;
+      chunk.totalChunks = totalChunks;
 
-        // 切分文件块
-        const start = chunkIndex * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, fileSize);
-        const chunk = file.slice(start, end);
-        // 给分块附加元信息
-        chunk.fileName = fileName;
-        chunk.fileSize = fileSize;
-        chunk.totalChunks = totalChunks;
-
-        // 上传当前分块
-        await uploadChunk(fileHash, chunkIndex, chunk, folderId, folderPath, fileLastModified, fileIndex);
-      }
-
-      // 3.5 所有分块上传完成，合并分块
-      await mergeChunks(fileHash, fileName, totalChunks, folderId, folderPath, fileLastModified, contentType);
-      ElMessage.success(`${fileName} 上传完成！`);
-      fileUploadStatus.value[fileIndex].progress = 100;
+      // 上传当前分块
+      await uploadChunkWithProgress(fileHash, chunkIndex, chunk, folderId, folderPath, fileLastModified, task);
+      task.uploadedBytes = (task.uploadedBytes || 0) + chunk.size;
     }
 
-    // 4. 所有文件上传完成
-    ElMessage.success('全部文件上传完成！');
-    // 关闭上传对话框
-    uploadDialogVisible.value = false;
-    // 刷新文件列表
-    getFolderData(curFolderObj.bizId);
+    // 所有分块上传完成，合并分块
+    await mergeChunks(fileHash, fileName, totalChunks, folderId, folderPath, fileLastModified, contentType);
+    task.progress = 100;
+    task.status = 'completed';
+    ElMessage.success(`${fileName} 上传完成！`);
   } catch (e) {
-    console.error('上传失败', e);
-    ElMessage.error(`上传失败：${e.message}`);
+    // 检查是否是取消操作
+    if (e.message && e.message.includes('上传任务已取消')) {
+      console.log('上传任务已取消:', task.fileName);
+      task.status = 'cancelled';
+    } else {
+      console.error('上传失败', e);
+      task.status = 'failed';
+      ElMessage.error(`${task.fileName} 上传失败：${e.message}`);
+    }
   } finally {
-    isUploading.value = false;
-    uploadDialogVisible.value = false;
-    fileList.value = [];
-    uploadProgress.value = 0;
-    showProgress.value = false;
-    uploadSpeed.value = '';
-    lastLoaded = 0;
-    lastTime = 0;
-    fileUploadStatus.value = [];
-    // 重置上传状态
-    isUploading.value = false;
+    task.isProcessing = false;
+  }
+}
+
+// 导入 axios 用于创建 CancelToken
+import axios from 'axios';
+
+// 上传分块并更新任务进度
+async function uploadChunkWithProgress(fileHash, chunkIndex, chunk, folderId, folderPath, fileLastModified, task) {
+  // 创建 CancelToken
+  const cancelSource = axios.CancelToken.source();
+  task.cancelSource = cancelSource;
+  task.cancelToken = cancelSource.token;
+
+  const formData = new FormData();
+  formData.append('fileChunk', chunk);
+  formData.append('fileHash', fileHash);
+  formData.append('chunkIndex', chunkIndex);
+  formData.append('totalChunks', Math.ceil(chunk.fileSize / CHUNK_SIZE));
+  formData.append('folderId', folderId);
+  formData.append('folderPath', folderPath);
+  formData.append('eventTimes', fileLastModified);
+  formData.append('fileName', chunk.fileName);
+
+  // 分块上传进度监听（用于计算整体进度）
+  const config = {
+    cancelToken: cancelSource.token,
+    onUploadProgress: (progressEvent) => {
+      if (progressEvent.total) {
+        const baseUploadedBytes = task.uploadedBytes || 0;
+        const currentLoaded = baseUploadedBytes + progressEvent.loaded;
+        const progress = (currentLoaded / task.fileSize) * 100;
+        task.progress = Math.min(Math.round(progress), 100);
+        
+        // 计算对应任务的实时上传速率
+        const currentTime = Date.now();
+        if (task.lastTime > 0) {
+          const timeDiff = (currentTime - task.lastTime) / 1000;
+          const loadedDiff = currentLoaded - task.lastLoaded;
+          if (timeDiff > 0) {
+            task.speed = formatSpeed(loadedDiff / timeDiff);
+          }
+        }
+        task.lastLoaded = currentLoaded;
+        task.lastTime = currentTime;
+      }
+    }
+  };
+
+  try {
+    return await uploadFileChunk(formData, config);
+  } catch (error) {
+    if (axios.isCancel(error)) {
+      console.log('上传被取消:', error.message);
+      throw error;
+    }
+    throw error;
   }
 }
 // // 支持的文件格式
@@ -1632,6 +1946,7 @@ function sortFiles(field) {
   if (showSearchResults.value) {
     sortFileList(queryfileListData)
   } else {
+    sortFolderList(folderData)
     sortFileList(fileListData)
   }
 }
@@ -1668,6 +1983,33 @@ function sortFileList(fileList) {
       
       default:
         return 0
+    }
+  })
+}
+
+// 文件夹排序
+function sortFolderList(folderList) {
+  const order = sortOrder.value === 'asc' ? 1 : -1
+
+  folderList.value = [...folderList.value].sort((a, b) => {
+    switch (sortField.value) {
+      case 'name': {
+        const nameA = (a.filePath || '').toLowerCase()
+        const nameB = (b.filePath || '').toLowerCase()
+        return nameCollator.compare(nameA, nameB) * order
+      }
+      case 'date': {
+        const dateA = new Date(a.updateTime || a.createTime || 0).getTime()
+        const dateB = new Date(b.updateTime || b.createTime || 0).getTime()
+        return (dateA - dateB) * order
+      }
+      case 'size':
+      case 'type':
+      default: {
+        const nameA = (a.filePath || '').toLowerCase()
+        const nameB = (b.filePath || '').toLowerCase()
+        return nameCollator.compare(nameA, nameB) * order
+      }
     }
   })
 }
@@ -2349,5 +2691,194 @@ function sortFileList(fileList) {
 
 .view-mode-dropdown .view-mode-option .is-active {
   color: #409eff;
+}
+
+/* 上传列表按钮样式 */
+.upload-list-btn {
+  position: relative;
+}
+
+.task-count-badge {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  background-color: #f56c6c;
+  color: white;
+  border-radius: 50%;
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 0 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* 上传管理面板样式 */
+.upload-manager-panel {
+  position: fixed;
+  /* bottom: 20px;
+  right: 20px; */
+  top: 260px;
+  right: 20px;
+  width: 440px;
+  max-height: 500px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.upload-manager-header {
+  padding: 15px;
+  background-color: #f5f7fa;
+  border-bottom: 1px solid #ebeef5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.upload-manager-body {
+  padding: 10px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.upload-task-item {
+  padding: 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  background-color: #fafafa;
+}
+
+.upload-task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.upload-task-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #303133;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 10px;
+}
+
+.upload-task-status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background-color: #ecf5ff;
+  color: #409eff;
+}
+
+.upload-task-status.waiting {
+  background-color: #ecf5ff;
+  color: #409eff;
+}
+
+.upload-task-status.uploading {
+  background-color: #f0f9eb;
+  color: #67c23a;
+}
+
+.upload-task-status.paused {
+  background-color: #fdf6ec;
+  color: #e6a23c;
+}
+
+.upload-task-status.completed {
+  background-color: #f0f9eb;
+  color: #67c23a;
+}
+
+.upload-task-status.failed {
+  background-color: #fef0f0;
+  color: #f56c6c;
+}
+
+.upload-task-progress {
+  margin: 8px 0;
+}
+
+.upload-task-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #909399;
+  margin-top: 8px;
+}
+
+.upload-task-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.upload-task-actions .el-button {
+  padding: 4px 12px;
+  font-size: 16px;
+}
+
+.upload-task-action-btn {
+  border-radius: 10px;
+  height: 28px;
+  width: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff;
+  border-color: #ebeef5;
+  color: #409eff;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.upload-task-action-btn :deep(.el-icon) {
+  font-size: 16px;
+}
+
+.upload-task-action-btn:hover {
+  transform: translateY(-1px);
+}
+
+.upload-task-action-btn:active {
+  transform: translateY(0);
+  filter: brightness(0.95);
+}
+
+.upload-task-action-btn.is-cancel {
+  background-color: #ffffff;
+  border-color: #ebeef5;
+  color: #f56c6c;
+}
+
+.upload-manager-footer {
+  padding: 12px 15px;
+  background-color: #f5f7fa;
+  border-top: 1px solid #ebeef5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.upload-manager-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #909399;
+  font-size: 14px;
 }
 </style>

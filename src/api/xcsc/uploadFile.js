@@ -86,6 +86,18 @@ export function getFileList(query) {
         params: query
     })
 }
+
+export const getCollectFileList = (params) => request({ url: '/file/collect/list', method: 'get', params });
+
+// 板块分类(按照公司/部门)
+export function getDeptCategoryList() {
+    return request({
+        url: '/dept/listAll',
+        method: 'get'
+    })
+}
+
+
 // AI标注标签
 export function AIMark(query) {
     return request({

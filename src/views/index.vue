@@ -21,7 +21,7 @@
       <!-- 板块分类模块 -->
       <div class="category-list">
         <div
-            v-for="dept in sortedCategoriesByDept"
+            v-for="dept in visibleCategoriesByDept"
             :key="dept.deptId"
             :class="[
         'category-item',
@@ -947,15 +947,15 @@ const backFolder = () => {
       curFolderId.value = curDeptRootFolderId.value; // 回退到板块根文件夹
     }
   }
+  console.log('===breadcrumbData.value===', breadcrumbData.value);
+};
 
 // 视图切换方法
 function switchViewMode(mode) {
-    if (mode === 'thumbnail' || mode === 'list') {
-        viewMode.value = mode
-    }
+  if (mode === 'thumbnail' || mode === 'list') {
+    viewMode.value = mode
+  }
 }
-  console.log('===breadcrumbData.value===', breadcrumbData.value);
-};
 
 
 // 筛选表单
@@ -1140,6 +1140,11 @@ const sortedCategoriesByDept = computed(() => {
     const bCan = canClickDept(b) ? 0 : 1
     return aCan - bCan
   })
+})
+
+// 侧边栏只显示可点击的部门
+const visibleCategoriesByDept = computed(() => {
+  return sortedCategoriesByDept.value.filter((dept) => canClickDept(dept))
 })
 
 // 收藏操作
@@ -1513,8 +1518,13 @@ const handleAISearch = () => {
 // 点击素材项
 const handleMaterialClick = (material) => {
   console.log('点击素材:', material)
+  const materialId = material?.id ?? material?.fileId
+  if (!materialId) {
+    ElMessage.warning('素材ID缺失，无法预览')
+    return
+  }
   // 跳转到预览界面
-  router.push({ name: 'MaterialPreview', params: { id: material.id } })
+  router.push({ name: 'MaterialPreview', params: { id: materialId } })
 }
 
 // 支持的文件格式

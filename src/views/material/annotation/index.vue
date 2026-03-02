@@ -19,7 +19,7 @@
     </div>
 
     <div class="folderBox" v-if="showFolder">
-      <div class="folderItem" v-for="(item, index) in folderData" :key="index"
+      <div class="folderItem" v-for="(item, index) in visibleFolderData" :key="index"
         @click="selectFolder(item, 'isRootFolder')">
         <el-icon>
           <FolderOpened />
@@ -351,7 +351,7 @@
         </div>
       </div>
       <div class="file-count-info">
-        共 {{ fileListData.length }} 个文件，{{ folderData.length }} 个文件夹
+        共 {{ fileListData.length }} 个文件，{{ visibleFolderData.length }} 个文件夹
       </div>
       <div class="sort-controls" v-if="viewMode === 'thumbnail'">
         <span class="sort-label">排序方式：</span>
@@ -387,12 +387,12 @@
           <div v-if="loading" class="loading-container">
             <el-loading-text>正在加载素材...</el-loading-text>
           </div>
-          <div v-else-if="folderData.length == 0 && fileListData.length == 0" class="empty-state">
+          <div v-else-if="visibleFolderData.length == 0 && fileListData.length == 0" class="empty-state">
             <el-empty description="暂无内容" />
           </div>
           <div v-else-if="viewMode === 'thumbnail'" class="material-grid">
             <!-- 文件夹列表 -->
-            <div class="subFolder" v-for="(item, index) in folderData" :key="index"
+            <div class="subFolder" v-for="(item, index) in visibleFolderData" :key="index"
               @mouseenter="onSubFolderMouseEnter(item)" @mouseleave="onSubFolderMouseLeave(item)">
               <span class="subFolder-actions">
                 <el-icon class="action-icon" @click.stop="editFolder(item)" title="重命名" v-show="item._hover" v-hasPermi="['xcsc:FilePathMapping:edit']"
@@ -703,6 +703,7 @@ import { parseTime, } from '@/utils/common'
 import { Search, VideoCamera, Document, Check, Edit, VideoPlay, VideoPause, Back, ArrowRight, ArrowUp, FolderAdd, FolderOpened, Upload, UploadFilled, Delete, Grid, Close, List, Files, DocumentCopy, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile, updateFile, checkChunks, uploadFileChunk, mergeFileChunks } from "@/api/xcsc/uploadFile"
+import auth from '@/plugins/auth'
 import MarkDialog from './components/markDialog.vue'
 import EXIF from 'exif-js';
 // 修复压缩版的变量丢失 bug（关键：手动声明缺失的变量）
@@ -801,8 +802,17 @@ const backFolder = () => {
 // 获取文件夹及文件列表数据
 const folderData = ref([]) //文件夹列表
 const fileListData = ref([])//文件列表
+const SHARED_FOLDER_NAME = '共享文件夹'
+const canViewSharedFolder = computed(() => auth.hasPermi('xcsc:FilePathMapping:share'))
+const visibleFolderData = computed(() => {
+  if (canViewSharedFolder.value) {
+    return folderData.value
+  }
+  return folderData.value.filter(item => item.filePath !== SHARED_FOLDER_NAME)
+})
+
 const listViewRows = computed(() => {
-  const folders = folderData.value.map(item => ({ ...item, _rowType: 'folder' }))
+  const folders = visibleFolderData.value.map(item => ({ ...item, _rowType: 'folder' }))
   const files = fileListData.value.map(item => ({ ...item, _rowType: 'file' }))
   return [...folders, ...files]
 })

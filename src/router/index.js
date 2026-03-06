@@ -1,4 +1,4 @@
-import { createWebHistory, createRouter } from 'vue-router'
+import { createWebHistory, createRouter, createWebHashHistory } from 'vue-router'
 /* Layout */
 import Layout from '@/layout'
 
@@ -260,7 +260,7 @@ export const dynamicRoutes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory("xcsc-front"),
+  history: createWebHashHistory(),
   routes: [...constantRoutes, ...dynamicRoutes],
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {

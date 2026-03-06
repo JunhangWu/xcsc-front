@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="main-content">
     <!-- 左侧边栏 -->
     <div class="sidebar">
@@ -38,7 +38,7 @@
     </div>
 
     <!-- 右侧内容区 -->
-    <div class="content-area">
+    <div ref="contentAreaRef" class="content-area">
       <!-- 筛选搜索栏 -->
       <div class="filter-bar">
         <el-form :model="filterForm" inline>
@@ -59,12 +59,12 @@
             <el-input v-model="filterForm.createBy" placeholder="请输入上传人" clearable style="width: 150px;" />
           </el-form-item>
 
-          <el-form-item label="素材标签：">
-            <el-input v-model="filterForm.annotationContent" placeholder="请输入素材标签" clearable style="width: 150px;" />
+          <el-form-item label="文件名：">
+            <el-input v-model="filterForm.fileName" placeholder="请输入文件名" clearable style="width: 250px;" />
           </el-form-item>
 
-          <el-form-item label="文件名：">
-            <el-input v-model="filterForm.fileName" placeholder="请输入文件名" clearable style="width: 150px;" />
+          <el-form-item label="素材标签：">
+            <el-input v-model="filterForm.keyWords" placeholder="请输入素材标签（支持多标签，用空格隔开）" clearable style="width: 550px;" />
           </el-form-item>
 
           <el-form-item>
@@ -138,6 +138,17 @@
           <el-button :type="sortField === 'date' ? 'primary' : 'default'" @click="sortFiles('date')" size="small">
             创建日期
             <el-icon v-if="sortField === 'date'" :class="{ 'is-reverse': sortOrder === 'desc' }">
+              <ArrowUp />
+            </el-icon>
+          </el-button>
+          <el-button
+            v-if="activeSpace === 'favorite'"
+            :type="sortField === 'favoriteTime' ? 'primary' : 'default'"
+            @click="sortFiles('favoriteTime')"
+            size="small"
+          >
+            收藏时间
+            <el-icon v-if="sortField === 'favoriteTime'" :class="{ 'is-reverse': sortOrder === 'desc' }">
               <ArrowUp />
             </el-icon>
           </el-button>
@@ -266,15 +277,19 @@
                 </el-table-column>
                 <el-table-column width="200">
                   <template #header>
-                    <div class="sortable-header" @click="sortFiles('date')">
-                      修改时间
-                      <el-icon v-if="sortField === 'date'" class="sort-arrow" :class="{ 'is-reverse': sortOrder === 'desc' }">
+                    <div class="sortable-header" @click="sortFiles(activeSpace === 'favorite' ? 'favoriteTime' : 'date')">
+                      {{ activeSpace === 'favorite' ? '收藏时间' : '修改时间' }}
+                      <el-icon
+                        v-if="sortField === (activeSpace === 'favorite' ? 'favoriteTime' : 'date')"
+                        class="sort-arrow"
+                        :class="{ 'is-reverse': sortOrder === 'desc' }"
+                      >
                         <ArrowUp />
                       </el-icon>
                     </div>
                   </template>
                   <template #default="{ row }">
-                    {{ formatDateTime(row.updateTime || row.createTime) }}
+                    {{ getListRowTime(row) }}
                   </template>
                 </el-table-column>
                 <el-table-column label="操作" width="220">
@@ -386,6 +401,17 @@
               <ArrowUp />
             </el-icon>
           </el-button>
+          <el-button
+            v-if="activeSpace === 'favorite'"
+            :type="sortField === 'favoriteTime' ? 'primary' : 'default'"
+            @click="sortFiles('favoriteTime')"
+            size="small"
+          >
+            收藏时间
+            <el-icon v-if="sortField === 'favoriteTime'" :class="{ 'is-reverse': sortOrder === 'desc' }">
+              <ArrowUp />
+            </el-icon>
+          </el-button>
           <el-button :type="sortField === 'type' ? 'primary' : 'default'" @click="sortFiles('type')" size="small">
             类型
             <el-icon v-if="sortField === 'type'" :class="{ 'is-reverse': sortOrder === 'desc' }">
@@ -412,7 +438,7 @@
             <el-empty description="暂无内容" />
           </div>
           
-          <div v-else-if="viewMode === 'thumbnail'" class="material-grid">
+          <div v-else-if="activeSpace !== 'all' && viewMode === 'thumbnail'" class="material-grid">
             <!-- 文件夹列表 -->
             <div class="subFolder" v-if="activeSpace !== 'all'" v-for="(item, index) in folderData" :key="index"
               @mouseenter="onSubFolderMouseEnter(item)" @mouseleave="onSubFolderMouseLeave(item)">
@@ -457,7 +483,7 @@
               </div>
             </div>
           </div>
-          <div v-else class="material-table-wrapper">
+          <div v-else-if="activeSpace !== 'all'" class="material-table-wrapper">
             <el-table :data="listViewRows" class="material-table" :row-key="getListRowKey">
               <el-table-column min-width="360">
                 <template #header>
@@ -538,9 +564,13 @@
               </el-table-column>
               <el-table-column width="200">
                 <template #header>
-                  <div class="sortable-header" @click="sortFiles('date')">
-                    修改时间
-                    <el-icon v-if="sortField === 'date'" class="sort-arrow" :class="{ 'is-reverse': sortOrder === 'desc' }">
+                  <div class="sortable-header" @click="sortFiles(activeSpace === 'favorite' ? 'favoriteTime' : 'date')">
+                    {{ activeSpace === 'favorite' ? '收藏时间' : '修改时间' }}
+                    <el-icon
+                      v-if="sortField === (activeSpace === 'favorite' ? 'favoriteTime' : 'date')"
+                      class="sort-arrow"
+                      :class="{ 'is-reverse': sortOrder === 'desc' }"
+                    >
                       <ArrowUp />
                     </el-icon>
                   </div>
@@ -605,11 +635,17 @@
               </div>
             </div>
             
-            <!-- 加载更多按钮 -->
-            <div v-if="hasMoreFiles" class="load-more-container" style="text-align: center; margin: 20px auto; width: 100%; display: flex; justify-content: center;">
-              <el-button plain @click="loadMoreFiles" size="default">
-                加载更多
-              </el-button>
+            <!-- 分页 -->
+            <div v-if="allFilesLoadedCount > 0" class="load-more-container" style="text-align: center; margin: 20px auto; width: 100%; display: flex; justify-content: center;">
+              <el-pagination
+                background
+                layout="total, prev, pager, next"
+                :total="allFilesLoadedCount"
+                :page-size="pageSize"
+                :current-page="currentPage"
+                :hide-on-single-page="true"
+                @current-change="handleAllFilesPageChange"
+              />
             </div>
           </div>
 
@@ -623,7 +659,7 @@
 
 <script setup name="Index">
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter, useRoute, onBeforeRouteUpdate } from 'vue-router'
+import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import {
   UploadFilled,
   Tools,
@@ -644,17 +680,24 @@ import {
   Check
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getFolderList, getFileList, getCollectFileList, getFileIndexList, getCollectionList, addCollection, delCollection,  getDeptCategoryList } from "@/api/xcsc/uploadFile"
+import { getFolderList,getSharedFolderList, getFileList, getCollectFileList, getFileIndexList, getCollectionList, addCollection, delCollection,  getDeptCategoryList, countAllFile } from "@/api/xcsc/uploadFile"
 import useUserStore from '@/store/modules/user'
 
 const router = useRouter()
-const route = useRoute()
+const contentAreaRef = ref(null)
 const showSearchResults = ref(false) // 控制是否显示搜索结果
 const userStore = useUserStore()
 // const isFavorite = ref(false) // 收藏状态
 
+function scrollIndexToTop() {
+  if (contentAreaRef.value) {
+    contentAreaRef.value.scrollTop = 0
+  }
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+}
+
 // 排序相关
-const sortField = ref('name') // 当前排序字段：name, size, date
+const sortField = ref('name') // 当前排序字段：name, size, date, type, favoriteTime
 const sortOrder = ref('asc') // 当前排序方向：asc, desc
 const viewMode = ref('thumbnail') // 当前展示模式：thumbnail, list
 const nameCollator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' })
@@ -697,7 +740,33 @@ function getListRowSize(row) {
 
 // 获取列表行的时间
 function getListRowTime(row) {
+  if (activeSpace.value === 'favorite') {
+    return formatDateTime(getFavoriteDateTime(row) || row?.updateTime || row?.createTime);
+  }
   return formatDateTime(row?.updateTime || row?.createTime);
+}
+
+function getFavoriteDateTime(row) {
+  const fileId = row?.id ?? row?.fileId
+  if (fileId !== undefined && fileId !== null) {
+    const collectCreateTime = collectionCreateTimeMap.value.get(String(fileId))
+    if (collectCreateTime) return collectCreateTime
+  }
+  return (
+    row?.collectTime ||
+    row?.favoriteTime ||
+    row?.collectCreateTime ||
+    row?.collectionTime ||
+    row?.collectDate ||
+    row?.collectAt ||
+    ''
+  );
+}
+
+function getFavoriteTimestamp(row) {
+  const favoriteTime = new Date(getFavoriteDateTime(row)).getTime();
+  if (!Number.isNaN(favoriteTime)) return favoriteTime;
+  return new Date(row?.updateTime || row?.createTime || 0).getTime();
 }
 
 // 排序文件列表
@@ -716,6 +785,10 @@ function sortFileList(fileList) {
       const timeA = new Date(a?.updateTime || a?.createTime || 0).getTime();
       const timeB = new Date(b?.updateTime || b?.createTime || 0).getTime();
       return sortOrder.value === 'asc' ? timeA - timeB : timeB - timeA;
+    } else if (sortField.value === 'favoriteTime') {
+      const timeA = getFavoriteTimestamp(a);
+      const timeB = getFavoriteTimestamp(b);
+      return sortOrder.value === 'asc' ? timeA - timeB : timeB - timeA;
     } else if (sortField.value === 'type') {
       const typeA = getFileType(a?.minioPath || '');
       const typeB = getFileType(b?.minioPath || '');
@@ -733,13 +806,18 @@ function sortFiles(field) {
     sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
   } else {
     sortField.value = field;
-    sortOrder.value = 'asc';
+    sortOrder.value = field === 'favoriteTime' ? 'desc' : 'asc';
   }
   if (showSearchResults.value) {
     queryfileListData.value = [...queryfileListData.value].sort((a, b) => sortCompare(a, b));
   } else {
     fileListData.value = [...fileListData.value].sort((a, b) => sortCompare(a, b));
   }
+}
+
+function setFavoriteDefaultSort() {
+  sortField.value = 'favoriteTime';
+  sortOrder.value = 'desc';
 }
 
 // 获取排序后的文件列表（用于缩略图视图）
@@ -763,6 +841,10 @@ function sortCompare(a, b) {
   } else if (sortField.value === 'date') {
     const timeA = new Date(a?.updateTime || a?.createTime || 0).getTime();
     const timeB = new Date(b?.updateTime || b?.createTime || 0).getTime();
+    return sortOrder.value === 'asc' ? timeA - timeB : timeB - timeA;
+  } else if (sortField.value === 'favoriteTime') {
+    const timeA = getFavoriteTimestamp(a);
+    const timeB = getFavoriteTimestamp(b);
     return sortOrder.value === 'asc' ? timeA - timeB : timeB - timeA;
   } else if (sortField.value === 'type') {
     const typeA = getFileType(a?.minioPath || '');
@@ -817,7 +899,7 @@ const folderData = ref([]) //文件夹列表
 const fileListData = ref([])//文件列表
 
 // 通用文件夹下内容获取（含搜索）
-function getFolderData(folderBizId, mode = 'folder') {
+function getFolderData(folderBizId, mode = 'folder', isSharedFolder = false) {
   let params = {
     pid: folderBizId,
   }
@@ -825,7 +907,9 @@ function getFolderData(folderBizId, mode = 'folder') {
   console.log('===params===', params);
 
   // 1 获取文件夹列表（无论浏览/搜索，都获取文件夹结构）
-  getFolderList(params).then(res => {
+  // 共享文件夹使用getSharedFolderList
+  const folderListFn = isSharedFolder ? getSharedFolderList : getFolderList
+  folderListFn(params).then(res => {
     folderData.value = res.data || []
     console.log('===folderData.value===', folderData.value)
   })
@@ -844,7 +928,7 @@ function getFolderData(folderBizId, mode = 'folder') {
           ? filterForm.dateRange[1] + ' 23:59:59'
           : null,
       createBy: filterForm.createBy,
-      annotationContent: filterForm.annotationContent,
+      keyWords: filterForm.keyWords,
       fileName: filterForm.fileName
     }
 
@@ -892,7 +976,9 @@ function selectFolder(item, type) {
             bizId: item.bizId,
         })
     }
-    getFolderData(item.bizId)
+    // 判断当前是否在共享文件夹中
+    const isSharedFolder = curFolderObj.filePath === "共享文件夹"
+    getFolderData(item.bizId, 'folder', isSharedFolder)
     console.log('=== breadcrumbData.value===', breadcrumbData.value);
 }
 
@@ -907,11 +993,14 @@ function clickBreadcrumb(item, index) {
         activeCategory.value = ''
         folderData.value = [] // 不展示文件夹
         showSearchResults.value = false // 确保显示文件夹视图
+        setFavoriteDefaultSort()
         getFavoriteFiles() // 获取收藏文件并应用筛选条件
     } else {
         // 正常文件夹处理
         curFolderId.value = item.bizId;
-        getFolderData(item.bizId)
+        // 判断当前是否在共享文件夹中
+        const isSharedFolder = breadcrumbData.value[0].filePath === "共享文件夹"
+        getFolderData(item.bizId, 'folder', isSharedFolder)
     }
     
     if (index == 0) {
@@ -938,7 +1027,9 @@ const backFolder = () => {
       bizId: breadcrumbData.value[breadcrumbData.value.length - 2].bizId,
       id: breadcrumbData.value[breadcrumbData.value.length - 2].id
     });
-    getFolderData(breadcrumbData.value[breadcrumbData.value.length - 2].bizId) //获取上一级文件夹的bizId
+    // 判断当前是否在共享文件夹中
+    const isSharedFolder = breadcrumbData.value[0].filePath === "共享文件夹"
+    getFolderData(breadcrumbData.value[breadcrumbData.value.length - 2].bizId, 'folder', isSharedFolder) //获取上一级文件夹的bizId
     breadcrumbData.value.pop()
     // 添加边界判断，避免数组越界
     if (breadcrumbData.value.length > 0) {
@@ -963,7 +1054,7 @@ const filterForm = reactive({
   fileType: '',
   dateRange: [],
   createBy: '',
-  annotationContent: '',
+  keyWords: '',
   fileName: ''
 })
 
@@ -978,15 +1069,17 @@ const curFolderId =  ref('')
 // 总文件数
 // const totalFiles = computed(() => materials.value.length)
 // 计算所有文件的总数
-const totalAllFiles = computed(() => {
-  let count = 0;
-  for (const dateKey in allFileListData) {
-    if (allFileListData[dateKey] && Array.isArray(allFileListData[dateKey])) {
-      count += allFileListData[dateKey].length;
-    }
+const totalAllFiles = ref(0);
+
+// 获取文件总数
+const fetchTotalFiles = async () => {
+  try {
+    const res = await countAllFile();
+    totalAllFiles.value = res.data;
+  } catch (error) {
+    console.error('获取文件总数失败:', error);
   }
-  return count;
-});
+};
 
 // 计算收藏文件的总数
 const totalFavoriteFiles = computed(() => {
@@ -1022,7 +1115,7 @@ function updateCategoryFileCounts() {
           createStartTime: null,
           createEndTime: null,
           createBy: '',
-          annotationContent: '',
+          keyWords: '',
           fileName: ''
         };
         
@@ -1042,12 +1135,22 @@ function updateCategoryFileCounts() {
 
 //收藏列表
 const collectionList = ref([])
+const collectionCreateTimeMap = computed(() => {
+  const map = new Map()
+  const list = Array.isArray(collectionList.value) ? collectionList.value : []
+  list.forEach(item => {
+    if (item?.fileId !== undefined && item?.fileId !== null && item?.createTime) {
+      map.set(String(item.fileId), item.createTime)
+    }
+  })
+  return map
+})
 
 function getCollectionData(){
     return getCollectionList().then(res => {
-      collectionList.value = res.data
+      collectionList.value = Array.isArray(res.data) ? res.data : []
       console.log('collectionList.value', collectionList.value)
-      return res.data;
+      return collectionList.value;
     })
 }
 // 在组件挂载时获取收藏列表，确保页面初始加载时所有文件的收藏状态正确
@@ -1055,6 +1158,8 @@ onMounted(() => {
   if (userStore.id) {
     getCollectionData()
   }
+  // 初始化文件总数
+  fetchTotalFiles();
   // 初始化板块文件数量
   // initCategoryFileCounts();
 })
@@ -1247,28 +1352,24 @@ const getFavoriteFiles = async (mode = 'normal') => {
   targetList.value = [];
 
   try {
+    await getCollectionData();
     const params = {
       fileTypeList: fileTypeObj[filterForm.fileType] || null,
       createStartTime: filterForm.dateRange?.[0] ? `${filterForm.dateRange[0]} 00:00:00` : null,
       createEndTime: filterForm.dateRange?.[1] ? `${filterForm.dateRange[1]} 23:59:59` : null,
       createBy: filterForm.createBy,
-      annotationContent: filterForm.annotationContent,
+      keyWords: filterForm.keyWords,
       fileName: filterForm.fileName
     };
-
-    if (!filterForm.dateRange || filterForm.dateRange.length === 0) {
-      const end = new Date();
-      const start = new Date(end.setDate(end.getDate() - 30));
-      const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,0)}-${String(d.getDate()).padStart(2,0)}`;
-      filterForm.dateRange = [fmt(start), fmt(new Date())];
-      params.createStartTime = `${filterForm.dateRange[0]} 00:00:00`;
-      params.createEndTime = `${filterForm.dateRange[1]} 23:59:59`;
-    }
 
     const res = await getCollectFileList(params);
     const collectFiles = res.data || [];
 
-    targetList.value = collectFiles.map(file => ({ ...file, isFavorite: true }));
+    targetList.value = collectFiles.map(file => ({
+      ...file,
+      favoriteTime: collectionCreateTimeMap.value.get(String(file?.id ?? file?.fileId)) || file?.favoriteTime || '',
+      isFavorite: true
+    }));
 
     if (collectFiles.length === 0) {
       ElMessage.info(mode === 'search' ? '该筛选条件下无收藏文件' : '暂无收藏文件，快去收藏吧～');
@@ -1287,7 +1388,7 @@ const getFavoriteFiles = async (mode = 'normal') => {
 // 点击个人空间
 const handleSpaceClick = (spaceId) => {
   // 重置筛选表单
-  Object.assign(filterForm, { fileType: '', dateRange: [], createBy: '', annotationContent: '', fileName: '' });
+  Object.assign(filterForm, { fileType: '', dateRange: [], createBy: '', keyWords: '', fileName: '' });
   activeSpace.value = spaceId;
   activeDeptId.value = null;
   activeCategory.value = '';
@@ -1297,11 +1398,13 @@ const handleSpaceClick = (spaceId) => {
   breadcrumbData.value = [];
 
   if (activeSpace.value == 'all') {
+    viewMode.value = 'thumbnail'
     fileListData.value = [];
-        currentShownCount.value = pageSize.value; // 重置分页计数
+    currentPage.value = 1; // 重置到第一页
     Object.assign(curFolderObj, { filePath: '', bizId: '', id: '' });
     getAllFileListData();
   } else if (activeSpace.value == 'favorite') {
+    setFavoriteDefaultSort()
     // 初始进入：普通模式加载收藏列表
     getFavoriteFiles('normal');
   }
@@ -1311,45 +1414,41 @@ const handleSpaceClick = (spaceId) => {
 const allFileListData = reactive({}) // 文件列表
 // 分页相关状态
 const pageSize = ref(30) // 每页显示数量
-const currentShownCount = ref(30) // 当前已显示数量
+const currentPage = ref(1) // 当前页
+
+const allFilesFlatData = computed(() => {
+  const flatData = [];
+  const sortedDates = getSortedDates();
+  for (const dateKey of sortedDates) {
+    const dailyFiles = allFileListData[dateKey] || [];
+    dailyFiles.forEach(file => {
+      flatData.push({ dateKey, file });
+    });
+  }
+  return flatData;
+});
+
+const allFilesLoadedCount = computed(() => allFilesFlatData.value.length);
 
 // 计算按日期分组并分页的文件列表
 const paginatedAllFiles = computed(() => {
-  const paginatedData = {};
-  let shownCount = 0;
-  
-  // 获取排序后的日期
-  const sortedDates = getSortedDates();
-  
-  for (const dateKey of sortedDates) {
-    const dailyFiles = allFileListData[dateKey] || [];
-    const remainingSlots = currentShownCount.value - shownCount;
-    
-    if (remainingSlots <= 0) break;
-    
-    if (dailyFiles.length <= remainingSlots) {
-      // 当天文件全部显示
-      paginatedData[dateKey] = dailyFiles;
-      shownCount += dailyFiles.length;
-    } else {
-      // 当天文件只显示部分
-      paginatedData[dateKey] = dailyFiles.slice(0, remainingSlots);
-      shownCount += remainingSlots;
+  const startIndex = (currentPage.value - 1) * pageSize.value;
+  const endIndex = startIndex + pageSize.value;
+  const pageItems = allFilesFlatData.value.slice(startIndex, endIndex);
+  const grouped = {};
+
+  pageItems.forEach(({ dateKey, file }) => {
+    if (!grouped[dateKey]) {
+      grouped[dateKey] = [];
     }
-  }
-  
-  return paginatedData;
+    grouped[dateKey].push(file);
+  });
+
+  return grouped;
 });
 
-// 计算是否有更多文件可以加载
-const hasMoreFiles = computed(() => {
-  const totalFiles = totalAllFiles.value;
-  return currentShownCount.value < totalFiles;
-});
-
-// 加载更多文件
-function loadMoreFiles() {
-  currentShownCount.value += pageSize.value;
+function handleAllFilesPageChange(page) {
+  currentPage.value = page;
 }
 
 const fileTypeObj = {
@@ -1364,7 +1463,7 @@ function getAllFileListData() {
     createStartTime: filterForm.dateRange?.[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
     createEndTime: filterForm.dateRange?.[1] ? filterForm.dateRange[1] + ' 23:59:59' : null,
     createBy: filterForm.createBy,
-    keyWords: filterForm.annotationContent,
+    keyWords: filterForm.keyWords,
     fileName: filterForm.fileName
   }
 
@@ -1379,6 +1478,8 @@ function getAllFileListData() {
         })
       }
     })
+    // 更新文件总数
+    fetchTotalFiles();
   })
 }
 
@@ -1391,7 +1492,7 @@ const handleCategoryClick = (dept) => {
     fileType: '',
     dateRange: [],
     createBy: '',
-    annotationContent: '',
+    keyWords: '',
     fileName: ''
   })
 
@@ -1405,8 +1506,9 @@ const handleCategoryClick = (dept) => {
 
   console.log('===activeCategory===', dept)
 
-  // 3. 拉取数据
-  getFolderData(dept.rootFolderId)
+  // 3. 拉取数据，判断是否为共享文件夹
+  const isSharedFolder = dept.deptName === "共享文件夹"
+  getFolderData(dept.rootFolderId, 'folder', isSharedFolder)
 
   // 4. 面包屑
   breadcrumbData.value = [
@@ -1482,7 +1584,7 @@ const queryfileListData = ref([])//文件列表
 function resetSearch() {
   showSearchResults.value = false; // 关闭搜索结果区域
   // 重置筛选表单
-  Object.assign(filterForm, { fileType: '', dateRange: [], createBy: '', annotationContent: '', fileName: '' });
+  Object.assign(filterForm, { fileType: '', dateRange: [], createBy: '', keyWords: '', fileName: '' });
 
   if (activeSpace.value === 'all') {
     fileListData.value = [];
@@ -1490,6 +1592,7 @@ function resetSearch() {
     getAllFileListData();
   } else if (activeSpace.value === 'favorite') {
     // 收藏重置：回到普通收藏列表
+    setFavoriteDefaultSort()
     getFavoriteFiles('normal');
   } else if (curFolderObj.bizId) {
     getFolderData(curFolderObj.bizId);
@@ -1504,15 +1607,11 @@ const handleReset = () => {
     getAllFileListData();
   } else if (activeSpace.value == 'favorite') {
     // 收藏表单重置：回到无筛选的收藏列表
+    setFavoriteDefaultSort()
     getFavoriteFiles('normal');
   } else if (getCategoryPid(activeCategory.value)) {
     getFolderData(getCategoryPid(activeCategory.value));
   }
-}
-
-// AI搜索
-const handleAISearch = () => {
-  console.log('执行AI搜索')
 }
 
 // 点击素材项
@@ -1600,6 +1699,10 @@ let syncInterval = null
 onMounted(async () => {
   console.log('首页加载完成')
     handleSpaceClick('all')
+})
+
+onBeforeRouteLeave(() => {
+  scrollIndexToTop()
 })
 
 

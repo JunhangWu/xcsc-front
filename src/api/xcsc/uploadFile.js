@@ -9,6 +9,13 @@ export function getFolderList(query) {
         params: query
     })
 }
+// 获取共享文件夹列表
+export function getSharedFolderList() {
+    return request({
+        url: '/folder/shared/list',
+        method: 'get'
+    })
+}
 // 新增文件夹
 export function addFolder(data) {
     return request({
@@ -25,7 +32,19 @@ export function updateFolder(data) {
         data: data
     })
 }
-
+// 修改文件夹是否共享
+export function updateShared(data) {
+    const id = data?.id != null ? String(data.id) : ''
+    const isShared = data?.isShared
+    return request({
+        url: '/folder/shared',
+        method: 'put',
+        params: {
+            id,
+            isShared
+        }
+    })
+}
 // 删除文件夹
 export function delFolder(id) {
     return request({
@@ -82,6 +101,15 @@ export function mergeFileChunks(data) {
 export function getFileList(query) {
     return request({
         url: '/file/list',
+        method: 'get',
+        params: query
+    })
+}
+
+// 统计总文件数量
+export function countAllFile(query) {
+    return request({
+        url: '/file/count',
         method: 'get',
         params: query
     })

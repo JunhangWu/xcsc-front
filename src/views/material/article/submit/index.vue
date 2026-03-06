@@ -24,10 +24,21 @@
     </div>
 
     <div class="author-section">
-      <h4 class="common-title">核稿人：</h4>
+      <h4 class="common-title">复审人（部门负责人）：</h4>
       <el-input
         v-model="articleReviewer"
-        placeholder="请输入核稿人姓名"
+        placeholder="请输入复审人姓名"
+        maxlength="30"
+        show-word-limit
+        clearable
+      />
+    </div>
+
+    <div class="author-section">
+      <h4 class="common-title">终审人（分管领导）：</h4>
+      <el-input
+        v-model="articleFinalReviewer"
+        placeholder="请输入终审人姓名"
         maxlength="30"
         show-word-limit
         clearable
@@ -41,7 +52,7 @@
         v-model:file-list="fileList" 
         class="upload-demo flower-upload" 
         drag 
-        :multiple="ture"  
+        :multiple="true"
         action=""
         accept=".jpg,.jpeg,.png"
         :on-change="handleFileChange" 
@@ -81,6 +92,62 @@
           @onCreated="handleCreated"
         />
       </div>
+    </div>
+
+    <div class="author-section">
+      <h4 class="common-title">审核凭证：</h4>
+      <el-upload
+        v-model:file-list="auditVoucherList"
+        class="upload-demo attachment-upload"
+        drag
+        :multiple="false"
+        action=""
+        accept=".doc,.docx,.pdf"
+        :on-change="handleAuditVoucherChange"
+        :on-remove="handleAuditVoucherRemove"
+        :auto-upload="false"
+        :limit="1"
+      >
+        <div v-if="!auditVoucherList.length" class="upload-tips">
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">
+            点击或拖拽文件到此处上传
+            <div class="el-upload__tip"> 支持文件格式：doc / docx / pdf</div>
+          </div>
+        </div>
+        <div v-else class="attachment-info">
+          <el-icon class="el-icon-document"><document /></el-icon>
+          <span class="file-name">{{ auditVoucherList[0].name }}</span>
+          <span class="file-size">({{ formatFileSize(auditVoucherList[0].size) }})</span>
+        </div>
+      </el-upload>
+    </div>
+
+    <div class="author-section">
+      <h4 class="common-title">批量图片：</h4>
+      <el-upload
+        v-model:file-list="batchImageList"
+        class="upload-demo attachment-upload"
+        drag
+        :multiple="true"
+        action=""
+        accept=".jpg,.jpeg,.png"
+        :on-change="handleBatchImageChange"
+        :on-remove="handleBatchImageRemove"
+        :auto-upload="false"
+      >
+        <div v-if="!batchImageList.length" class="upload-tips">
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">
+            点击或拖拽文件到此处上传
+            <div class="el-upload__tip"> 支持批量上传图片：jpeg / jpg / png</div>
+          </div>
+        </div>
+        <div v-else class="attachment-info">
+          <el-icon class="el-icon-document"><document /></el-icon>
+          <span class="file-name">已选择 {{ batchImageList.length }} 张图片</span>
+        </div>
+      </el-upload>
     </div>
 
     <div class="author-section">
@@ -124,9 +191,8 @@
 
 <script setup>
 import { ref, shallowRef, onBeforeUnmount } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { UploadFilled, Document } from '@element-plus/icons-vue'
-import FileUpload from '@/components/FileUpload/index.vue'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
 import { getToken } from "@/utils/auth";
@@ -137,8 +203,11 @@ const articleTitle = ref('')
 const articleFlower = ref('')
 const articleAuthor = ref('')
 const articleReviewer = ref('') // 审核人
+const articleFinalReviewer = ref('')
 const articleAttachments = ref('')
 const fileList = ref([]) // 栏花文件列表
+const auditVoucherList = ref([]) // 审核凭证文件列表
+const batchImageList = ref([]) // 批量图片文件列表
 const attachmentList = ref([]) // 附件文件列表
 
 // ========== WangEditor 配置 ==========
@@ -268,12 +337,68 @@ const handleAttachmentRemove = (file, fileLists) => {
   ElMessage.info('已删除附件文档')
 }
 
+const handleAuditVoucherChange = (file, fileLists) => {
+  const isAllowedType = file.raw && [
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/pdf'
+  ].includes(file.raw.type)
+  const isAllowedExt = file.name && /\.(doc|docx|pdf)$/i.test(file.name)
+
+  if (!isAllowedType || !isAllowedExt) {
+    ElMessage.error('仅支持doc、docx、pdf格式的文件')
+    auditVoucherList.value = fileLists.filter(f => {
+      const typeValid = f.raw && [
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/pdf'
+      ].includes(f.raw.type)
+      const extValid = f.name && /\.(doc|docx|pdf)$/i.test(f.name)
+      return typeValid && extValid
+    })
+    return
+  }
+
+  if (fileLists.length > 1) {
+    auditVoucherList.value = [file]
+    ElMessage.info('审核凭证仅支持上传一个文件，已自动替换原有文件')
+  }
+}
+
+const handleAuditVoucherRemove = (file, fileLists) => {
+  auditVoucherList.value = fileLists
+  ElMessage.info('已删除审核凭证')
+}
+
+const handleBatchImageChange = (file, fileLists) => {
+  const invalidFiles = fileLists.filter(f => {
+    const isImage = f.raw && ['image/jpeg', 'image/jpg', 'image/png'].includes(f.raw.type)
+    const isAllowedExt = f.name && /\.(jpg|jpeg|png)$/i.test(f.name)
+    return !isImage || !isAllowedExt
+  })
+  if (invalidFiles.length > 0) {
+    ElMessage.error('批量图片仅支持jpg、jpeg、png格式')
+    batchImageList.value = fileLists.filter(f => {
+      const isImage = f.raw && ['image/jpeg', 'image/jpg', 'image/png'].includes(f.raw.type)
+      const isAllowedExt = f.name && /\.(jpg|jpeg|png)$/i.test(f.name)
+      return isImage && isAllowedExt
+    })
+    return
+  }
+  batchImageList.value = fileLists
+}
+
+const handleBatchImageRemove = (file, fileLists) => {
+  batchImageList.value = fileLists
+}
+
 // ========== 功能方法 ==========
 // 清空内容
 const handleClear = () => {
   articleTitle.value = ''
   articleAuthor.value = ''
   articleReviewer.value = ''
+  articleFinalReviewer.value = ''
   // 清空栏花并释放URL
   if (fileList.value.length > 0) {
     fileList.value.forEach(file => {
@@ -284,6 +409,12 @@ const handleClear = () => {
   // 清空附件
   if (attachmentList.value.length > 0) {
     attachmentList.value = []
+  }
+  if (auditVoucherList.value.length > 0) {
+    auditVoucherList.value = []
+  }
+  if (batchImageList.value.length > 0) {
+    batchImageList.value = []
   }
   if (editorRef.value) {
     editorRef.value.setHtml('') 
@@ -323,9 +454,22 @@ async function handleSubmit() {
   if (attachmentList.value && attachmentList.value.length > 0) {
     formData.append("attachment", attachmentList.value[0].raw);
   }
+  // 处理审核凭证文件
+  if (auditVoucherList.value && auditVoucherList.value.length > 0) {
+    formData.append("auditVoucher", auditVoucherList.value[0].raw);
+  }
+  // 处理批量图片
+  if (batchImageList.value && batchImageList.value.length > 0) {
+    batchImageList.value.forEach(file => {
+      if (file.raw) {
+        formData.append("batchImages", file.raw);
+      }
+    })
+  }
   formData.append("title", articleTitle.value.trim());
   formData.append("authorName", articleAuthor.value.trim());
   formData.append("reviewer", articleReviewer.value.trim());
+  formData.append("finalReviewer", articleFinalReviewer.value.trim());
   formData.append("content", contentHtml);
 
   try {
@@ -348,6 +492,8 @@ onBeforeUnmount(() => {
   })
   // 清空附件列表
   attachmentList.value = []
+  auditVoucherList.value = []
+  batchImageList.value = []
 })
 </script>
 

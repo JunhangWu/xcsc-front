@@ -53,6 +53,22 @@
             />
           </el-form-item>
           <el-form-item>
+            <el-input
+              v-model="queryParams.reviewer"
+              placeholder="请输入复审人"
+              clearable
+              style="width: 200px;"
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-input
+              v-model="queryParams.finalReviewer"
+              placeholder="请输入终审人"
+              clearable
+              style="width: 200px;"
+            />
+          </el-form-item>
+          <el-form-item>
             <el-button type="primary" @click="handleQuery">查询</el-button>
             <el-button @click="resetQuery">重置</el-button>
             <el-button type="text" @click="showAdvancedSearch = !showAdvancedSearch">
@@ -87,7 +103,16 @@
           </el-table-column>
           <el-table-column prop="authorName" label="作者姓名" width="120" align="center" />
           <el-table-column prop="createTime" label="提交时间" width="180" align="center" />
-          <el-table-column prop="approver" label="核稿人" width="120" align="center" />
+          <el-table-column label="复审人（部门负责人）" width="170" align="center">
+            <template #default="scope">
+              {{ scope.row.reviewer || scope.row.approver || '--' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="终审人（分管领导）" width="170" align="center">
+            <template #default="scope">
+              {{ scope.row.finalReviewer || '--' }}
+            </template>
+          </el-table-column>
           <el-table-column prop="approvalStatus" label="审批状态" width="120" align="center">
             <template #default="scope">
               <el-tag :type="getStatusTagType(scope.row.approvalStatus)">
@@ -125,6 +150,8 @@
             <h2 class="article-title">{{ currentArticle.title }}</h2>
             <div class="article-meta">
               <span>作者：{{ currentArticle.authorName }}</span>
+              <span>复审人：{{ currentArticle.reviewer || currentArticle.approver || '--' }}</span>
+              <span>终审人：{{ currentArticle.finalReviewer || '--' }}</span>
               <span>提交时间：{{ currentArticle.createTime }}</span>
               <el-tag :type="getStatusTagType(currentArticle.approvalStatus)">
                 {{ getStatusText(currentArticle.approvalStatus) }}
@@ -148,6 +175,18 @@
         </div>
         <div v-else class="empty-content">
           <p>暂无正文内容</p>
+        </div>
+        <div v-if="currentArticle.auditVoucherUrl" class="attachment-link-section">
+          <h4 class="attachment-title">审核凭证：</h4>
+          <el-link type="primary" :underline="true" @click="downloadByUrl(currentArticle.auditVoucherUrl, currentArticle.auditVoucherName || 'audit-voucher')">
+            {{ currentArticle.auditVoucherName || getAttachmentName(currentArticle.auditVoucherUrl) }}
+          </el-link>
+        </div>
+        <div v-if="resolveBatchImageUrls(currentArticle).length" class="flower-preview">
+          <h4 class="flower-title">批量图片：</h4>
+          <div class="batch-image-grid">
+            <img v-for="(url, idx) in resolveBatchImageUrls(currentArticle)" :key="`${url}-${idx}`" :src="url" class="flower-image" alt="批量图片">
+          </div>
         </div>
       </div>
       <template #footer>
@@ -206,6 +245,9 @@ const queryParams = reactive({
   title: '',
   approvalStatus: '',
   authorName: '',
+  approver: '',
+  reviewer: '',
+  finalReviewer: '',
   startTime: '',
   endTime: ''
 })
@@ -282,9 +324,31 @@ const getAttachmentName = (url) => {
   }
 }
 
+const resolveBatchImageUrls = (article) => {
+  const urls = article?.batchImageUrls
+  if (!urls) return []
+  if (Array.isArray(urls)) return urls.filter(Boolean)
+  if (typeof urls === 'string') return urls.split(',').map(item => item.trim()).filter(Boolean)
+  return []
+}
+
+const downloadByUrl = (url, fileName = 'download') => {
+  if (!url) {
+    ElMessage.info('无可下载文件')
+    return
+  }
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
 const getList = async () => {
   loading.value = true
   try {
+    queryParams.approver = queryParams.reviewer
     if (dateRange.value && dateRange.value.length === 2) {
       queryParams.startTime = dateRange.value[0] + ' 00:00:00'
       queryParams.endTime = dateRange.value[1] + ' 23:59:59'
@@ -333,6 +397,9 @@ const resetQuery = () => {
     title: '',
     approvalStatus: '',
     authorName: '',
+    approver: '',
+    reviewer: '',
+    finalReviewer: '',
     startTime: '',
     endTime: ''
   })
@@ -416,7 +483,9 @@ const confirmApprove = async () => {
       approvalStatus: approveForm.approvalStatus,
       approvalComments: approveForm.approvalComments,
       approvalTime: parseTime(new Date()),
-      approver: userStore.name
+      approver: userStore.name,
+      reviewer: currentArticle.value?.reviewer || userStore.name,
+      finalReviewer: currentArticle.value?.reviewer ? userStore.name : (currentArticle.value?.finalReviewer || '')
     }
     await approvalArticle(updateData)
     ElMessage.success(approveForm.approvalStatus === 1 ? '审批通过' : '审批不通过')
@@ -625,6 +694,12 @@ onMounted(() => {
   max-height: 300px;
   border-radius: 4px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+.batch-image-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 /* 附件链接部分样式 */

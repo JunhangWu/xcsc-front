@@ -295,17 +295,17 @@
                 <Refresh />
               </el-icon>刷新
             </el-button>
-            <el-button type="primary" plain @click="renameFilesByFolderName" size="default">
+            <el-button type="primary" plain @click="renameFilesByFolderName" size="default" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">
               <el-icon style="margin-right: 6px;">
                 <DocumentCopy />
               </el-icon>按文件夹名重命名文件
             </el-button>
-            <el-button type="primary" plain @click="handleAddFolder" size="default">
+            <el-button type="primary" plain @click="handleAddFolder" size="default" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">
               <el-icon style="margin-right: 6px;">
                 <FolderAdd />
               </el-icon>新建文件夹
             </el-button>
-            <el-button type="primary" plain @click="uploadFile" size="default">
+            <el-button type="primary" plain @click="uploadFile" size="default" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">
               <el-icon style="margin-right: 6px;">
                 <Upload />
               </el-icon>上传文件
@@ -395,15 +395,24 @@
             <div class="subFolder" v-for="(item, index) in visibleFolderData" :key="index"
               @mouseenter="onSubFolderMouseEnter(item)" @mouseleave="onSubFolderMouseLeave(item)">
               <span class="subFolder-actions">
-                <el-icon class="action-icon" @click.stop="editFolder(item)" title="重命名" v-show="item._hover" v-hasPermi="['xcsc:FilePathMapping:edit']"
+                <el-icon
+                  class="action-icon"
+                  @click.stop="toggleFolderShare(item)"
+                  :title="getFolderShareStatus(item) ? '取消共享' : '放入共享'"
+                  v-show="item._hover && isTopSectionLevel && auth.hasRoleOr(['admin', 'studio'])"
+                  :style="{ color: getFolderShareStatus(item) ? '#67c23a' : '#909399' }"
+                >
+                  <Share />
+                </el-icon>
+                <el-icon class="action-icon" @click.stop="editFolder(item)" title="重命名" v-show="item._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME" v-hasPermi="['xcsc:FilePathMapping:edit']"
                   style="color: #409eff;">
                   <Edit />
                 </el-icon>
-                <el-icon class="action-icon" @click.stop="deleteFolder(item)" title="删除" v-show="item._hover"
+                <el-icon class="action-icon" @click.stop="deleteFolder(item)" title="删除" v-show="item._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME"
                   style="color: #f56c6c;">
                   <Delete />
                 </el-icon>
-              </span>
+                </span>
               <el-icon @click="selectFolder(item)">
                 <FolderOpened />
               </el-icon>
@@ -413,10 +422,10 @@
             <div v-for="material in fileListData" :key="material.id" class="material-item"
               @mouseenter="onSubFolderMouseEnter(material)" @mouseleave="onSubFolderMouseLeave(material)">
                 <span class="subFolder-actions">
-                  <el-icon class="action-icon" @click.stop="editFile(material)" title="重命名" v-show="material._hover" style="color: #409eff;">
+                  <el-icon class="action-icon" @click.stop="editFile(material)" title="重命名" v-show="material._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME" style="color: #409eff;">
                     <Edit />
                   </el-icon>
-                  <el-icon class="action-icon" @click.stop="deleteFile(material)" title="删除" v-show="material._hover" style="color: #f56c6c;">
+                  <el-icon class="action-icon" @click.stop="deleteFile(material)" title="删除" v-show="material._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME" style="color: #f56c6c;">
                     <Delete />
                   </el-icon>
                 </span>
@@ -559,13 +568,16 @@
                 <template #default="{ row }">
                   <div v-if="row._rowType === 'folder'" class="table-actions">
                     <el-button link type="primary" @click.stop="selectFolder(row)">打开</el-button>
-                    <el-button link type="primary" @click.stop="editFolder(row)" v-hasPermi="['xcsc:FilePathMapping:edit']">重命名</el-button>
-                    <el-button link type="danger" @click.stop="deleteFolder(row)">删除</el-button>
+                    <el-button v-if="auth.hasRoleOr(['admin', 'studio'])" :type="getFolderShareStatus(row) ? 'success' : 'default'" link @click.stop="toggleFolderShare(row) ">
+                      {{ getFolderShareStatus(row) ? '取消共享' : '放入共享' }}
+                    </el-button>
+                    <el-button link type="primary" @click.stop="editFolder(row)" v-hasPermi="['xcsc:FilePathMapping:edit']" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">重命名</el-button>
+                    <el-button link type="danger" @click.stop="deleteFolder(row)" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">删除</el-button>
                   </div>
                   <div v-else class="table-actions">
                     <el-button link type="primary" @click.stop="showMaterialDetail(row)">标注</el-button>
-                    <el-button link type="primary" @click.stop="editFile(row)">重命名</el-button>
-                    <el-button link type="danger" @click.stop="deleteFile(row)">删除</el-button>
+                    <el-button link type="primary" @click.stop="editFile(row)" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">重命名</el-button>
+                    <el-button link type="danger" @click.stop="deleteFile(row)" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">删除</el-button>
                   </div>
                 </template>
               </el-table-column>
@@ -694,71 +706,75 @@
 
 <!-- <script setup name="MaterialAnnotation"> -->
 <script setup name="Annotation">
-const router = useRouter()
-const route = useRoute()
+// ==================== 依赖与基础上下文 ====================
 const { proxy } = getCurrentInstance();
 import { ref, reactive, onMounted, computed } from 'vue'
 import { api as viewerApi } from "v-viewer";
 import { parseTime, } from '@/utils/common'
-import { Search, VideoCamera, Document, Check, Edit, VideoPlay, VideoPause, Back, ArrowRight, ArrowUp, FolderAdd, FolderOpened, Upload, UploadFilled, Delete, Grid, Close, List, Files, DocumentCopy, Refresh } from '@element-plus/icons-vue'
+import { Search, VideoCamera, Document, Check, Edit, VideoPlay, VideoPause, Back, ArrowRight, ArrowUp, FolderAdd, FolderOpened, Upload, UploadFilled, Delete, Grid, Close, List, Files, DocumentCopy, Refresh, Share, Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile, updateFile, checkChunks, uploadFileChunk, mergeFileChunks } from "@/api/xcsc/uploadFile"
+import { getFolderList, getSharedFolderList, addFolder, updateFolder, updateShared, delFolder, uploadFiles, getFileList, delFile, updateFile, checkChunks, uploadFileChunk, mergeFileChunks } from "@/api/xcsc/uploadFile"
 import auth from '@/plugins/auth'
 import MarkDialog from './components/markDialog.vue'
 import EXIF from 'exif-js';
 // 修复压缩版的变量丢失 bug（关键：手动声明缺失的变量）
 window.EXIF = EXIF;
 window.n = window.n || {}; // 补充缺失的 n 变量（根据错误提示补充）
-// import EXIF from 'exif-js';
-// window.EXIF = EXIF; // 关键：将库挂载到全局 window 对象
-import download from '../../../plugins/download';
+
+// ==================== 页面筛选 / 排序 / 展示状态 ====================
 // 搜索和筛选
-const searchKeyword = ref('')
-const statusFilter = ref('')
-const showSearchResults = ref(false) // 控制是否显示搜索结果
+const searchKeyword = ref('')// 搜索关键词
+const statusFilter = ref('')// 素材状态筛选
+const showSearchResults = ref(false) // 是否显示搜索结果
 
 // 排序相关
 const sortField = ref('name') // 当前排序字段：name, size, date
 const sortOrder = ref('asc') // 当前排序方向：asc, desc
 const viewMode = ref('thumbnail') // 当前展示模式：thumbnail, list
-const nameCollator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' })
+const nameCollator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' }) // 用于文件名排序的比较器
 
+// ==================== 文件夹导航与列表数据 ====================
 // 素材列表
 const loading = ref(false)
+//是否开启文件夹模式（用于根目录）
 const showFolder = ref(true)
+//当前文件夹对象
 const curFolderObj = reactive({
   filePath: '',
   bizId: '',
   id: '',
 })
+//面包屑导航
 const breadcrumbData = ref([])
 
 //点击子文件展示相关文件夹及文件
 function selectFolder(item, type) {
   console.log('====item==', item);
   Object.assign(curFolderObj, item)
+   
   if (type == 'isRootFolder') {
-    //根文件夹
     showFolder.value = false
     breadcrumbData.value = [{
       filePath: item.filePath,
       bizId: item.bizId,
     }]
-  } else {
+  }
+  else {
     breadcrumbData.value.push({
       filePath: item.filePath,
       bizId: item.bizId,
     })
   }
   getFolderData(item.bizId)
+  
   console.log('=== breadcrumbData.value===', breadcrumbData.value);
 
 }
 //点击面包屑
 function clickBreadcrumb(item, index) {
-  getFolderData(item.bizId)
   console.log('===item===', item);
   Object.assign(curFolderObj, item)
+  getFolderData(item.bizId)
   if (index == 0) {
     breadcrumbData.value = [{
       filePath: item.filePath,
@@ -773,25 +789,26 @@ function clickBreadcrumb(item, index) {
 }
 // 返回按钮
 const backFolder = () => {
-
+  //返回根目录
   if (breadcrumbData.value.length == 1) {
     showFolder.value = true
-    getFolderData(0)
+    // 先重置curFolderObj，再调用getFolderData
     Object.assign(curFolderObj, {
       filePath: '',
       bizId: 0,
       id: 0
     });
+    getFolderData(0)
     // return
-  } else {
+  } 
+  else {
+    const prevFolder = breadcrumbData.value[breadcrumbData.value.length - 2]
     Object.assign(curFolderObj, {
-      filePath: breadcrumbData.value[breadcrumbData.value.length - 2].filePath,
-      bizId: breadcrumbData.value[breadcrumbData.value.length - 2].bizId,
-      id: breadcrumbData.value[breadcrumbData.value.length - 2].id
+      filePath: prevFolder.filePath,
+      bizId: prevFolder.bizId,
+      id: prevFolder.id,
+      isShared: prevFolder.isShared
     });
-    // curFolderObj.filePath = breadcrumbData.value[breadcrumbData.value.length - 2].filePath
-    // curFolderObj.bizId = breadcrumbData.value[breadcrumbData.value.length - 2].bizId
-    // curFolderObj.id = breadcrumbData.value[breadcrumbData.value.length - 2].id
     getFolderData(breadcrumbData.value[breadcrumbData.value.length - 2].bizId) //获取上一级文件夹的bizId
     breadcrumbData.value.pop()
   }
@@ -810,6 +827,7 @@ const visibleFolderData = computed(() => {
   }
   return folderData.value.filter(item => item.filePath !== SHARED_FOLDER_NAME)
 })
+const isTopSectionLevel = computed(() => !showFolder.value && breadcrumbData.value.length === 1)
 
 const listViewRows = computed(() => {
   const folders = visibleFolderData.value.map(item => ({ ...item, _rowType: 'folder' }))
@@ -817,35 +835,76 @@ const listViewRows = computed(() => {
   return [...folders, ...files]
 })
 
+function getFolderShareStatus(folder) {
+  const val = folder?.isShared ?? false;
+  return val === 1 || val === '1' || val === true
+}
+
+function toggleFolderShare(folder) {
+  const id = folder?.id
+  if (!id) {
+    ElMessage.warning('未获取到文件夹id')
+    return
+  }
+
+  const targetShared = getFolderShareStatus(folder) ? 0 : 1
+  let params = {
+    id: id,
+    isShared: targetShared,
+  }
+  updateShared(params).then(() => {
+    folder.isShared = targetShared
+    proxy.$modal.msgSuccess(targetShared === 1 ? '已放入共享文件夹' : '已取消共享')
+    getFolderData(curFolderObj.bizId || 0)
+  }).catch(() => { })
+}
+
 function switchViewMode(mode) {
   if (mode === 'thumbnail' || mode === 'list') {
     viewMode.value = mode
   }
 }
-
+//获取文件夹及文件列表数据
 function getFolderData(pid) {
   let params = {
     pid: pid,
   }
   console.log('===pid===', pid);
   console.log('===params===', params);
-  getFolderList(params).then(res => {
-    folderData.value = res.data
-  })
-  if (pid !== 0) {
-    let param = {
-      folderId: pid,
-    }
-    console.log('===params===', params);
-    getFileList(param).then(res => {
-      fileListData.value = res.data
-      console.log('===fileListData.value===', fileListData.value);
+  console.log('===curFolderObj===', curFolderObj);
+  //如果当前文件夹是共享文件夹
+  if (curFolderObj.filePath === SHARED_FOLDER_NAME) {
+    getSharedFolderList().then(res => {
+      const sharedFolders = res.data || []
+      console.log('===sharedFolders===', sharedFolders);
+      folderData.value = sharedFolders
+      console.log('===folderData.value===', folderData.value);
+      fileListData.value = []
     })
+  }
+  //其他文件夹
+  else{
+    getFolderList(params).then(res => {
+      folderData.value = res.data || []
+    })
+    if (pid !== 0) {
+      let param = {
+        folderId: pid,
+      }
+      console.log('===params===', params);
+      getFileList(param).then(res => {
+        fileListData.value = res.data || []
+        console.log('===fileListData.value===', fileListData.value);
+      })
+    } else {
+      fileListData.value = []
+    }
   }
 }
 getFolderData(0)
 
-// 获取文件列表数据
+// ==================== 搜索与刷新 ====================
+// 获取搜索结果文件列表
 const queryfileListData = ref([])//文件列表
 function getQueryData() {
   // loading.value = true
@@ -854,7 +913,7 @@ function getQueryData() {
     annotationStatus: statusFilter.value,
   }
   getFileList(params).then(res => {
-    queryfileListData.value = res.data
+    queryfileListData.value = res.data || []
     showSearchResults.value = true // 显示搜索结果
     showFolder.value = false // 隐藏文件夹模式
   }).finally(() => {
@@ -870,6 +929,21 @@ function refreshData() {
   const pid = curFolderObj.bizId || 0
   getFolderData(pid)
 }
+
+// 重置搜索态并回到目录视图
+function resetSearch() {
+  showSearchResults.value = false
+  if (curFolderObj.bizId == 0) {
+    showFolder.value = true // 确保显示文件夹视图
+  }
+
+  searchKeyword.value = ''
+  statusFilter.value = ''
+  console.log("==curFolderObj==", curFolderObj)
+  getFolderData(curFolderObj.bizId)
+}
+
+// ==================== 文件名与路径工具 ====================
 function getCurrentFolderPath() {
   let folderPath = ''
   breadcrumbData.value.forEach((item, idx) => {
@@ -887,6 +961,8 @@ function getFileExtension(name) {
   return dotIndex > -1 ? name.substring(dotIndex) : ''
 }
 
+// ==================== 批量文件操作 ====================
+// 按当前文件夹名批量重命名文件
 function renameFilesByFolderName() {
   if (showFolder.value || !curFolderObj.bizId) {
     ElMessage.warning('请选择一个文件夹')
@@ -916,7 +992,8 @@ function renameFilesByFolderName() {
   }).catch(() => { })
 }
 
-//新建文件夹
+// ==================== 新建 / 重命名对话框（文件夹与文件） ====================
+// 新建文件夹
 const handleFolderType = ref('add') // add edit edit_file
 const addFolderDialogVisible = ref(false)
 const folderName = ref('')
@@ -1139,6 +1216,7 @@ function onSubFolderMouseLeave(item) {
   item._hover = false
 }
 
+// ==================== 上传弹框与任务管理 ====================
 // 上传文件
 const uploadDialogVisible = ref(false)
 const uploadType = ref('file')// 上传类型
@@ -1233,13 +1311,15 @@ function cancelUpload() {
   lastTime = 0
   fileUploadStatus.value = []
 }
-// 全局变量：存储文件哈希和已上传分块（用于断点续传）
+// ==================== 分片上传核心逻辑 ====================
+// 存储文件哈希和已上传分块（用于断点续传）
 const fileUploadCache = new Map(); 
 // 分块大小配置（16MB，可根据需求调整）
 const CHUNK_SIZE = 16 * 1024 * 1024; 
 
-// 工具函数：计算文件MD5哈希（需引入spark-md5库，npm install spark-md5）
+// 计算文件哈希所需依赖
 import SparkMD5 from 'spark-md5';
+// 分块相关工具函数
 function getChunkSizeByIndex(fileSize, chunkIndex) {
   const start = chunkIndex * CHUNK_SIZE;
   if (start >= fileSize) {
@@ -1612,12 +1692,8 @@ async function uploadChunkWithProgress(fileHash, chunkIndex, chunk, folderId, fo
     throw error;
   }
 }
-// // 支持的文件格式
-// const supportedFormats = {
-//   image: ['jpg', 'jpeg', 'png', 'bmp', 'gif'],
-//   video: ['mp4', 'mov', 'avi', 'mkv', 'flv','m4v'],
-//   document: ['docx', 'pdf', 'pptx']
-// }
+
+// ==================== 列表展示与格式化工具 ====================
 function isImage(path) {
   return ['jpg', 'jpeg', 'png', 'bmp', 'gif'].some(ext => path.toLowerCase().includes(ext));
 }
@@ -1707,6 +1783,8 @@ function handleListNameClick(row) {
   }
   downloadFile(row);
 }
+
+// ==================== 上传前校验与文件选择处理 ====================
 // 检查文件格式是否支持
 // const isSupportedFormat = (filename) => {
 //   const ext = filename.split('.').pop().toLowerCase()
@@ -1847,6 +1925,7 @@ function handleFileRemove(file, fileList) {
   handleFileChange(file, fileList);
 }
 
+// ==================== 文件删除与状态展示 ====================
 // 删除文件
 function deleteFile(item) {
   proxy.$modal.confirm('是否确认删除文件名为"' + item.fileName + '"的文件?').then(function () {
@@ -1886,7 +1965,8 @@ const getStatusText = (status) => {
   return textMap[status] || status
 }
 
-//预览图片
+// ==================== 文件预览与下载 ====================
+// 预览图片
 function previewImg(material) {
   const $viewer = viewerApi({
     options: {
@@ -1915,25 +1995,7 @@ function downloadFile(material) {
   }
 }
 
-// 重置搜索，返回文件夹视图
-function resetSearch() {
-  showSearchResults.value = false
-  if(curFolderObj.bizId == 0){
-    showFolder.value = true // 确保显示文件夹视图
-  }
-  
-  searchKeyword.value = ''
-  statusFilter.value = ''
-  // breadcrumbData.value = [] // 清空面包屑数据
-  // Object.assign(curFolderObj, {
-  //   filePath: '',
-  //   bizId: '',
-  //   id: ''
-  // }) // 重置当前文件夹对象
-  console.log("==curFolderObj==",curFolderObj)
-  getFolderData(curFolderObj.bizId) // 获取根文件夹数据
-}
-
+// ==================== 标注与排序 ====================
 // 显示素材详情
 const markDialogRef = ref(null)
 function showMaterialDetail(material) {
@@ -2416,7 +2478,8 @@ function sortFolderList(folderList) {
     top: 8px;
     right: 8px;
     display: flex;
-    gap: 4px;
+    align-items: center;
+    gap: 6px;
     z-index: 10;
     opacity: 0;
     transition: opacity 0.2s;

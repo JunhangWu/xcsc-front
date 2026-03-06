@@ -33,10 +33,18 @@
           <el-option label="待审核" value=0 />
         </el-select>
       </el-form-item>
-      <el-form-item label="核稿人">
+      <el-form-item label="复审人（部门负责人）">
         <el-input
-          v-model="queryParams.approver"
-          placeholder="请输入核稿人"
+          v-model="queryParams.reviewer"
+          placeholder="请输入复审人"
+          clearable
+          style="width: 200px;"
+        />
+      </el-form-item>
+      <el-form-item label="终审人（分管领导）">
+        <el-input
+          v-model="queryParams.finalReviewer"
+          placeholder="请输入终审人"
           clearable
           style="width: 200px;"
         />
@@ -76,8 +84,16 @@
       </el-table-column>
       <!-- 提交时间 -->
       <el-table-column prop="createTime" label="提交时间" width="180" align="center" />
-      <!-- 核稿人 -->
-      <el-table-column prop="approver" label="核稿人" width="120" align="center" />
+      <el-table-column label="复审人（部门负责人）" width="170" align="center">
+        <template #default="scope">
+          {{ scope.row.reviewer || scope.row.approver || '--' }}
+        </template>
+      </el-table-column>
+      <el-table-column label="终审人（分管领导）" width="170" align="center">
+        <template #default="scope">
+          {{ scope.row.finalReviewer || '--' }}
+        </template>
+      </el-table-column>
       <!-- 审核状态 -->
       <el-table-column prop="approvalStatus" label="审批状态" width="180" align="center">
         <template #default="scope">
@@ -118,6 +134,8 @@
             <h2 class="article-title">{{ currentArticle.title }}</h2>
             <div class="article-meta">
               <span>作者：{{ currentArticle.authorName }}</span>
+              <span>复审人：{{ currentArticle.reviewer || currentArticle.approver || '--' }}</span>
+              <span>终审人：{{ currentArticle.finalReviewer || '--' }}</span>
               <span>提交时间：{{ currentArticle.createTime }}</span>
               <el-tag :type="getStatusTagType(currentArticle.approvalStatus)">
                 {{ getStatusText(currentArticle.approvalStatus) }}
@@ -141,6 +159,18 @@
         </div>
         <div v-else class="empty-content">
           <p>暂无正文内容</p>
+        </div>
+        <div v-if="currentArticle.auditVoucherUrl" class="attachment-link-section">
+          <h4 class="attachment-title">审核凭证：</h4>
+          <el-link type="primary" :underline="true" @click="downloadByUrl(currentArticle.auditVoucherUrl, currentArticle.auditVoucherName || 'audit-voucher')">
+            {{ currentArticle.auditVoucherName || getAttachmentName(currentArticle.auditVoucherUrl) }}
+          </el-link>
+        </div>
+        <div v-if="resolveBatchImageUrls(currentArticle).length" class="flower-preview">
+          <h4 class="flower-title">批量图片：</h4>
+          <div class="batch-image-grid">
+            <img v-for="(url, idx) in resolveBatchImageUrls(currentArticle)" :key="`${url}-${idx}`" :src="url" class="flower-image" alt="批量图片">
+          </div>
         </div>
       </div>
       <template #footer>
@@ -172,6 +202,26 @@
           <el-input
             v-model="editArticleForm.authorName"
             placeholder="请输入作者姓名"
+            maxlength="30"
+            style="width: 100%;"
+            show-word-limit
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="复审人：">
+          <el-input
+            v-model="editArticleForm.reviewer"
+            placeholder="请输入复审人（部门负责人）"
+            maxlength="30"
+            style="width: 100%;"
+            show-word-limit
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="终审人：">
+          <el-input
+            v-model="editArticleForm.finalReviewer"
+            placeholder="请输入终审人（分管领导）"
             maxlength="30"
             style="width: 100%;"
             show-word-limit
@@ -253,6 +303,57 @@
             </div>
           </el-upload>
         </el-form-item>
+        <el-form-item label="审核凭证：">
+          <el-upload
+            v-model:file-list="auditVoucherList"
+            class="upload-demo attachment-upload"
+            drag
+            :multiple="false"
+            action=""
+            accept=".doc,.docx,.pdf"
+            :on-change="handleAuditVoucherChange"
+            :on-remove="handleAuditVoucherRemove"
+            :auto-upload="false"
+            :limit="1"
+          >
+            <div v-if="!auditVoucherList.length" class="upload-tips">
+              <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+              <div class="el-upload__text">
+                点击或拖拽文件到此处上传
+                <div class="el-upload__tip"> 支持文件格式：doc / docx / pdf</div>
+              </div>
+            </div>
+            <div v-else class="attachment-info">
+              <el-icon class="el-icon-document"><document /></el-icon>
+              <span class="file-name">{{ auditVoucherList[0].name }}</span>
+            </div>
+          </el-upload>
+        </el-form-item>
+        <el-form-item label="批量图片：">
+          <el-upload
+            v-model:file-list="batchImageList"
+            class="upload-demo attachment-upload"
+            drag
+            :multiple="true"
+            action=""
+            accept=".jpg,.jpeg,.png"
+            :on-change="handleBatchImageChange"
+            :on-remove="handleBatchImageRemove"
+            :auto-upload="false"
+          >
+            <div v-if="!batchImageList.length" class="upload-tips">
+              <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+              <div class="el-upload__text">
+                点击或拖拽文件到此处上传
+                <div class="el-upload__tip"> 支持批量上传图片：jpeg / jpg / png</div>
+              </div>
+            </div>
+            <div v-else class="attachment-info">
+              <el-icon class="el-icon-document"><document /></el-icon>
+              <span class="file-name">已选择 {{ batchImageList.length }} 张图片</span>
+            </div>
+          </el-upload>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="editDialogVisible = false">取消</el-button>
@@ -278,6 +379,8 @@ const queryParams = reactive({
   title: '',
   approvalStatus: '',
   approver: '',
+  reviewer: '',
+  finalReviewer: '',
   authorName: '',
 })
 
@@ -297,6 +400,8 @@ const editLoading = ref(false)
 const editFormRef = ref(null)
 const fileList = ref([]) // 栏花文件列表
 const attachmentList = ref([]) // 附件文件列表
+const auditVoucherList = ref([]) // 审核凭证文件列表
+const batchImageList = ref([]) // 批量图片文件列表
 
 // 富文本编辑器配置
 const editorRef = shallowRef()
@@ -414,6 +519,81 @@ const handleAttachmentRemove = (file, fileLists) => {
   ElMessage.info('已删除附件文档')
 }
 
+const handleAuditVoucherChange = (file, fileLists) => {
+  const isAllowedType = file.raw && [
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/pdf'
+  ].includes(file.raw.type)
+  const isAllowedExt = file.name && /\.(doc|docx|pdf)$/i.test(file.name)
+
+  if (!isAllowedType || !isAllowedExt) {
+    ElMessage.error('仅支持doc、docx、pdf格式的文件')
+    auditVoucherList.value = fileLists.filter(f => {
+      const typeValid = f.raw && [
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/pdf'
+      ].includes(f.raw.type)
+      const extValid = f.name && /\.(doc|docx|pdf)$/i.test(f.name)
+      return typeValid && extValid
+    })
+    return
+  }
+
+  if (fileLists.length > 1) {
+    auditVoucherList.value = [file]
+    ElMessage.info('审核凭证仅支持上传一个文件，已自动替换原有文件')
+  }
+}
+
+const handleAuditVoucherRemove = (file, fileLists) => {
+  auditVoucherList.value = fileLists
+}
+
+const handleBatchImageChange = (file, fileLists) => {
+  const invalidFiles = fileLists.filter(f => {
+    const isImage = f.raw && ['image/jpeg', 'image/jpg', 'image/png'].includes(f.raw.type)
+    const isAllowedExt = f.name && /\.(jpg|jpeg|png)$/i.test(f.name)
+    return !isImage || !isAllowedExt
+  })
+  if (invalidFiles.length > 0) {
+    ElMessage.error('批量图片仅支持jpg、jpeg、png格式')
+    batchImageList.value = fileLists.filter(f => {
+      const isImage = f.raw && ['image/jpeg', 'image/jpg', 'image/png'].includes(f.raw.type)
+      const isAllowedExt = f.name && /\.(jpg|jpeg|png)$/i.test(f.name)
+      return isImage && isAllowedExt
+    })
+    return
+  }
+  batchImageList.value = fileLists
+}
+
+const handleBatchImageRemove = (file, fileLists) => {
+  batchImageList.value = fileLists
+}
+
+const resolveBatchImageUrls = (article) => {
+  const urls = article?.batchImageUrls
+  if (!urls) return []
+  if (Array.isArray(urls)) return urls.filter(Boolean)
+  if (typeof urls === 'string') return urls.split(',').map(item => item.trim()).filter(Boolean)
+  return []
+}
+
+const downloadByUrl = (url, fileName = 'download') => {
+  if (!url) {
+    ElMessage.info('无可下载文件')
+    return
+  }
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
 
 // 获取审核状态标签类型
 const getStatusTagType = (status) => {
@@ -461,6 +641,7 @@ const getAttachmentName = (url) => {
 const getList = async () => {
   loading.value = true
   try {
+    queryParams.approver = queryParams.reviewer
     const response = await listArticle(queryParams)
     articleList.value = response.rows || []
     total.value = response.total || 0
@@ -489,6 +670,8 @@ const resetQuery = () => {
     contentType: '',
     contentCategory: '',
     approver: '',
+    reviewer: '',
+    finalReviewer: '',
     authorName: ''
   })
   handleQuery()
@@ -519,6 +702,25 @@ const handleReedit = async (row) => {
     } else {
       attachmentList.value = []
     }
+    if (editArticleForm.value.auditVoucherUrl) {
+      auditVoucherList.value = [{
+        name: editArticleForm.value.auditVoucherName || 'audit-voucher',
+        url: editArticleForm.value.auditVoucherUrl,
+        uid: 'existing-audit-voucher'
+      }]
+    } else {
+      auditVoucherList.value = []
+    }
+    const batchUrls = resolveBatchImageUrls(editArticleForm.value)
+    if (batchUrls.length > 0) {
+      batchImageList.value = batchUrls.map((url, index) => ({
+        name: `batch-image-${index + 1}.jpg`,
+        url,
+        uid: `existing-batch-${index}`
+      }))
+    } else {
+      batchImageList.value = []
+    }
     editDialogVisible.value = true
   } catch (error) {
     ElMessage.error('获取稿件详情失败')
@@ -545,6 +747,8 @@ const handleSaveEdit = async () => {
     formData.append('id', editArticleForm.value.id)
     formData.append('title', editArticleForm.value.title)
     formData.append('authorName', editArticleForm.value.authorName)
+    formData.append('reviewer', editArticleForm.value.reviewer || '')
+    formData.append('finalReviewer', editArticleForm.value.finalReviewer || '')
     formData.append('content', editArticleForm.value.content)
     // 有图片时才 append file
     if (fileList.value.length > 0 && fileList.value[0].raw) {
@@ -557,6 +761,14 @@ const handleSaveEdit = async () => {
     else{
       formData.append('attachment', '')
     }
+    if (auditVoucherList.value.length > 0 && auditVoucherList.value[0].raw) {
+      formData.append('auditVoucher', auditVoucherList.value[0].raw)
+    }
+    batchImageList.value.forEach(file => {
+      if (file.raw) {
+        formData.append('batchImages', file.raw)
+      }
+    })
 
     await updateArticle(formData) // 统一传 FormData
     ElMessage.success('保存成功')
@@ -732,6 +944,12 @@ onMounted(() => {
   max-height: 300px;
   border-radius: 4px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+.batch-image-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 /* 编辑弹窗栏花预览样式 */

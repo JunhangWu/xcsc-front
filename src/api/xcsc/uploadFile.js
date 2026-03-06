@@ -9,6 +9,14 @@ export function getFolderList(query) {
         params: query
     })
 }
+// 文件夹列表
+export function getFolderListWithoutPremission(query) {
+    return request({
+        url: '/folder/listWithoutPremission',
+        method: 'get',
+        params: query
+    })
+}
 // 获取共享文件夹列表
 export function getSharedFolderList() {
     return request({

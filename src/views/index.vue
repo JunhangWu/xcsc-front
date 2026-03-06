@@ -309,6 +309,7 @@
       </div>  
       <!-- 文件信息区 -->
       <div class="card" v-else-if="!showSearchResults">
+        <!-- 面包屑栏 -->
         <div class="pageTop" v-if="activeSpace !== 'all'">
           <div class="breadcrumbBox">
             <!-- 返回到上一级 - 当不在'所有文件'或'我的收藏'界面时显示 -->
@@ -422,6 +423,7 @@
         
       <!-- 素材列表区 -->
         <div class="material-list">
+          <!-- 加载页面 -->
           <div v-if="loading" class="loading-container">
             <el-loading-text>正在加载素材...</el-loading-text>
           </div>
@@ -437,7 +439,7 @@
             class="empty-state">
             <el-empty description="暂无内容" />
           </div>
-          
+          <!-- 列表模式 -->
           <div v-else-if="activeSpace !== 'all' && viewMode === 'thumbnail'" class="material-grid">
             <!-- 文件夹列表 -->
             <div class="subFolder" v-if="activeSpace !== 'all'" v-for="(item, index) in folderData" :key="index"
@@ -483,6 +485,7 @@
               </div>
             </div>
           </div>
+          <!-- 大图模式 -->
           <div v-else-if="activeSpace !== 'all'" class="material-table-wrapper">
             <el-table :data="listViewRows" class="material-table" :row-key="getListRowKey">
               <el-table-column min-width="360">
@@ -594,6 +597,7 @@
               </el-table-column>
             </el-table>
           </div>
+          <!-- 所有文件 -->
           <div class="allFileList" v-if="activeSpace == 'all'">
             <div class="everydayBox" v-for="(everydayData, index) in Object.keys(paginatedAllFiles)" :key="index">
               <div class="date" style=" font-size: 16px;font-weight: 600;color: #303133;padding: 10px 0;border-bottom: 1px solid #ebeef5;width: 100%; margin-bottom: 16px;">{{ everydayData }}</div>
@@ -648,9 +652,6 @@
               />
             </div>
           </div>
-
-
-
         </div>
       </div>
     </div>
@@ -682,6 +683,17 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getFolderList,getSharedFolderList, getFileList, getCollectFileList, getFileIndexList, getCollectionList, addCollection, delCollection,  getDeptCategoryList, countAllFile } from "@/api/xcsc/uploadFile"
 import useUserStore from '@/store/modules/user'
+import {
+  getListRowKey,
+  getListFileType,
+  getListRowSize,
+  isImage,
+  isVideo,
+  getFileName,
+  formatFileSize,
+  formatDateTime,
+  getFileType
+} from '@/views/utils/materialCommon'
 
 const router = useRouter()
 const contentAreaRef = ref(null)
@@ -696,7 +708,7 @@ function scrollIndexToTop() {
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
 }
 
-// 排序相关
+//==============================================排序相关方法=========================================================================
 const sortField = ref('name') // 当前排序字段：name, size, date, type, favoriteTime
 const sortOrder = ref('asc') // 当前排序方向：asc, desc
 const viewMode = ref('thumbnail') // 当前展示模式：thumbnail, list
@@ -716,27 +728,7 @@ const listViewRows = computed(() => {
   return [...folders, ...files]
 })
 
-// 获取列表行的唯一键
-function getListRowKey(row) {
-  if (row?._rowType === 'folder') {
-    return `folder-${row.bizId || row.id || row.filePath}`;
-  }
-  return `file-${row?.id || row?.fileName || ''}`;
-}
-
-// 获取列表行的文件类型
-function getListFileType(row) {
-  if (row?._rowType === 'folder') return '文件夹';
-  const fileType = getFileType(row?.minioPath || '');
-  if (fileType === '未知') return fileType;
-  return `${fileType.toLowerCase()}文件`;
-}
-
-// 获取列表行的大小
-function getListRowSize(row) {
-  if (row?._rowType === 'folder') return '--';
-  return formatFileSize(row?.fileSize);
-}
+// 获取列表行的唯一键 / 文件类型 / 大小 方法已抽取至 materialCommon
 
 // 获取列表行的时间
 function getListRowTime(row) {
@@ -745,7 +737,7 @@ function getListRowTime(row) {
   }
   return formatDateTime(row?.updateTime || row?.createTime);
 }
-
+// 获取列表行的收藏时间
 function getFavoriteDateTime(row) {
   const fileId = row?.id ?? row?.fileId
   if (fileId !== undefined && fileId !== null) {
@@ -767,37 +759,6 @@ function getFavoriteTimestamp(row) {
   const favoriteTime = new Date(getFavoriteDateTime(row)).getTime();
   if (!Number.isNaN(favoriteTime)) return favoriteTime;
   return new Date(row?.updateTime || row?.createTime || 0).getTime();
-}
-
-// 排序文件列表
-function sortFileList(fileList) {
-  if (!Array.isArray(fileList)) return fileList;
-  return fileList.sort((a, b) => {
-    if (sortField.value === 'name') {
-      return sortOrder.value === 'asc'
-        ? nameCollator.compare(a?.fileName || '', b?.fileName || '')
-        : nameCollator.compare(b?.fileName || '', a?.fileName || '');
-    } else if (sortField.value === 'size') {
-      const sizeA = Number(a?.fileSize) || 0;
-      const sizeB = Number(b?.fileSize) || 0;
-      return sortOrder.value === 'asc' ? sizeA - sizeB : sizeB - sizeA;
-    } else if (sortField.value === 'date') {
-      const timeA = new Date(a?.updateTime || a?.createTime || 0).getTime();
-      const timeB = new Date(b?.updateTime || b?.createTime || 0).getTime();
-      return sortOrder.value === 'asc' ? timeA - timeB : timeB - timeA;
-    } else if (sortField.value === 'favoriteTime') {
-      const timeA = getFavoriteTimestamp(a);
-      const timeB = getFavoriteTimestamp(b);
-      return sortOrder.value === 'asc' ? timeA - timeB : timeB - timeA;
-    } else if (sortField.value === 'type') {
-      const typeA = getFileType(a?.minioPath || '');
-      const typeB = getFileType(b?.minioPath || '');
-      return sortOrder.value === 'asc'
-        ? nameCollator.compare(typeA, typeB)
-        : nameCollator.compare(typeB, typeA);
-    }
-    return 0;
-  });
 }
 
 // 处理排序
@@ -855,17 +816,24 @@ function sortCompare(a, b) {
   }
   return 0;
 }
+//=======================================================================================================================
 
+
+
+
+//==============================================左侧板块相关方法=========================================================================
+// 个人空间
+const personalSpace = ref([
+  { id: 'all', name: '所有文件', icon: Folder },
+  { id: 'favorite', name: '我的收藏', icon: Star }
+])
 
 // 当前选中的板块分类
 const activeCategory = ref('')
-// 板块分类
-const categories = reactive({
-  bizId: [],
-  filePath: [],
-})
-// 存储分类名称到bizId的映射
-const categoryMap = ref({})
+// 当前选中的个人空间
+const activeSpace = ref('all')
+// 当前选中的板块（根文件夹）
+const curDeptRootFolderId = ref('')
 
 // 获取左侧板块列表
 function getCategoriesByDeptList() {
@@ -883,9 +851,183 @@ function getCategoriesByDeptList() {
 }
 
 // 页面加载时调用
-// getCategories(0)
 getCategoriesByDeptList()
 
+// 点击个人空间
+const handleSpaceClick = (spaceId) => {
+  // 重置筛选表单
+  Object.assign(filterForm, { fileType: '', dateRange: [], createBy: '', keyWords: '', fileName: '' });
+  activeSpace.value = spaceId;
+  activeDeptId.value = null;
+  activeCategory.value = '';
+  folderData.value = [];
+  showSearchResults.value = false; // 初始关闭搜索区域
+  curFolderId.value = '';
+  breadcrumbData.value = [];
+
+  if (activeSpace.value == 'all') {
+    viewMode.value = 'thumbnail'
+    fileListData.value = [];
+    currentPage.value = 1; // 重置到第一页
+    Object.assign(curFolderObj, { filePath: '', bizId: '', id: '' });
+    getAllFileListData();
+  } else if (activeSpace.value == 'favorite') {
+    setFavoriteDefaultSort()
+    // 初始进入：普通模式加载收藏列表
+    getFavoriteFiles('normal');
+  }
+}
+
+// 当前选中的部门
+const activeDeptId = ref(null)
+
+// 所有部门列表
+const categoriesByDept = ref([])
+
+const isAdmin = computed(() => {
+  const user = userStore.user;
+
+  // 对象数组 roles
+  const objectRoles = user?.roles?.some(
+      role => role.roleKey === 'admin' || role.roleKey === 'studio'
+  );
+
+  // 顶层字符串数组 roles
+  const stringRoles = userStore.roles?.some(
+      role => role === 'admin' || role === 'studio'
+  );
+
+  return objectRoles || stringRoles;
+});
+
+// 判断部门是否可点击
+const canClickDept = (dept) => {
+  if (isAdmin.value) return true
+  // leader为"all" 或 部门ID匹配 都可点击
+  // 注：这里共享文件夹为便捷开发，利用了现有的dept表的leader字段
+  return Number(dept.deptId) === Number(userStore.deptId) || dept.leader === "all"
+}
+
+// 点击板块分类（统一接收 dept 对象）
+const handleCategoryClick = (dept) => {
+  // 关闭搜索结果视图，切换到文件夹视图
+  showSearchResults.value = false;
+  // 1. 重置搜索栏
+  Object.assign(filterForm, {
+    fileType: '',
+    dateRange: [],
+    createBy: '',
+    keyWords: '',
+    fileName: ''
+  })
+
+  // 2. 设置当前选中状态
+  activeCategory.value = dept.deptName
+  activeDeptId.value = dept.deptId
+  activeSpace.value = ''
+  curDeptRootFolderId.value =  dept.rootFolderId
+  // 进入板块主文件夹，初始化curFolderId为根文件夹ID
+  curFolderId.value = dept.rootFolderId;
+
+  console.log('===activeCategory===', dept)
+
+  // 3. 拉取数据，判断是否为共享文件夹
+  const isSharedFolder = dept.deptName === "共享文件夹"
+  getFolderData(dept.rootFolderId, 'folder', isSharedFolder)
+
+  // 4. 面包屑
+  breadcrumbData.value = [
+    {
+      filePath: dept.deptName,
+      bizId: dept.rootFolderId
+    }
+  ]
+
+  // 5. 当前文件夹对象
+  Object.assign(curFolderObj, {
+    filePath: dept.deptName,
+    bizId: dept.rootFolderId
+  })
+}
+
+// 点击部门处理（真正业务逻辑）
+const handleDeptClick = (dept) => {
+  activeDeptId.value = dept.deptId
+  curDeptRootFolderId.value = dept.rootFolderId
+  console.log('选中部门：', dept.deptName)
+  // TODO: 根据 deptId 拉取文件列表等逻辑
+  // 板块/公司  有一个主文件夹（pid = 0）；dept."foldid"
+  handleCategoryClick(dept)
+}
+
+// 包装点击：不可点击时直接 return
+const handleDeptClickIfAllowed = (dept) => {
+  if (!canClickDept(dept)) return
+  handleDeptClick(dept)
+}
+
+// 排序：可点击部门排前面
+const sortedCategoriesByDept = computed(() => {
+  return [...categoriesByDept.value].sort((a, b) => {
+    const aCan = canClickDept(a) ? 0 : 1
+    const bCan = canClickDept(b) ? 0 : 1
+    return aCan - bCan
+  })
+})
+
+// 侧边栏只显示可点击的部门
+const visibleCategoriesByDept = computed(() => {
+  return sortedCategoriesByDept.value.filter((dept) => canClickDept(dept))
+})
+//=======================================================================================================================
+
+
+
+
+
+
+
+//============================================================数量统计相关方法===========================================================
+
+// 总文件数
+// const totalFiles = computed(() => materials.value.length)
+// 计算所有文件的总数
+const totalAllFiles = ref(0);
+
+// 获取文件总数
+const fetchTotalFiles = async () => {
+  try {
+    const res = await countAllFile();
+    totalAllFiles.value = res.data;
+  } catch (error) {
+    console.error('获取文件总数失败:', error);
+  }
+};
+
+// 计算收藏文件的总数
+const totalFavoriteFiles = computed(() => {
+  if (activeSpace.value === 'favorite') {
+    return fileListData.value.length;
+  }
+  return collectionList.value.length;
+});
+
+//=======================================================================================================================
+
+
+
+
+//==============================================素材展示相关方法=========================================================================
+// 筛选表单
+const filterForm = reactive({
+  fileType: '',
+  dateRange: [],
+  createBy: '',
+  keyWords: '',
+  fileName: ''
+})
+//  当前选中的文件夹
+const curFolderId =  ref('')
 // 素材列表
 const loading = ref(false)
 const curFolderObj = reactive({
@@ -954,9 +1096,6 @@ function getFolderData(folderBizId, mode = 'folder', isSharedFolder = false) {
   }
 }
 
-
-
-
 //点击子文件展示相关文件夹及文件
 function selectFolder(item, type) {
     console.log('====item==', item);
@@ -982,6 +1121,39 @@ function selectFolder(item, type) {
     console.log('=== breadcrumbData.value===', breadcrumbData.value);
 }
 
+
+// 获取"所有文件"列表数据（按日期倒排）
+function getAllFileListData() {
+  const params = {
+    fileTypeList: fileTypeObj[filterForm.fileType] || null,
+    createStartTime: filterForm.dateRange?.[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
+    createEndTime: filterForm.dateRange?.[1] ? filterForm.dateRange[1] + ' 23:59:59' : null,
+    createBy: filterForm.createBy,
+    keyWords: filterForm.keyWords,
+    fileName: filterForm.fileName
+  }
+
+  getFileIndexList(params).then(res => {
+    Object.assign(allFileListData, res.data) // 直接覆盖，不用先删
+    // 设置收藏状态
+    getCollectionData().then(() => {
+      const favoriteFileIds = collectionList.value.map(item => item.fileId)
+      for (const dateKey in allFileListData) {
+        allFileListData[dateKey].forEach(file => {
+          file.isFavorite = favoriteFileIds.includes(file.id)
+        })
+      }
+    })
+    // 更新文件总数
+    fetchTotalFiles();
+  })
+}
+//=======================================================================================================================
+
+
+
+
+//==============================================面包屑导航栏相关方法=========================================================================
 //点击面包屑
 function clickBreadcrumb(item, index) {
     console.log('===item===', item);
@@ -1047,91 +1219,11 @@ function switchViewMode(mode) {
     viewMode.value = mode
   }
 }
+//=======================================================================================================================
 
 
-// 筛选表单
-const filterForm = reactive({
-  fileType: '',
-  dateRange: [],
-  createBy: '',
-  keyWords: '',
-  fileName: ''
-})
 
-
-// 当前选中的个人空间
-const activeSpace = ref('all')
-// 当前选中的板块（根文件夹）
-const curDeptRootFolderId = ref('')
-//  当前选中的文件夹
-const curFolderId =  ref('')
-
-// 总文件数
-// const totalFiles = computed(() => materials.value.length)
-// 计算所有文件的总数
-const totalAllFiles = ref(0);
-
-// 获取文件总数
-const fetchTotalFiles = async () => {
-  try {
-    const res = await countAllFile();
-    totalAllFiles.value = res.data;
-  } catch (error) {
-    console.error('获取文件总数失败:', error);
-  }
-};
-
-// 计算收藏文件的总数
-const totalFavoriteFiles = computed(() => {
-  if (activeSpace.value === 'favorite') {
-    return fileListData.value.length;
-  }
-  return collectionList.value.length;
-});
-
-// 存储各板块的文件数量 todo 通过sql查count
-// const categoryFileCounts = ref({});
-
-// 获取指定板块的文件数量
-const getCategoryFileCount = (category) => {
-  return categoryFileCounts.value[category] || 0;
-};
-
-// 更新板块文件数量
-function updateCategoryFileCounts() {
-  // 重置计数
-  categoryFileCounts.value = {};
-  
-  // 遍历所有板块
-  if (categories.filePath && Array.isArray(categories.filePath)) {
-    categories.filePath.forEach(category => {
-      const pid = categoryMap.value[category];
-      if (pid) {
-        // 为每个板块调用API获取文件数量
-        let params = {
-          folderId: pid,
-          // 不设置筛选条件，获取该板块下的所有文件
-          fileTypeList: null,
-          createStartTime: null,
-          createEndTime: null,
-          createBy: '',
-          keyWords: '',
-          fileName: ''
-        };
-        
-        getFileList(params).then(res => {
-          // 存储该板块的文件数量
-          categoryFileCounts.value[category] = res.data.length;
-          console.log(`板块 ${category} 的文件数量: ${res.data.length}`);
-        }).catch(error => {
-          console.error(`获取板块 ${category} 文件数量失败:`, error);
-          categoryFileCounts.value[category] = 0;
-        });
-      }
-    });
-  }
-}
-
+//===================================================收藏相关方法====================================================================
 
 //收藏列表
 const collectionList = ref([])
@@ -1162,94 +1254,6 @@ onMounted(() => {
   fetchTotalFiles();
   // 初始化板块文件数量
   // initCategoryFileCounts();
-})
-
-// 更新文件列表中的收藏状态
-function updateFileFavoriteStatus() {
-  const favoriteFileIds = collectionList.value.map(item => item.fileId);
-
-  // 处理 fileListData
-  if (fileListData.value && fileListData.value.length > 0) {
-    fileListData.value.forEach(file => {
-      // 加固：设置默认值 false，避免 undefined
-      file.isFavorite = favoriteFileIds.includes(file.id) || false;
-    });
-  }
-
-  // 处理 queryfileListData
-  if (queryfileListData.value && queryfileListData.value.length > 0) {
-    queryfileListData.value.forEach(file => {
-      file.isFavorite = favoriteFileIds.includes(file.id) || false;
-    });
-  }
-
-  // 处理 allFileListData
-  for (const dateKey in allFileListData) {
-    const dailyFiles = allFileListData[dateKey];
-    dailyFiles.forEach(file => {
-      file.isFavorite = favoriteFileIds.includes(file.id) || false;
-    });
-  }
-}
-
-// 当前选中的部门
-const activeDeptId = ref(null)
-
-// 所有部门列表
-const categoriesByDept = ref([])
-
-const isAdmin = computed(() => {
-  const user = userStore.user;
-
-  // 对象数组 roles
-  const objectRoles = user?.roles?.some(
-      role => role.roleKey === 'admin' || role.roleKey === 'studio'
-  );
-
-  // 顶层字符串数组 roles
-  const stringRoles = userStore.roles?.some(
-      role => role === 'admin' || role === 'studio'
-  );
-
-  return objectRoles || stringRoles;
-});
-
-// 判断部门是否可点击
-const canClickDept = (dept) => {
-  if (isAdmin.value) return true
-  // leader为"all" 或 部门ID匹配 都可点击
-  // 注：这里共享文件夹为便捷开发，利用了现有的dept表的leader字段
-  return Number(dept.deptId) === Number(userStore.deptId) || dept.leader === "all"
-}
-
-// 点击部门处理（真正业务逻辑）
-const handleDeptClick = (dept) => {
-  activeDeptId.value = dept.deptId
-  curDeptRootFolderId.value = dept.rootFolderId
-  console.log('选中部门：', dept.deptName)
-  // TODO: 根据 deptId 拉取文件列表等逻辑
-  // 板块/公司  有一个主文件夹（pid = 0）；dept."foldid"
-  handleCategoryClick(dept)
-}
-
-// 包装点击：不可点击时直接 return
-const handleDeptClickIfAllowed = (dept) => {
-  if (!canClickDept(dept)) return
-  handleDeptClick(dept)
-}
-
-// 排序：可点击部门排前面
-const sortedCategoriesByDept = computed(() => {
-  return [...categoriesByDept.value].sort((a, b) => {
-    const aCan = canClickDept(a) ? 0 : 1
-    const bCan = canClickDept(b) ? 0 : 1
-    return aCan - bCan
-  })
-})
-
-// 侧边栏只显示可点击的部门
-const visibleCategoriesByDept = computed(() => {
-  return sortedCategoriesByDept.value.filter((dept) => canClickDept(dept))
 })
 
 // 收藏操作
@@ -1293,6 +1297,53 @@ const toggleFavorite = (event, material) => {
     })
   }
 }
+
+// 获取收藏文件的详细信息 - 核心优化：直调后端/collect/list接口，极简精简
+const getFavoriteFiles = async (mode = 'normal') => {
+  loading.value = true;
+  const targetList = mode === 'search' ? queryfileListData : fileListData;
+  targetList.value = [];
+
+  try {
+    await getCollectionData();
+    const params = {
+      fileTypeList: fileTypeObj[filterForm.fileType] || null,
+      createStartTime: filterForm.dateRange?.[0] ? `${filterForm.dateRange[0]} 00:00:00` : null,
+      createEndTime: filterForm.dateRange?.[1] ? `${filterForm.dateRange[1]} 23:59:59` : null,
+      createBy: filterForm.createBy,
+      keyWords: filterForm.keyWords,
+      fileName: filterForm.fileName
+    };
+
+    const res = await getCollectFileList(params);
+    const collectFiles = res.data || [];
+
+    targetList.value = collectFiles.map(file => ({
+      ...file,
+      favoriteTime: collectionCreateTimeMap.value.get(String(file?.id ?? file?.fileId)) || file?.favoriteTime || '',
+      isFavorite: true
+    }));
+
+    if (collectFiles.length === 0) {
+      ElMessage.info(mode === 'search' ? '该筛选条件下无收藏文件' : '暂无收藏文件，快去收藏吧～');
+    } else if (mode === 'search') {
+      ElMessage.success(`找到${collectFiles.length}个符合条件的收藏文件`);
+    }
+
+  } catch (err) {
+    console.error('收藏文件查询失败：', err);
+    ElMessage.error(mode === 'search' ? '收藏搜索失败，请稍后重试' : '查询收藏失败，请稍后重试');
+  } finally {
+    loading.value = false;
+  }
+};
+
+//=======================================================================================================================
+
+
+
+
+//===========================================================下载相关方法============================================================
 
 // 下载素材
 // 处理下载
@@ -1338,78 +1389,13 @@ const handleDownload = async (material) => {
         ElMessage.error('文件下载失败，请稍后重试')
     }
 }
+//=======================================================================================================================
 
-// 个人空间
-const personalSpace = ref([
-  { id: 'all', name: '所有文件', icon: Folder },
-  { id: 'favorite', name: '我的收藏', icon: Star }
-])
 
-// 获取收藏文件的详细信息 - 核心优化：直调后端/collect/list接口，极简精简
-const getFavoriteFiles = async (mode = 'normal') => {
-  loading.value = true;
-  const targetList = mode === 'search' ? queryfileListData : fileListData;
-  targetList.value = [];
 
-  try {
-    await getCollectionData();
-    const params = {
-      fileTypeList: fileTypeObj[filterForm.fileType] || null,
-      createStartTime: filterForm.dateRange?.[0] ? `${filterForm.dateRange[0]} 00:00:00` : null,
-      createEndTime: filterForm.dateRange?.[1] ? `${filterForm.dateRange[1]} 23:59:59` : null,
-      createBy: filterForm.createBy,
-      keyWords: filterForm.keyWords,
-      fileName: filterForm.fileName
-    };
 
-    const res = await getCollectFileList(params);
-    const collectFiles = res.data || [];
 
-    targetList.value = collectFiles.map(file => ({
-      ...file,
-      favoriteTime: collectionCreateTimeMap.value.get(String(file?.id ?? file?.fileId)) || file?.favoriteTime || '',
-      isFavorite: true
-    }));
-
-    if (collectFiles.length === 0) {
-      ElMessage.info(mode === 'search' ? '该筛选条件下无收藏文件' : '暂无收藏文件，快去收藏吧～');
-    } else if (mode === 'search') {
-      ElMessage.success(`找到${collectFiles.length}个符合条件的收藏文件`);
-    }
-
-  } catch (err) {
-    console.error('收藏文件查询失败：', err);
-    ElMessage.error(mode === 'search' ? '收藏搜索失败，请稍后重试' : '查询收藏失败，请稍后重试');
-  } finally {
-    loading.value = false;
-  }
-};
-
-// 点击个人空间
-const handleSpaceClick = (spaceId) => {
-  // 重置筛选表单
-  Object.assign(filterForm, { fileType: '', dateRange: [], createBy: '', keyWords: '', fileName: '' });
-  activeSpace.value = spaceId;
-  activeDeptId.value = null;
-  activeCategory.value = '';
-  folderData.value = [];
-  showSearchResults.value = false; // 初始关闭搜索区域
-  curFolderId.value = '';
-  breadcrumbData.value = [];
-
-  if (activeSpace.value == 'all') {
-    viewMode.value = 'thumbnail'
-    fileListData.value = [];
-    currentPage.value = 1; // 重置到第一页
-    Object.assign(curFolderObj, { filePath: '', bizId: '', id: '' });
-    getAllFileListData();
-  } else if (activeSpace.value == 'favorite') {
-    setFavoriteDefaultSort()
-    // 初始进入：普通模式加载收藏列表
-    getFavoriteFiles('normal');
-  }
-}
-
+//=====================================================分页相关方法==================================================================
 
 const allFileListData = reactive({}) // 文件列表
 // 分页相关状态
@@ -1450,81 +1436,47 @@ const paginatedAllFiles = computed(() => {
 function handleAllFilesPageChange(page) {
   currentPage.value = page;
 }
+//=====================================================分页相关方法==================================================================
 
+
+
+
+//=====================================================通用方法==================================================================
 const fileTypeObj = {
   image: ['jpg','jpeg','png','bmp','gif','webp','svg','heic'],
   video: ['mp4','mov','avi','mkv','flv','wmv','webm','m4v'],
   document: ['doc','docx','xls','xlsx','pdf','pptx','zip','rar','7z','tar','gz','txt','md','csv','json','xml'],
 }
 
-function getAllFileListData() {
-  const params = {
-    fileTypeList: fileTypeObj[filterForm.fileType] || null,
-    createStartTime: filterForm.dateRange?.[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
-    createEndTime: filterForm.dateRange?.[1] ? filterForm.dateRange[1] + ' 23:59:59' : null,
-    createBy: filterForm.createBy,
-    keyWords: filterForm.keyWords,
-    fileName: filterForm.fileName
-  }
-
-  getFileIndexList(params).then(res => {
-    Object.assign(allFileListData, res.data) // 直接覆盖，不用先删
-    // 设置收藏状态
-    getCollectionData().then(() => {
-      const favoriteFileIds = collectionList.value.map(item => item.fileId)
-      for (const dateKey in allFileListData) {
-        allFileListData[dateKey].forEach(file => {
-          file.isFavorite = favoriteFileIds.includes(file.id)
-        })
-      }
-    })
-    // 更新文件总数
-    fetchTotalFiles();
-  })
+// 支持的文件格式
+const supportedFormats = {
+  image: ['jpg', 'jpeg', 'png', 'bmp', 'gif'],
+  video: ['mp4', 'mov', 'avi', 'mkv', 'flv','m4v'],
+  document: ['docx', 'pdf', 'pptx']
 }
 
-// 点击板块分类（统一接收 dept 对象）
-const handleCategoryClick = (dept) => {
-  // 关闭搜索结果视图，切换到文件夹视图
-  showSearchResults.value = false;
-  // 1. 重置搜索栏
-  Object.assign(filterForm, {
-    fileType: '',
-    dateRange: [],
-    createBy: '',
-    keyWords: '',
-    fileName: ''
-  })
+// 列表展示与格式化工具方法已抽取至 materialCommon
 
-  // 2. 设置当前选中状态
-  activeCategory.value = dept.deptName
-  activeDeptId.value = dept.deptId
-  activeSpace.value = ''
-  curDeptRootFolderId.value =  dept.rootFolderId
-  // 进入板块主文件夹，初始化curFolderId为根文件夹ID
-  curFolderId.value = dept.rootFolderId;
-
-  console.log('===activeCategory===', dept)
-
-  // 3. 拉取数据，判断是否为共享文件夹
-  const isSharedFolder = dept.deptName === "共享文件夹"
-  getFolderData(dept.rootFolderId, 'folder', isSharedFolder)
-
-  // 4. 面包屑
-  breadcrumbData.value = [
-    {
-      filePath: dept.deptName,
-      bizId: dept.rootFolderId
-    }
-  ]
-
-  // 5. 当前文件夹对象
-  Object.assign(curFolderObj, {
-    filePath: dept.deptName,
-    bizId: dept.rootFolderId
-  })
+// 检查文件格式是否支持
+const isSupportedFormat = (filename) => {
+  const ext = filename.split('.').pop().toLowerCase()
+  return Object.values(supportedFormats).flat().includes(ext)
 }
 
+// 获取按日期倒序排序的日期键数组
+const getSortedDates = () => {
+  return Object.keys(allFileListData).sort((a, b) => {
+    // 将日期字符串转换为Date对象进行比较，确保最新的日期排在前面
+    return new Date(b) - new Date(a);
+  });
+}
+//=======================================================================================================================
+
+
+
+
+
+//=====================================================查询搜索相关方法==================================================================
 // 查询处理
 const handleQuery = () => {
   if (activeSpace.value == 'all') {
@@ -1544,42 +1496,7 @@ const handleQuery = () => {
 
 // 获取文件列表数据
 const queryfileListData = ref([])//文件列表
-// function getQueryData(pid) {
-//
-//   if (pid !== 0) {
-//   let currentFilePath = "";
-//   for (let i = 0; i < breadcrumbData.value.length; i++) {
-//     // 避免开头出现多余的"/"
-//     currentFilePath += i === 0 ? breadcrumbData.value[i].filePath : "/" + breadcrumbData.value[i].filePath;
-//   }
-//     let param = {
-//       localPath: currentFilePath,
-//       // folderId: pid,
-//       fileTypeList: fileTypeObj[filterForm.fileType] || null,
-//       createStartTime: filterForm.dateRange[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
-//       createEndTime: filterForm.dateRange[0] ? filterForm.dateRange[1] + ' 23:59:59' : null,
-//       createBy: filterForm.createBy,
-//       keyWords: filterForm.annotationContent,
-//       fileName: filterForm.fileName
-//
-//     }
-//     // console.log('localPath:', curFolderObj.filePath)
-//     console.log('breadcrumbData:', currentFilePath)
-//     getFileList(param).then(res => {
-//       queryfileListData.value = res.data
-//       showSearchResults.value = true
-//       // 获取当前用户收藏列表并设置文件收藏状态
-//       getCollectionData().then(() => {
-//           // 提取收藏列表中的文件id
-//           const favoriteFileIds = collectionList.value.map(item => item.fileId);
-//           // 遍历文件列表，设置收藏状态
-//           queryfileListData.value.forEach(file => {
-//               file.isFavorite = favoriteFileIds.includes(file.id);
-//           });
-//       });
-//     })
-//   }
-// }
+
 // 重置搜索，返回文件夹视图
 function resetSearch() {
   showSearchResults.value = false; // 关闭搜索结果区域
@@ -1613,7 +1530,11 @@ const handleReset = () => {
     getFolderData(getCategoryPid(activeCategory.value));
   }
 }
+//=======================================================================================================================
 
+
+
+//=====================================================素材预览搜索相关方法==================================================================
 // 点击素材项
 const handleMaterialClick = (material) => {
   console.log('点击素材:', material)
@@ -1625,72 +1546,9 @@ const handleMaterialClick = (material) => {
   // 跳转到预览界面
   router.push({ name: 'MaterialPreview', params: { id: materialId } })
 }
+//=======================================================================================================================
 
-// 支持的文件格式
-const supportedFormats = {
-  image: ['jpg', 'jpeg', 'png', 'bmp', 'gif'],
-  video: ['mp4', 'mov', 'avi', 'mkv', 'flv','m4v'],
-  document: ['docx', 'pdf', 'pptx']
-}
 
-function isImage(path) {
-  return ['jpg', 'jpeg', 'png', 'bmp', 'gif'].some(ext => path.toLowerCase().includes(ext));
-}
-
-function isVideo(path) {
-  return ['mp4', 'mov', 'avi', 'mkv', 'flv','m4v'].some(ext => path.toLowerCase().includes(ext));
-}
-
-//获取文件名
-function getFileName(path) {
-  if (!path) return '';
-  const idx = path.lastIndexOf('/');
-  return idx !== -1 ? path.substring(idx + 1) : path;
-}
-
-// 格式化文件大小
-function formatFileSize(bytes) {
-  //TODO
-  // if (!bytes) return '0 MB';
-  // if (bytes < 1024) return bytes + ' B';
-  // if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-  // return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-  return bytes + ' MB';
-}
-
-// 格式化日期时间
-function formatDateTime(dateStr) {
-  if (!dateStr) return '--';
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return '--';
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hour = String(date.getHours()).padStart(2, '0');
-  const minute = String(date.getMinutes()).padStart(2, '0');
-  return `${year}-${month}-${day} ${hour}:${minute}`;
-}
-
-// 获取文件类型
-function getFileType(path) {
-  if (!path) return '未知';
-  const idx = path.lastIndexOf('.');
-  return idx !== -1 ? path.substring(idx + 1).toUpperCase() : '未知';
-}
-
-// 检查文件格式是否支持
-const isSupportedFormat = (filename) => {
-  const ext = filename.split('.').pop().toLowerCase()
-  return Object.values(supportedFormats).flat().includes(ext)
-}
-
-// 获取按日期倒序排序的日期键数组
-const getSortedDates = () => {
-  return Object.keys(allFileListData).sort((a, b) => {
-    // 将日期字符串转换为Date对象进行比较，确保最新的日期排在前面
-    return new Date(b) - new Date(a);
-  });
-}
 
 
 // 定时检查同步（每5秒）

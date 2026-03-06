@@ -44,9 +44,37 @@
         clearable
       />
     </div>
+        <div class="author-section">
+      <h4 class="required-title">审核凭证：</h4>
+      <el-upload
+        v-model:file-list="auditVoucherList"
+        class="upload-demo attachment-upload"
+        drag
+        :multiple="false"
+        action=""
+        accept=".pdf,.jpg,.jpeg,.png"
+        :on-change="handleAuditVoucherChange"
+        :on-remove="handleAuditVoucherRemove"
+        :auto-upload="false"
+        :limit="1"
+      >
+        <div v-if="!auditVoucherList.length" class="upload-tips">
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">
+            点击或拖拽文件到此处上传
+            <div class="el-upload__tip"> 支持文件格式：pdf / jpg / jpeg / png</div>
+          </div>
+        </div>
+        <div v-else class="attachment-info">
+          <el-icon class="el-icon-document"><document /></el-icon>
+          <span class="file-name">{{ auditVoucherList[0].name }}</span>
+          <span class="file-size">({{ formatFileSize(auditVoucherList[0].size) }})</span>
+        </div>
+      </el-upload>
+    </div>
 
     <div class="author-section">
-      <h4 class="common-title">封面图：</h4>
+      <h4 class="common-title">封面图片：</h4>
       <!-- 栏花上传区域 -->
       <el-upload 
         v-model:file-list="fileList" 
@@ -73,58 +101,8 @@
         </div>
       </el-upload>
     </div>
-
-    <div class="editor-section">
-      <!-- WangEditor 富文本编辑器 核心组件 -->
-      <h4 class="common-title">正文：</h4>
-      <div style="border: 1px solid #ccc; border-radius: 4px;">
-        <Toolbar
-          style="border-bottom: 1px solid #ccc; padding: 6px 10px"
-          :editor="editorRef"
-          :defaultConfig="toolbarConfig"
-          :mode="mode"
-        />
-        <Editor
-          style="height: 500px; overflow-y: auto;"
-          v-model="articleContent"
-          :defaultConfig="editorConfig"
-          :mode="mode"
-          @onCreated="handleCreated"
-        />
-      </div>
-    </div>
-
-    <div class="author-section">
-      <h4 class="common-title">审核凭证：</h4>
-      <el-upload
-        v-model:file-list="auditVoucherList"
-        class="upload-demo attachment-upload"
-        drag
-        :multiple="false"
-        action=""
-        accept=".doc,.docx,.pdf"
-        :on-change="handleAuditVoucherChange"
-        :on-remove="handleAuditVoucherRemove"
-        :auto-upload="false"
-        :limit="1"
-      >
-        <div v-if="!auditVoucherList.length" class="upload-tips">
-          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-          <div class="el-upload__text">
-            点击或拖拽文件到此处上传
-            <div class="el-upload__tip"> 支持文件格式：doc / docx / pdf</div>
-          </div>
-        </div>
-        <div v-else class="attachment-info">
-          <el-icon class="el-icon-document"><document /></el-icon>
-          <span class="file-name">{{ auditVoucherList[0].name }}</span>
-          <span class="file-size">({{ formatFileSize(auditVoucherList[0].size) }})</span>
-        </div>
-      </el-upload>
-    </div>
-
-    <div class="author-section">
-      <h4 class="common-title">批量图片：</h4>
+        <div class="author-section">
+      <h4 class="common-title">正文图片：</h4>
       <el-upload
         v-model:file-list="batchImageList"
         class="upload-demo attachment-upload"
@@ -148,7 +126,43 @@
           <span class="file-name">已选择 {{ batchImageList.length }} 张图片</span>
         </div>
       </el-upload>
+      <div v-if="batchImageList.length > 0" class="upload-actions">
+        <el-button 
+          type="primary" 
+          @click="handleBatchImageUpload" 
+          :loading="uploadingImages" 
+          :disabled="!articleTitle.trim() || imagesUploaded"
+          :class="{ 'is-disabled': imagesUploaded }"
+        >
+          {{ uploadingImages ? '上传中...' : imagesUploaded ? '已上传' : '上传' }}
+        </el-button>
+        <div v-if="uploadingImages" class="upload-progress-info">
+          <el-progress :percentage="uploadProgress" :stroke-width="8"></el-progress>
+          <div class="upload-speed">上传速度: {{ uploadSpeed }}</div>
+        </div>
+      </div>
     </div>
+
+    <div class="editor-section">
+      <!-- WangEditor 富文本编辑器 核心组件 -->
+      <h4 class="common-title">正文：</h4>
+      <div style="border: 1px solid #ccc; border-radius: 4px;">
+        <Toolbar
+          style="border-bottom: 1px solid #ccc; padding: 6px 10px"
+          :editor="editorRef"
+          :defaultConfig="toolbarConfig"
+          :mode="mode"
+        />
+        <Editor
+          style="height: 500px; overflow-y: auto;"
+          v-model="articleContent"
+          :defaultConfig="editorConfig"
+          :mode="mode"
+          @onCreated="handleCreated"
+        />
+      </div>
+    </div>
+
 
     <div class="author-section">
       <h4 class="common-title">附件：</h4>
@@ -170,7 +184,7 @@
           <el-icon class="el-icon--upload"><upload-filled /></el-icon>
           <div class="el-upload__text">
             点击或拖拽文件到此处上传
-            <div class="el-upload__tip"> 可上传新闻稿件附件，支持文档格式：doc / docx</div>
+            <div class="el-upload__tip"> 可上传word格式稿件附件，支持文档格式：doc / docx</div>
           </div>
         </div>
         <!-- 已上传时显示文件信息 -->
@@ -197,6 +211,10 @@ import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
 import { getToken } from "@/utils/auth";
 import { addArticle } from "@/api/xcsc/article"
+import { uploadFileWithChunk } from "@/utils/chunkUpload"
+import { getFolderList, getFolderListWithoutPremission, addFolder } from "@/api/xcsc/uploadFile"
+import useUserStore from "@/store/modules/user"
+import { parseTime } from "@/utils/common"
 
 // ========== 页面变量 ==========
 const articleTitle = ref('')
@@ -207,8 +225,15 @@ const articleFinalReviewer = ref('')
 const articleAttachments = ref('')
 const fileList = ref([]) // 栏花文件列表
 const auditVoucherList = ref([]) // 审核凭证文件列表
+const userStore = useUserStore()
 const batchImageList = ref([]) // 批量图片文件列表
 const attachmentList = ref([]) // 附件文件列表
+const uploadingImages = ref(false)
+const uploadProgress = ref(0)
+const uploadSpeed = ref('0 B/s')
+const uploadedImageUrls = ref([])
+const imagesUploaded = ref(false) // 正文图片是否上传成功
+const articleFolderId = ref(null)
 
 // ========== WangEditor 配置 ==========
 const editorRef = shallowRef() 
@@ -339,21 +364,23 @@ const handleAttachmentRemove = (file, fileLists) => {
 
 const handleAuditVoucherChange = (file, fileLists) => {
   const isAllowedType = file.raw && [
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/pdf'
+    'application/pdf',
+    'image/jpeg',
+    'image/jpg',
+    'image/png'
   ].includes(file.raw.type)
-  const isAllowedExt = file.name && /\.(doc|docx|pdf)$/i.test(file.name)
+  const isAllowedExt = file.name && /\.(pdf|jpg|jpeg|png)$/i.test(file.name)
 
   if (!isAllowedType || !isAllowedExt) {
-    ElMessage.error('仅支持doc、docx、pdf格式的文件')
+    ElMessage.error('仅支持pdf、jpg、jpeg、png格式的文件')
     auditVoucherList.value = fileLists.filter(f => {
       const typeValid = f.raw && [
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/pdf'
+        'application/pdf',
+        'image/jpeg',
+        'image/jpg',
+        'image/png'
       ].includes(f.raw.type)
-      const extValid = f.name && /\.(doc|docx|pdf)$/i.test(f.name)
+      const extValid = f.name && /\.(pdf|jpg|jpeg|png)$/i.test(f.name)
       return typeValid && extValid
     })
     return
@@ -368,6 +395,128 @@ const handleAuditVoucherChange = (file, fileLists) => {
 const handleAuditVoucherRemove = (file, fileLists) => {
   auditVoucherList.value = fileLists
   ElMessage.info('已删除审核凭证')
+}
+
+async function getOrCreateArticleFolder(articleTitle) {
+  debugger
+  const deptId = userStore.deptId;
+  
+  if (!deptId) {
+    throw new Error('无法获取部门信息');
+  }
+
+  try {
+    const companyRes = await getFolderList({ 
+      pid: 0, 
+      companyId: deptId 
+    });
+    const companyFolders = companyRes?.data || [];
+    const companyFolder = companyFolders[0];
+
+    if (!companyFolder) {
+      throw new Error('未找到公司文件夹');
+    }
+
+    //查询“我的稿件”目录
+    const myDraftRes = await getFolderListWithoutPremission({
+      companyId: deptId,
+      filePath: '我的稿件'
+    });
+    console.log("myDraftRes",myDraftRes)
+    const myDraftFolders = myDraftRes?.data || [];
+    const myDraftFolder = myDraftFolders[0];
+    const myDraftPid = myDraftFolder.bizId
+
+    if (!myDraftPid) {
+      throw new Error('未找到“我的稿件”文件夹');
+    }
+
+    const existedRes = await getFolderList({
+      pid: myDraftPid,
+      filePath: articleTitle
+    });
+    const existedFolders = existedRes?.data || [];
+    let articleFolder = existedFolders[0];
+
+    if (!articleFolder) {
+      await addFolder({
+        filePath: articleTitle,
+        pid: myDraftPid
+      });
+
+      const createdRes = await getFolderList({
+        pid: myDraftPid,
+        filePath: articleTitle
+      });
+      const createdFolders = createdRes?.data || [];
+      articleFolder = createdFolders[0];
+    }
+
+    const articleFolderId = articleFolder.bizId
+    if (!articleFolderId) {
+      throw new Error('创建文章文件夹失败');
+    }
+
+    return {
+      folderId: articleFolderId,
+      folderPath: `${companyFolder.filePath}/我的稿件/${articleTitle}`
+    };
+  } catch (error) {
+    console.error('获取或创建文章文件夹失败:', error);
+    throw error;
+  }
+}
+
+async function handleBatchImageUpload() {
+  if (batchImageList.value.length === 0) {
+    return;
+  }
+  const title = articleTitle.value.trim();
+  if (!title) {
+    ElMessage.warning('请先输入文章标题');
+    return;
+  }
+  uploadingImages.value = true;
+  uploadProgress.value = 0;
+  uploadSpeed.value = '0 B/s';
+  uploadedImageUrls.value = [];
+
+  try {
+    const { folderId, folderPath } = await getOrCreateArticleFolder(title);
+    articleFolderId.value = folderId;
+
+    for (let i = 0; i < batchImageList.value.length; i++) {
+      const file = batchImageList.value[i].raw;
+      if (!file) continue;
+
+      const result = await uploadFileWithChunk(file, folderId, folderPath, {
+        onProgress: (progress) => {
+          const totalProgress = ((i + progress / 100) / batchImageList.value.length) * 100;
+          uploadProgress.value = Math.round(totalProgress);
+        },
+        onSpeedUpdate: (speed) => {
+          uploadSpeed.value = speed;
+        },
+        fileLastModified: parseTime(file.lastModifiedDate),
+        contentType: file.type
+      });
+
+      if (result.success) {
+        uploadedImageUrls.value.push(result.fileHash);
+      } else {
+        throw new Error(`图片 ${file.name} 上传失败`);
+      }
+    }
+
+    ElMessage.success('正文图片上传完成')
+    imagesUploaded.value = true;
+
+  } catch (error) {
+    console.error('正文图片上传失败:', error);
+    ElMessage.error('正文图片上传失败: ' + error.message);
+  } finally {
+    uploadingImages.value = false;
+  }
 }
 
 const handleBatchImageChange = (file, fileLists) => {
@@ -390,6 +539,8 @@ const handleBatchImageChange = (file, fileLists) => {
 
 const handleBatchImageRemove = (file, fileLists) => {
   batchImageList.value = fileLists
+  imagesUploaded.value = false
+  uploadedImageUrls.value = []
 }
 
 // ========== 功能方法 ==========
@@ -416,6 +567,12 @@ const handleClear = () => {
   if (batchImageList.value.length > 0) {
     batchImageList.value = []
   }
+  uploadingImages.value = false
+  uploadProgress.value = 0
+  uploadSpeed.value = '0 B/s'
+  uploadedImageUrls.value = []
+  imagesUploaded.value = false
+  articleFolderId.value = null
   if (editorRef.value) {
     editorRef.value.setHtml('') 
   }
@@ -427,6 +584,11 @@ async function handleSubmit() {
   const trimTitle = articleTitle.value.trim()
   if (!trimTitle) {
     ElMessage.warning('请输入文章标题')
+    return
+  }
+
+  if (auditVoucherList.value.length === 0) {
+    ElMessage.warning('请上传审核凭证')
     return
   }
 
@@ -471,9 +633,20 @@ async function handleSubmit() {
   formData.append("reviewer", articleReviewer.value.trim());
   formData.append("finalReviewer", articleFinalReviewer.value.trim());
   formData.append("content", contentHtml);
+  
+  if (uploadedImageUrls.value.length > 0) {
+    uploadedImageUrls.value.forEach((url, index) => {
+      formData.append(`imageUrls[${index}]`, url);
+    });
+  }
+  
+  if (articleFolderId.value) {
+    formData.append("folderId", articleFolderId.value);
+  }
 
   try {
     const res = await addArticle(formData)
+    
     ElMessage.success('文章提交成功')
     handleClear()
   } catch (error) {
@@ -499,31 +672,49 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .article-submit-container {
+  --content-width: 80%;
+  --font-size-base: 14px;
+  --font-size-title: 16px;
+  --font-size-small: 12px;
+  --line-height-base: 1.6;
+  --line-height-title: 1.4;
+  --section-gap: 20px;
+  --inline-gap: 15px;
+  --text-primary: #303133;
+  --text-secondary: #606266;
+  --text-placeholder: #909399;
+
   padding: 40px;
   background-color: #fff;
-  width: 80%;
+  width: var(--content-width);
   border-radius: 4px;
   margin: 0 auto; 
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
 }
 
 .title-section {
-  width: 80%;
+  width: var(--content-width);
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: var(--inline-gap);
+  margin-bottom: var(--section-gap);
 }
 
 .author-section {
-  margin-bottom: 20px;
-  width: 80%;
+  margin-bottom: var(--section-gap);
+  width: var(--content-width);
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: var(--inline-gap);
 }
 
 .title-section h4,
 .author-section h4 {
   white-space: nowrap;
+  margin: 0;
+  line-height: var(--line-height-title);
 }
 
 .author-section .el-input {
@@ -532,7 +723,7 @@ onBeforeUnmount(() => {
 
 .editor-section {
   position: relative;
-  margin: 20px 0;
+  margin: var(--section-gap) 0;
 }
 
 /* 栏花上传样式改造 */
@@ -541,7 +732,15 @@ onBeforeUnmount(() => {
 }
 .upload-tips {
   text-align: center;
-  padding: 20px;
+  padding: 10px;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  color: var(--text-secondary);
+}
+
+.upload-tips .el-icon--upload {
+  font-size: 24px;
+  margin-bottom: 5px;
 }
 .flower-preview {
   width: 100%;
@@ -578,35 +777,28 @@ onBeforeUnmount(() => {
 
 .file-name {
   font-weight: 500;
-  color: #303133;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 300px;
+  line-height: var(--line-height-base);
 }
 
 .file-size {
-  font-size: 12px;
-  color: #909399;
+  font-size: var(--font-size-small);
+  color: var(--text-placeholder);
+  line-height: var(--line-height-base);
 }
 
-.common-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #303133;
-  padding-bottom: 10px;
-  margin-bottom: 15px;
-}
+.common-title,
 .required-title {
-  font-size: 16px;
+  font-size: var(--font-size-title);
   font-weight: 600;
-  color: #303133;
-  padding-bottom: 10px;
-  margin-bottom: 15px;
+  color: var(--text-primary);
+  line-height: var(--line-height-title);
 }
 .required-title:before {
-  /* color: #F56C6C;
-  margin-left: 4px; */
   content: "*";
   color: #F56C6C;
   margin-right: 2px;
@@ -615,9 +807,32 @@ onBeforeUnmount(() => {
 /* 提交按钮样式 */
 .submit-section {
   margin-top: 30px;
-  width:80%;
+  width: var(--content-width);
   padding: 20px 0;
   display: flex;
   justify-content: center;
+}
+
+/* 上传操作区域样式 */
+.upload-actions {
+  margin-top: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.upload-progress-info {
+  width: 100%;
+  padding: 10px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+
+.upload-speed {
+  margin-top: 8px;
+  font-size: var(--font-size-small);
+  color: var(--text-placeholder);
+  line-height: var(--line-height-base);
+  text-align: right;
 }
 </style>

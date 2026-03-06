@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="app-container">
     <div class="approval-layout">
       <div class="sidebar">
@@ -113,6 +113,13 @@
               {{ scope.row.finalReviewer || '--' }}
             </template>
           </el-table-column>
+          <!-- 审核凭证 -->
+          <el-table-column label="审核凭证" width="120" align="center">
+            <template #default="scope">
+              <el-button v-if="scope.row.auditVoucherUrl" link type="primary" size="middle" @click="handleAuditVoucherPreview(scope.row.auditVoucherUrl)">在线预览</el-button>
+              <span v-else>--</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="approvalStatus" label="审批状态" width="120" align="center">
             <template #default="scope">
               <el-tag :type="getStatusTagType(scope.row.approvalStatus)">
@@ -122,6 +129,7 @@
           </el-table-column>
           <el-table-column prop="approvalTime" label="审批时间" width="180" align="center" />
           <el-table-column prop="approvalComments" label="审批意见" min-width="150" align="center" />
+
           <!-- <el-table-column prop="companyName" label="所属公司" min-width="150" align="center" /> -->
           <el-table-column label="操作" width="200" align="center" fixed="right">
             <template #default="scope">
@@ -178,7 +186,7 @@
         </div>
         <div v-if="currentArticle.auditVoucherUrl" class="attachment-link-section">
           <h4 class="attachment-title">审核凭证：</h4>
-          <el-link type="primary" :underline="true" @click="downloadByUrl(currentArticle.auditVoucherUrl, currentArticle.auditVoucherName || 'audit-voucher')">
+          <el-link type="primary" :underline="true" @click="handleAuditVoucherPreview(currentArticle.auditVoucherUrl)">
             {{ currentArticle.auditVoucherName || getAttachmentName(currentArticle.auditVoucherUrl) }}
           </el-link>
         </div>
@@ -225,17 +233,25 @@
         <el-button type="primary" @click="confirmApprove">确认</el-button>
       </template>
     </el-dialog>
+
+    <!-- 图片预览组件 -->
+    <el-image-viewer
+      v-if="imageViewerVisible"
+      :url-list="[previewImageUrl]"
+      @close="imageViewerVisible = false"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed, useSSRContext } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElImageViewer } from 'element-plus'
 import { ArrowDown, ArrowUp, Clock, CircleCheck } from '@element-plus/icons-vue'
 import { listArticle, listAllArticle, getArticle, updateArticle, exportHtmlToWord, approvalArticle} from "@/api/xcsc/article"
 import { downloadFile } from "@/api/xcsc/uploadFile"
 import useUserStore from '@/store/modules/user'
 import { parseTime } from '@/utils/common'
+import { openPdfPreview } from '@/utils/filePreview'
 
 const userStore = useUserStore()
 const activeTab = ref('pending')
@@ -267,6 +283,10 @@ const approveForm = reactive({
   approvalStatus: '',
   approvalComments: ''
 })
+
+// 图片预览相关
+const imageViewerVisible = ref(false)
+const previewImageUrl = ref('')
 
 const pageTitle = computed(() => {
   return activeTab.value === 'pending' ? '待审批稿件' : '已审批稿件'
@@ -343,6 +363,31 @@ const downloadByUrl = (url, fileName = 'download') => {
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
+}
+
+// 处理审核凭证预览
+const handleAuditVoucherPreview = (url) => {
+  if (!url) {
+    ElMessage.info('无预览文件')
+    return
+  }
+  
+  // 获取文件扩展名
+  const ext = url.split('.').pop().toLowerCase()
+  
+  // 图片类型
+  if (['jpg', 'jpeg', 'png'].includes(ext)) {
+    previewImageUrl.value = url
+    imageViewerVisible.value = true
+  } 
+  // PDF类型
+  else if (ext === 'pdf') {
+    openPdfPreview(url)
+  } 
+  // 其他类型
+  else {
+    ElMessage.info('不支持的文件类型')
+  }
 }
 
 const getList = async () => {

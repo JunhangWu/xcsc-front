@@ -1,4 +1,4 @@
-<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="app-container">
     <!-- 页面标题 -->
     <div class="page-title">
@@ -94,6 +94,13 @@
           {{ scope.row.finalReviewer || '--' }}
         </template>
       </el-table-column>
+      <!-- 审核凭证 -->
+      <el-table-column label="审核凭证" width="120" align="center">
+        <template #default="scope">
+          <el-button v-if="scope.row.auditVoucherUrl" link type="primary" size="middle" @click="handleAuditVoucherPreview(scope.row.auditVoucherUrl)">在线预览</el-button>
+          <span v-else>--</span>
+        </template>
+      </el-table-column>
       <!-- 审核状态 -->
       <el-table-column prop="approvalStatus" label="审批状态" width="180" align="center">
         <template #default="scope">
@@ -108,6 +115,7 @@
       <el-table-column prop="approvalComment" label="审批意见" width="180" align="center" />
       <!-- 作者姓名 -->
       <el-table-column prop="authorName" label="作者姓名" width="180" align="center" />
+
       <!-- 操作列 -->
       <el-table-column label="操作" width="280" align="center" fixed="right">
         <template #default="scope">
@@ -162,7 +170,7 @@
         </div>
         <div v-if="currentArticle.auditVoucherUrl" class="attachment-link-section">
           <h4 class="attachment-title">审核凭证：</h4>
-          <el-link type="primary" :underline="true" @click="downloadByUrl(currentArticle.auditVoucherUrl, currentArticle.auditVoucherName || 'audit-voucher')">
+          <el-link type="primary" :underline="true" @click="handleAuditVoucherPreview(currentArticle.auditVoucherUrl)">
             {{ currentArticle.auditVoucherName || getAttachmentName(currentArticle.auditVoucherUrl) }}
           </el-link>
         </div>
@@ -310,7 +318,7 @@
             drag
             :multiple="false"
             action=""
-            accept=".doc,.docx,.pdf"
+            accept=".pdf,.jpg,.jpeg,.png"
             :on-change="handleAuditVoucherChange"
             :on-remove="handleAuditVoucherRemove"
             :auto-upload="false"
@@ -320,7 +328,7 @@
               <el-icon class="el-icon--upload"><upload-filled /></el-icon>
               <div class="el-upload__text">
                 点击或拖拽文件到此处上传
-                <div class="el-upload__tip"> 支持文件格式：doc / docx / pdf</div>
+                <div class="el-upload__tip"> 支持文件格式：pdf / jpg / jpeg / png</div>
               </div>
             </div>
             <div v-else class="attachment-info">
@@ -360,17 +368,25 @@
         <el-button type="primary" @click="handleSaveEdit" :loading="editLoading">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 图片预览组件 -->
+    <el-image-viewer
+      v-if="imageViewerVisible"
+      :url-list="[previewImageUrl]"
+      @close="imageViewerVisible = false"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, shallowRef, onBeforeUnmount } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElImageViewer } from 'element-plus'
 import { UploadFilled, Document } from '@element-plus/icons-vue'
 import { addArticle, listArticle, getArticle, updateArticle, exportHtmlToWord} from "@/api/xcsc/article"
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
 import { getToken } from "@/utils/auth"
+import { openPdfPreview } from '@/utils/filePreview'
 
 // 搜索参数
 const queryParams = reactive({
@@ -402,6 +418,10 @@ const fileList = ref([]) // 栏花文件列表
 const attachmentList = ref([]) // 附件文件列表
 const auditVoucherList = ref([]) // 审核凭证文件列表
 const batchImageList = ref([]) // 批量图片文件列表
+
+// 图片预览相关
+const imageViewerVisible = ref(false)
+const previewImageUrl = ref('')
 
 // 富文本编辑器配置
 const editorRef = shallowRef()
@@ -592,6 +612,31 @@ const downloadByUrl = (url, fileName = 'download') => {
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
+}
+
+// 处理审核凭证预览
+const handleAuditVoucherPreview = (url) => {
+  if (!url) {
+    ElMessage.info('无预览文件')
+    return
+  }
+  
+  // 获取文件扩展名
+  const ext = url.split('.').pop().toLowerCase()
+  
+  // 图片类型
+  if (['jpg', 'jpeg', 'png'].includes(ext)) {
+    previewImageUrl.value = url
+    imageViewerVisible.value = true
+  } 
+  // PDF类型
+  else if (ext === 'pdf') {
+    openPdfPreview(url)
+  } 
+  // 其他类型
+  else {
+    ElMessage.info('不支持的文件类型')
+  }
 }
 
 

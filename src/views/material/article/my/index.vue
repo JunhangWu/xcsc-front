@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿<template>
   <div class="app-container">
     <!-- 页面标题 -->
     <div class="page-title">
@@ -361,6 +361,26 @@
               <span class="file-name">已选择 {{ batchImageList.length }} 张图片</span>
             </div>
           </el-upload>
+          <div v-if="batchImageList.length > 0" class="batch-image-preview-grid">
+            <div v-for="img in batchImageList" :key="img.uid" class="batch-image-card">
+              <img :src="getBatchImagePreviewUrl(img)" alt="正文图片" class="batch-preview-img">
+              <el-button size="small" type="danger" text @click="handleBatchImageRemove(img, batchImageList.filter(item => item.uid !== img.uid))">删除</el-button>
+            </div>
+          </div>
+          <div v-if="batchImageList.length > 0" class="upload-actions">
+            <el-button
+              type="primary"
+              @click="handleBatchImageUpload"
+              :loading="uploadingImages"
+              :disabled="!(editArticleForm.title || '').trim() || !hasPendingBatchImages()"
+            >
+              {{ uploadingImages ? '上传中...' : hasPendingBatchImages() ? '上传' : '已上传' }}
+            </el-button>
+            <div v-if="uploadingImages" class="upload-progress-info">
+              <el-progress :percentage="uploadProgress" :stroke-width="8"></el-progress>
+              <div class="upload-speed">上传速度: {{ uploadSpeed }}</div>
+            </div>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -380,13 +400,17 @@
 
 <script setup>
 import { ref, reactive, onMounted, shallowRef, onBeforeUnmount } from 'vue'
-import { ElMessage, ElImageViewer } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { UploadFilled, Document } from '@element-plus/icons-vue'
-import { addArticle, listArticle, getArticle, updateArticle, exportHtmlToWord} from "@/api/xcsc/article"
+import { listArticle, getArticle, updateArticle, exportHtmlToWord} from "@/api/xcsc/article"
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
 import { getToken } from "@/utils/auth"
 import { openPdfPreview } from '@/utils/filePreview'
+import { uploadFileWithChunk } from '@/utils/chunkUpload'
+import { getFolderList, getFolderListWithoutPremission, addFolder, delFile, getFileList } from '@/api/xcsc/uploadFile'
+import useUserStore from '@/store/modules/user'
+import { parseTime } from '@/utils/common'
 
 // 搜索参数
 const queryParams = reactive({
@@ -418,6 +442,13 @@ const fileList = ref([]) // 栏花文件列表
 const attachmentList = ref([]) // 附件文件列表
 const auditVoucherList = ref([]) // 审核凭证文件列表
 const batchImageList = ref([]) // 批量图片文件列表
+const uploadingImages = ref(false)
+const uploadProgress = ref(0)
+const uploadSpeed = ref('0 B/s')
+const uploadedImageUrls = ref([])
+const imagesUploaded = ref(false)
+const articleFolderId = ref(null)
+const userStore = useUserStore()
 
 // 图片预览相关
 const imageViewerVisible = ref(false)
@@ -573,24 +604,263 @@ const handleAuditVoucherRemove = (file, fileLists) => {
 
 const handleBatchImageChange = (file, fileLists) => {
   const invalidFiles = fileLists.filter(f => {
-    const isImage = f.raw && ['image/jpeg', 'image/jpg', 'image/png'].includes(f.raw.type)
+    if (!f.raw) return false
+    const isImage = ['image/jpeg', 'image/jpg', 'image/png'].includes(f.raw.type)
     const isAllowedExt = f.name && /\.(jpg|jpeg|png)$/i.test(f.name)
-    return !isImage || !isAllowedExt
+    return !(isImage && isAllowedExt)
   })
   if (invalidFiles.length > 0) {
     ElMessage.error('批量图片仅支持jpg、jpeg、png格式')
     batchImageList.value = fileLists.filter(f => {
-      const isImage = f.raw && ['image/jpeg', 'image/jpg', 'image/png'].includes(f.raw.type)
+      if (!f.raw) return true
+      const isImage = ['image/jpeg', 'image/jpg', 'image/png'].includes(f.raw.type)
       const isAllowedExt = f.name && /\.(jpg|jpeg|png)$/i.test(f.name)
       return isImage && isAllowedExt
     })
     return
   }
   batchImageList.value = fileLists
+  imagesUploaded.value = !hasPendingBatchImages()
 }
 
-const handleBatchImageRemove = (file, fileLists) => {
+const hasPendingBatchImages = () => batchImageList.value.some(item => item.raw && !item.fileHash)
+
+const getFileHashFromUrl = (url = '') => {
+  if (!url) return ''
+  try {
+    const pureUrl = url.split('?')[0]
+    const name = decodeURIComponent(pureUrl.substring(pureUrl.lastIndexOf('/') + 1))
+    return name.split('.')[0] || ''
+  } catch (error) {
+    return ''
+  }
+}
+
+const syncUploadedImageUrls = () => {
+  uploadedImageUrls.value = batchImageList.value
+    .map(item => item.fileHash || getFileHashFromUrl(item.url))
+    .filter(Boolean)
+}
+
+const getBatchImagePreviewUrl = (file) => file.url || (file.raw ? URL.createObjectURL(file.raw) : '')
+
+const isImageFile = (file = {}) => {
+  const fileName = (file.fileName || file.name || file.minioPath || '').toLowerCase()
+  return /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(fileName)
+}
+
+const deleteBatchImageFromServer = async (file) => {
+  const fileId = file?.id || file?.bizId || file?.fileId || file?.fileHash || getFileHashFromUrl(file?.url)
+  if (!fileId) {
+    throw new Error('未获取到可删除的文件标识')
+  }
+  await delFile(fileId)
+}
+
+const handleBatchImageRemove = async (file, fileLists) => {
+  const isLocalOnly = !!file.raw && !file.fileHash && (!file.url || file.url.startsWith('blob:'))
+  if (!isLocalOnly) {
+    try {
+      await deleteBatchImageFromServer(file)
+      ElMessage.success('批量图片删除成功')
+    } catch (error) {
+      batchImageList.value = [...fileLists, file]
+      ElMessage.error('批量图片删除失败')
+      return
+    }
+  }
   batchImageList.value = fileLists
+  syncUploadedImageUrls()
+  imagesUploaded.value = batchImageList.value.length > 0 && batchImageList.value.every(item => !item.raw || !!item.fileHash)
+}
+
+const formatSpeed = (speedBps) => {
+  if (!Number.isFinite(speedBps) || speedBps <= 0) return '0 B/s'
+  if (speedBps < 1024) return `${speedBps.toFixed(2)} B/s`
+  if (speedBps < 1024 * 1024) return `${(speedBps / 1024).toFixed(2)} KB/s`
+  return `${(speedBps / (1024 * 1024)).toFixed(2)} MB/s`
+}
+
+async function getOrCreateArticleFolder(articleTitle) {
+  const deptId = userStore.deptId
+  if (!deptId) {
+    throw new Error('无法获取部门信息')
+  }
+
+  const companyRes = await getFolderList({
+    pid: 0,
+    companyId: deptId
+  })
+  const companyFolder = (companyRes?.data || [])[0]
+  if (!companyFolder) {
+    throw new Error('未找到公司文件夹')
+  }
+
+  const myDraftRes = await getFolderListWithoutPremission({
+    companyId: deptId,
+    filePath: '我的稿件'
+  })
+  const myDraftFolder = (myDraftRes?.data || [])[0]
+  const myDraftPid = myDraftFolder?.bizId
+  if (!myDraftPid) {
+    throw new Error('未找到“我的稿件”文件夹')
+  }
+
+  let articleFolder = (await getFolderList({
+    pid: myDraftPid,
+    filePath: articleTitle
+  }))?.data?.[0]
+
+  if (!articleFolder) {
+    await addFolder({
+      filePath: articleTitle,
+      pid: myDraftPid
+    })
+    articleFolder = (await getFolderList({
+      pid: myDraftPid,
+      filePath: articleTitle
+    }))?.data?.[0]
+  }
+
+  const folderId = articleFolder?.bizId
+  if (!folderId) {
+    throw new Error('创建文章文件夹失败')
+  }
+
+  return {
+    folderId,
+    folderPath: `${companyFolder.filePath}/我的稿件/${articleTitle}`
+  }
+}
+
+async function getArticleFolderByTitle(articleTitle) {
+  const deptId = userStore.deptId
+  if (!deptId) {
+    throw new Error('无法获取部门信息')
+  }
+
+  const companyRes = await getFolderList({
+    pid: 0,
+    companyId: deptId
+  })
+  const companyFolder = (companyRes?.data || [])[0]
+  if (!companyFolder) {
+    throw new Error('未找到公司文件夹')
+  }
+
+  const myDraftRes = await getFolderListWithoutPremission({
+    companyId: deptId,
+    filePath: '我的稿件'
+  })
+  const myDraftFolder = (myDraftRes?.data || [])[0]
+  const myDraftPid = myDraftFolder?.bizId
+  if (!myDraftPid) {
+    throw new Error('未找到“我的稿件”文件夹')
+  }
+
+  const articleFolder = (await getFolderList({
+    pid: myDraftPid,
+    filePath: articleTitle
+  }))?.data?.[0]
+
+  if (!articleFolder?.bizId) {
+    return null
+  }
+
+  return {
+    folderId: articleFolder.bizId,
+    folderPath: `${companyFolder.filePath}/我的稿件/${articleTitle}`
+  }
+}
+
+async function loadBatchImagesFromArticleFolder(articleTitle) {
+  const title = (articleTitle || '').trim()
+  if (!title) return []
+
+  const folderInfo = await getArticleFolderByTitle(title)
+  if (!folderInfo?.folderId) return []
+
+  const res = await getFileList({ folderId: folderInfo.folderId })
+  const files = res?.data || []
+  articleFolderId.value = folderInfo.folderId
+
+  return files
+    .filter(isImageFile)
+    .map((item, index) => {
+      const url = item.minioPath || item.url || ''
+      return {
+        id: item.id,
+        bizId: item.bizId,
+        fileId: item.id,
+        name: item.fileName || `batch-image-${index + 1}.jpg`,
+        url,
+        uid: `existing-folder-batch-${item.id || index}`,
+        fileHash: getFileHashFromUrl(url)
+      }
+    })
+}
+
+async function handleBatchImageUpload() {
+  if (batchImageList.value.length === 0) return
+  const title = (editArticleForm.value.title || '').trim()
+  if (!title) {
+    ElMessage.warning('请先输入文章标题')
+    return
+  }
+
+  const pendingFiles = batchImageList.value.filter(item => item.raw && !item.fileHash)
+  if (pendingFiles.length === 0) {
+    ElMessage.info('没有待上传的正文图片')
+    return
+  }
+
+  uploadingImages.value = true
+  uploadProgress.value = 0
+  uploadSpeed.value = '0 B/s'
+
+  try {
+    const { folderId, folderPath } = await getOrCreateArticleFolder(title)
+    articleFolderId.value = folderId
+
+    let totalUploadedBytes = 0
+    const totalBytes = pendingFiles.reduce((sum, item) => sum + (item.raw?.size || 0), 0)
+    const startTime = Date.now()
+
+    for (const item of pendingFiles) {
+      const file = item.raw
+      if (!file) continue
+      const baseUploadedBytes = totalUploadedBytes
+      const result = await uploadFileWithChunk(file, folderId, folderPath, {
+        onProgress: (progress) => {
+          const currentFileUploaded = (file.size * progress) / 100
+          const mergedUploaded = baseUploadedBytes + currentFileUploaded
+          const percent = totalBytes > 0 ? Math.round((mergedUploaded / totalBytes) * 100) : 0
+          uploadProgress.value = Math.min(percent, 100)
+          const elapsedSeconds = (Date.now() - startTime) / 1000
+          if (elapsedSeconds > 0) {
+            uploadSpeed.value = formatSpeed(mergedUploaded / elapsedSeconds)
+          }
+        },
+        fileLastModified: parseTime(file.lastModifiedDate || new Date(file.lastModified)),
+        contentType: file.type
+      })
+
+      if (!result.success) {
+        throw new Error(`图片 ${file.name} 上传失败`)
+      }
+
+      item.fileHash = result.fileHash
+      totalUploadedBytes += file.size
+    }
+
+    syncUploadedImageUrls()
+    imagesUploaded.value = true
+    ElMessage.success('正文图片上传完成')
+  } catch (error) {
+    ElMessage.error('正文图片上传失败: ' + (error?.message || '未知错误'))
+  } finally {
+    uploadingImages.value = false
+  }
 }
 
 const resolveBatchImageUrls = (article) => {
@@ -682,6 +952,29 @@ const getAttachmentName = (url) => {
   }
 }
 
+const getFileNameFromUrl = (url, fallbackName = 'file') => {
+  if (!url) return fallbackName
+  try {
+    const pureUrl = url.split('?')[0]
+    const encodedName = pureUrl.substring(pureUrl.lastIndexOf('/') + 1)
+    return decodeURIComponent(encodedName) || fallbackName
+  } catch (error) {
+    return fallbackName
+  }
+}
+
+const fileFromUrl = async (url, fallbackName = 'file') => {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`下载文件失败: ${response.status}`)
+  }
+  const blob = await response.blob()
+  const fileName = getFileNameFromUrl(url, fallbackName)
+  return new File([blob], fileName, {
+    type: blob.type || 'application/octet-stream'
+  })
+}
+
 // 查询数据
 const getList = async () => {
   loading.value = true
@@ -727,6 +1020,7 @@ const handleReedit = async (row) => {
   try {
     const response = await getArticle(row.id)
     editArticleForm.value = { ...response.data }
+    articleFolderId.value = null
     // 初始化栏花文件列表
     if (editArticleForm.value.columnOrnamentUrl) {
       fileList.value = [{
@@ -756,16 +1050,22 @@ const handleReedit = async (row) => {
     } else {
       auditVoucherList.value = []
     }
-    const batchUrls = resolveBatchImageUrls(editArticleForm.value)
-    if (batchUrls.length > 0) {
+    const folderBatchImages = await loadBatchImagesFromArticleFolder(editArticleForm.value.title)
+    if (folderBatchImages.length > 0) {
+      batchImageList.value = folderBatchImages
+    } else {
+      const batchUrls = resolveBatchImageUrls(editArticleForm.value)
       batchImageList.value = batchUrls.map((url, index) => ({
         name: `batch-image-${index + 1}.jpg`,
         url,
-        uid: `existing-batch-${index}`
+        uid: `existing-batch-${index}`,
+        fileHash: getFileHashFromUrl(url)
       }))
-    } else {
-      batchImageList.value = []
     }
+    syncUploadedImageUrls()
+    imagesUploaded.value = batchImageList.value.length > 0
+    uploadProgress.value = 0
+    uploadSpeed.value = '0 B/s'
     editDialogVisible.value = true
   } catch (error) {
     ElMessage.error('获取稿件详情失败')
@@ -782,6 +1082,11 @@ const handleSaveEdit = async () => {
     }
     if (!editArticleForm.value.content.replace(/<[^>]+>/g, '').trim()) {
       ElMessage.warning('请输入文章正文内容，不能为空')
+      return
+    }
+    const hasPendingBatchImages = batchImageList.value.some(item => item.raw && !item.fileHash)
+    if (hasPendingBatchImages) {
+      ElMessage.warning('您有正文图片未上传，请先点击“上传”')
       return
     }
     await editFormRef.value.validate()
@@ -808,12 +1113,28 @@ const handleSaveEdit = async () => {
     }
     if (auditVoucherList.value.length > 0 && auditVoucherList.value[0].raw) {
       formData.append('auditVoucher', auditVoucherList.value[0].raw)
-    }
-    batchImageList.value.forEach(file => {
-      if (file.raw) {
-        formData.append('batchImages', file.raw)
+    } else if (auditVoucherList.value.length > 0 && auditVoucherList.value[0].url) {
+      try {
+        const auditVoucherFile = await fileFromUrl(auditVoucherList.value[0].url, auditVoucherList.value[0].name || 'audit-voucher')
+        formData.append('auditVoucher', auditVoucherFile)
+      } catch (error) {
+        ElMessage.error('审核凭证处理失败，请重新上传审核凭证后再保存')
+        editLoading.value = false
+        return
       }
-    })
+    } else {
+      ElMessage.warning('请上传审核凭证')
+      editLoading.value = false
+      return
+    }
+    if (uploadedImageUrls.value.length > 0) {
+      uploadedImageUrls.value.forEach((url, index) => {
+        formData.append(`imageUrls[${index}]`, url)
+      })
+    }
+    if (articleFolderId.value) {
+      formData.append('folderId', articleFolderId.value)
+    }
 
     await updateArticle(formData) // 统一传 FormData
     ElMessage.success('保存成功')
@@ -1026,6 +1347,32 @@ onMounted(() => {
   color: #409eff;
 }
 
+.batch-image-preview-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.batch-image-card {
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background-color: #fff;
+}
+
+.batch-preview-img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
 .file-name {
   font-weight: 500;
   color: #303133;
@@ -1038,6 +1385,24 @@ onMounted(() => {
 .file-size {
   font-size: 12px;
   color: #909399;
+}
+
+.upload-actions {
+  width: 100%;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upload-progress-info {
+  width: 100%;
+}
+
+.upload-speed {
+  margin-top: 6px;
+  color: #606266;
+  font-size: 12px;
 }
 
 .header-left {

@@ -184,12 +184,7 @@
         <div v-else class="empty-content">
           <p>暂无正文内容</p>
         </div>
-        <div v-if="currentArticle.auditVoucherUrl" class="attachment-link-section">
-          <h4 class="attachment-title">审核凭证：</h4>
-          <el-link type="primary" :underline="true" @click="handleAuditVoucherPreview(currentArticle.auditVoucherUrl)">
-            {{ currentArticle.auditVoucherName || getAttachmentName(currentArticle.auditVoucherUrl) }}
-          </el-link>
-        </div>
+
         <div v-if="resolveBatchImageUrls(currentArticle).length" class="flower-preview">
           <h4 class="flower-title">批量图片：</h4>
           <div class="batch-image-grid">

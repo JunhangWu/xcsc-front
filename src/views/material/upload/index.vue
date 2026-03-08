@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="app-container">
     <!-- 搜索和筛选 -->
     <div class="search-filter">
@@ -400,7 +400,7 @@
                 >
                   <Share />
                 </el-icon>
-                <el-icon class="action-icon" @click.stop="editFolder(item)" title="重命名" v-show="item._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME" v-hasPermi="['xcsc:FilePathMapping:edit']"
+                <el-icon class="action-icon" @click.stop="editFolder(item)" title="重命名" v-show="item._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME"
                   style="color: #409eff;">
                   <Edit />
                 </el-icon>

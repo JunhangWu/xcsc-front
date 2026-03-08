@@ -36,8 +36,8 @@
           <div class="pageTop">
             <div class="breadcrumbBox">
               <div class="search-result-info">
-                {{ getStatusTitle(currentStatus) }}：共 {{ filteredFileList.length }} 个文件
-              </div>
+                  {{ getStatusTitle(currentStatus) }}：共 {{ total }} 个文件
+                </div>
             </div>
             <div class="pageTopRight">
               <el-button type="primary" plain @click="refreshData" size="default">

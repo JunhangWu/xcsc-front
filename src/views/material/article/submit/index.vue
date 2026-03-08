@@ -592,6 +592,12 @@ async function handleSubmit() {
     return
   }
 
+  // 检查正文图片是否已上传
+  if (batchImageList.value.length > 0 && !imagesUploaded.value) {
+    ElMessage.warning('您还未上传正文图片！')
+    return
+  }
+
   // if (fileList.value.length === 0) {
   //   ElMessage.warning('请上传栏花图片')
   //   return

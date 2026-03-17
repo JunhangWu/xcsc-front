@@ -205,7 +205,7 @@
 <script setup name="User">
 import { getToken } from "@/utils/auth";
 import { changeUserStatus, listUser, resetUserPwd, delUser, getUser, updateUser, addUser, deptTreeSelect } from "@/api/system/user";
-import { encrypt, decrypt } from '@/utils/jsencrypt'
+import { encrypt } from '@/utils/jsencrypt'
 
 const router = useRouter();
 const { proxy } = getCurrentInstance();
@@ -251,8 +251,14 @@ const columns = ref([
   { key: 5, label: `状态`, visible: true },
   { key: 6, label: `创建时间`, visible: true }
 ]);
-
-const data = reactive({
+const checkPassword = (rule, value, callback) => {
+  if(!/[A-Z]+/.test(value) || !/[a-z]+/.test(value) || !/\d+/.test(value)
+    || !/[`~!@#$%^&*()\-=_+,.?<>/;':"\[\]{}|\\]+/.test(value)) {
+    callback(new Error("密码必须长度必须大于10位，且包含大小写字母、数字和特殊字符"));
+  }
+};
+const data = reactive(
+  {
   form: {},
   queryParams: {
     pageNum: 1,
@@ -262,12 +268,18 @@ const data = reactive({
     status: undefined,
     deptId: undefined
   },
+  
   rules: {
     userName: [{ required: true, message: "用户名称不能为空", trigger: "blur" }, { min: 2, max: 20, message: "用户名称长度必须介于 2 和 20 之间", trigger: "blur" }],
     nickName: [{ required: true, message: "用户昵称不能为空", trigger: "blur" }],
-    password: [{ required: true, message: "用户密码不能为空", trigger: "blur" }, { min: 5, max: 20, message: "用户密码长度必须介于 5 和 20 之间", trigger: "blur" }],
+    // password: [{ required: true, message: "用户密码不能为空", trigger: "blur" }, { min: 5, max: 20, message: "用户密码长度必须介于 5 和 20 之间", trigger: "blur" }],
     email: [{ type: "email", message: "请输入正确的邮箱地址", trigger: ["blur", "change"] }],
-    phonenumber: [{ pattern: /^1[3|4|5|6|7|8|9][0-9]\d{8}$/, message: "请输入正确的手机号码", trigger: "blur" }]
+    phonenumber: [{ pattern: /^1[3|4|5|6|7|8|9][0-9]\d{8}$/, message: "请输入正确的手机号码", trigger: "blur" }],
+    password: [
+      { required: true, message: "用户密码不能为空", trigger: "blur" },
+      { min: 10, max: 20, message: '用户密码长度必须介于 10 和 20 之间', trigger: 'blur' },
+      { required: true, validator: checkPassword, trigger: "blur" }
+    ]
   }
 });
 
@@ -366,8 +378,10 @@ function handleResetPwd(row) {
     confirmButtonText: "确定",
     cancelButtonText: "取消",
     closeOnClickModal: false,
-    inputPattern: /^.{5,20}$/,
-    inputErrorMessage: "用户密码长度必须介于 5 和 20 之间",
+    // inputPattern: /^.{5,20}$/,
+    inputPattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{10,20}$/,
+    // inputErrorMessage: "用户密码长度必须介于 5 和 20 之间",
+    inputErrorMessage: "用户密码长度必须介于 10 和 20 之间,且包含大小写字母、数字和特殊字符"
   }).then(({ value }) => {
     let pwd = encrypt(value);
     resetUserPwd(row.userId, pwd).then(response => {

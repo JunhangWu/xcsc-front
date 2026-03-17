@@ -136,7 +136,7 @@
           </div>
           <div v-else-if="viewMode === 'thumbnail'" class="material-grid">
             <!-- 搜索结果文件列表 -->
-            <div v-for="material in queryfileListData" :key="material.id" class="material-item"
+            <div v-for="material in paginatedQueryFileListData" :key="material.id" class="material-item"
               :class="{ 'is-selected': isFileSelected(material) }"
               @mouseenter="onSubFolderMouseEnter(material)" @mouseleave="onSubFolderMouseLeave(material)">
                 <span class="file-select-box" v-show="material._hover || isFileSelected(material)" @click.stop>
@@ -197,7 +197,7 @@
           <div v-else class="material-table-wrapper">
             <el-table
               ref="queryTableRef"
-              :data="queryfileListData"
+              :data="paginatedQueryFileListData"
               class="material-table"
               :row-key="getListRowKey"
               @selection-change="handleSearchTableSelectionChange"
@@ -293,6 +293,18 @@
                 </template>
               </el-table-column>
             </el-table>
+          </div>
+
+          <div v-if="queryfileListData.length > 0" class="search-pagination-container">
+            <el-pagination
+              v-model:current-page="searchCurrentPage"
+              v-model:page-size="searchPageSize"
+              :page-sizes="[10, 20, 50, 100]"
+              layout="total, sizes, prev, pager, next, jumper"
+              :total="queryfileListData.length"
+              @size-change="handleSearchPageSizeChange"
+              @current-change="handleSearchPageChange"
+            />
           </div>
         </div>
       </div>
@@ -867,6 +879,7 @@ const backFolder = () => {
 // 获取文件夹及文件列表数据
 const folderData = ref([]) //文件夹列表
 const fileListData = ref([])//文件列表
+const queryfileListData = ref([])//搜索结果文件列表
 const SHARED_FOLDER_NAME = '共享文件夹'
 const canViewSharedFolder = computed(() => auth.hasPermi('xcsc:FilePathMapping:share'))
 const visibleFolderData = computed(() => {
@@ -886,6 +899,13 @@ const listViewRows = computed(() => {
 const queryTableRef = ref(null)
 const folderTableRef = ref(null)
 const selectedFileIds = ref([])
+const searchCurrentPage = ref(1)
+const searchPageSize = ref(20)
+const paginatedQueryFileListData = computed(() => {
+  const start = (searchCurrentPage.value - 1) * searchPageSize.value
+  const end = start + searchPageSize.value
+  return queryfileListData.value.slice(start, end)
+})
 const availableSelectableFiles = computed(() => {
   const source = showSearchResults.value ? queryfileListData.value : fileListData.value
   if (!showSearchResults.value && curFolderObj.filePath === SHARED_FOLDER_NAME) {
@@ -929,7 +949,10 @@ function toggleFileSelected(file, checked) {
 }
 
 function handleSearchTableSelectionChange(rows) {
-  selectedFileIds.value = rows.map(item => item.id)
+  const currentPageIds = new Set(paginatedQueryFileListData.value.map(item => item.id))
+  const preservedIds = selectedFileIds.value.filter(id => !currentPageIds.has(id))
+  const currentSelectedIds = rows.map(item => item.id)
+  selectedFileIds.value = [...preservedIds, ...currentSelectedIds]
 }
 
 function isFolderFileSelectable(row) {
@@ -950,7 +973,7 @@ function syncTableSelectionByIds() {
     if (showSearchResults.value) {
       const table = queryTableRef.value
       table?.clearSelection?.()
-      queryfileListData.value.forEach((row) => {
+      paginatedQueryFileListData.value.forEach((row) => {
         if (idSet.has(row.id)) {
           table?.toggleRowSelection?.(row, true)
         }
@@ -977,6 +1000,17 @@ function toggleSelectAllFiles() {
     return
   }
   selectedFileIds.value = availableSelectableFiles.value.map(item => item.id)
+  syncTableSelectionByIds()
+}
+
+function handleSearchPageSizeChange(size) {
+  searchPageSize.value = size
+  searchCurrentPage.value = 1
+  syncTableSelectionByIds()
+}
+
+function handleSearchPageChange(page) {
+  searchCurrentPage.value = page
   syncTableSelectionByIds()
 }
 
@@ -1061,9 +1095,9 @@ getFolderData(0)
 
 // ==================== 搜索与刷新 ====================
 // 获取搜索结果文件列表
-const queryfileListData = ref([])//文件列表
 function getQueryData() {
   clearSelectedFiles()
+  searchCurrentPage.value = 1
   // loading.value = true
   let params = {
     fileName: searchKeyword.value,
@@ -1091,6 +1125,7 @@ function refreshData() {
 // 重置搜索态并回到目录视图
 function resetSearch() {
   clearSelectedFiles()
+  searchCurrentPage.value = 1
   showSearchResults.value = false
   if (curFolderObj.bizId == 0) {
     showFolder.value = true // 确保显示文件夹视图
@@ -1387,6 +1422,10 @@ function sortFiles(field) {
   }
   saveSortPreference()
   applyCurrentSort()
+  if (showSearchResults.value) {
+    searchCurrentPage.value = 1
+    syncTableSelectionByIds()
+  }
 }
 
 function applyCurrentSort() {
@@ -2105,6 +2144,13 @@ function sortFolderList(folderList) {
   justify-content: center;
   align-items: center;
   padding: 80px 0;
+}
+
+.search-pagination-container {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding-top: 16px;
 }
 
 /* 对话框样式优化 */

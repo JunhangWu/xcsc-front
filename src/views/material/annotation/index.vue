@@ -275,6 +275,13 @@
       </div>
     </div>
 
+    <!-- 预览视频 -->
+    <el-dialog v-model="videoDialogVisible" :title="videoDialogTitle" width="50vw" :close-on-click-modal="false"
+      style="margin-top: 15vh;">
+      <video :src="videoFilePath" controls autoplay loop muted playsinline
+        style="max-width: 100%; max-height: 50vh; width: auto; height: auto; display: block; object-fit: contain;margin: 0 auto;"></video>
+    </el-dialog>
+
     <el-dialog v-model="addFolderDialogVisible" :title="getDialogTitle" width="500px" @close="handleAddFolderClose">
       <el-input v-model="getInputModel" :placeholder="getDialogPlaceholder" />
       <template #footer>
@@ -478,13 +485,18 @@ function getFileType(path) {
 function getListFileType(row) {
   return getFileType(row.minioPath)
 }
+//预览视频
+const videoDialogVisible = ref(false)
+const videoFilePath = ref('')
+const videoDialogTitle = ref('')
+function previewVideo(material) {
+  videoDialogVisible.value = true
+  videoFilePath.value = material.minioPath
+  videoDialogTitle.value = material.fileName
+}
 
 function formatFileSize(bytes) {
-  if (!bytes) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+  return bytes + ' MB';
 }
 
 function formatDateTime(dateStr) {
@@ -535,9 +547,6 @@ function previewImg(material) {
   })
 }
 
-function previewVideo(material) {
-  ElMessage.info('视频预览功能开发中')
-}
 
 function downloadFile(material) {
   download.minio(material.minioPath, material.fileName)

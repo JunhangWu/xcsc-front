@@ -18,7 +18,7 @@
 
 <script setup>
 import { updateUserPwd } from "@/api/system/user";
-import { encrypt, decrypt } from '@/utils/jsencrypt'
+import { encrypt } from '@/utils/jsencrypt'
 
 const { proxy } = getCurrentInstance();
 
@@ -35,15 +35,29 @@ const equalToPassword = (rule, value, callback) => {
     callback();
   }
 };
+const checkPassword = (rule, value, callback) => {
+  if(!/[A-Z]+/.test(value) || !/[a-z]+/.test(value) || !/\d+/.test(value)
+    || !/[`~!@#$%^&*()\-=_+,.?<>/;':"\[\]{}|\\]+/.test(value)) {
+    callback(new Error("密码必须长度必须大于10位，且包含大小写字母、数字和特殊字符"));
+  } else {
+    callback();
+  }
+};
 const rules = ref({
   oldPassword: [{ required: true, message: "旧密码不能为空", trigger: "blur" }],
-  newPassword: [{ required: true, message: "新密码不能为空", trigger: "blur" }, { min: 6, max: 20, message: "长度在 6 到 20 个字符", trigger: "blur" }],
+  // newPassword: [{ required: true, message: "新密码不能为空", trigger: "blur" }, { min: 6, max: 20, message: "长度在 6 到 20 个字符", trigger: "blur" }],
+  newPassword: [
+  { required: true, message: "新密码不能为空", trigger: "blur" },
+  { min: 10, max: 20, message: "长度在 10 到 20 个字符", trigger: "blur" },
+  { required: true, validator: checkPassword, trigger: "blur" }
+],
   confirmPassword: [{ required: true, message: "确认密码不能为空", trigger: "blur" }, { required: true, validator: equalToPassword, trigger: "blur" }]
 });
 
 /** 提交按钮 */
 function submit() {
   proxy.$refs.pwdRef.validate(valid => {
+    debugger
     if (valid) {
       let oldP = encrypt(user.oldPassword);
       let newP = encrypt(user.newPassword);

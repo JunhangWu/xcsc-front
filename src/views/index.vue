@@ -171,7 +171,7 @@
             </div>
             <div v-else-if="viewMode === 'thumbnail'" class="material-grid">
               <!-- 搜索结果文件列表 -->
-              <div v-for="material in sortedFileListData" :key="material.id" class="material-item">
+              <div v-for="material in paginatedSearchFileListData" :key="material.id" class="material-item">
                 <div class="material-thumb">
                   <img v-if="isImage(material.minioPath)" :src="material.coverPath || material.minioPath" :alt="getFileName(material.minioPath)"
                     @click="handleMaterialClick(material)" />
@@ -207,7 +207,7 @@
               </div>
             </div>
             <div v-else class="material-table-wrapper">
-              <el-table :data="sortedFileListData" class="material-table" :row-key="getListRowKey">
+              <el-table :data="paginatedSearchFileListData" class="material-table" :row-key="getListRowKey">
                 <el-table-column min-width="360">
                   <template #header>
                     <div class="sortable-header" @click="sortFiles('name')">
@@ -303,6 +303,20 @@
                   </template>
                 </el-table-column>
               </el-table>
+            </div>
+
+            <div v-if="queryfileListData.length > 0" class="search-pagination-container">
+              <el-pagination
+                v-model:current-page="searchCurrentPage"
+                v-model:page-size="searchPageSize"
+                background
+                layout="total, sizes, prev, pager, next, jumper"
+                :page-sizes="[10, 20, 50, 100]"
+                :total="queryfileListData.length"
+                :hide-on-single-page="true"
+                @size-change="handleSearchPageSizeChange"
+                @current-change="handleSearchPageChange"
+              />
             </div>
           </div>
         </div>
@@ -698,6 +712,8 @@ import {
 const router = useRouter()
 const contentAreaRef = ref(null)
 const showSearchResults = ref(false) // 控制是否显示搜索结果
+const searchPageSize = ref(20)
+const searchCurrentPage = ref(1)
 const userStore = useUserStore()
 // const isFavorite = ref(false) // 收藏状态
 
@@ -771,6 +787,7 @@ function sortFiles(field) {
   }
   if (showSearchResults.value) {
     queryfileListData.value = [...queryfileListData.value].sort((a, b) => sortCompare(a, b));
+    searchCurrentPage.value = 1
   } else {
     fileListData.value = [...fileListData.value].sort((a, b) => sortCompare(a, b));
   }
@@ -788,6 +805,22 @@ const sortedFileListData = computed(() => {
   }
   return [...fileListData.value].sort((a, b) => sortCompare(a, b));
 });
+
+const paginatedSearchFileListData = computed(() => {
+  const sortedSearchData = [...queryfileListData.value].sort((a, b) => sortCompare(a, b))
+  const startIndex = (searchCurrentPage.value - 1) * searchPageSize.value
+  const endIndex = startIndex + searchPageSize.value
+  return sortedSearchData.slice(startIndex, endIndex)
+})
+
+function handleSearchPageSizeChange(size) {
+  searchPageSize.value = size
+  searchCurrentPage.value = 1
+}
+
+function handleSearchPageChange(page) {
+  searchCurrentPage.value = page
+}
 
 // 排序比较函数
 function sortCompare(a, b) {
@@ -1039,6 +1072,7 @@ const breadcrumbData = ref([])
 // 获取文件夹及文件列表数据
 const folderData = ref([]) //文件夹列表
 const fileListData = ref([])//文件列表
+const queryfileListData = ref([])//搜索结果文件列表
 
 // 通用文件夹下内容获取（含搜索）
 function getFolderData(folderBizId, mode = 'folder', isSharedFolder = false) {
@@ -1090,6 +1124,7 @@ function getFolderData(folderBizId, mode = 'folder', isSharedFolder = false) {
 
       // 搜索模式才显示搜索结果区域
       if (mode === 'search') {
+        searchCurrentPage.value = 1
         showSearchResults.value = true
       }
     })
@@ -1302,6 +1337,9 @@ const toggleFavorite = (event, material) => {
 const getFavoriteFiles = async (mode = 'normal') => {
   loading.value = true;
   const targetList = mode === 'search' ? queryfileListData : fileListData;
+  if (mode === 'search') {
+    searchCurrentPage.value = 1
+  }
   targetList.value = [];
 
   try {
@@ -1479,6 +1517,7 @@ const getSortedDates = () => {
 //=====================================================查询搜索相关方法==================================================================
 // 查询处理
 const handleQuery = () => {
+  searchCurrentPage.value = 1
   if (activeSpace.value == 'all') {
     folderData.value = []
     getFolderData(undefined, 'search')
@@ -1494,11 +1533,9 @@ const handleQuery = () => {
   }
 }
 
-// 获取文件列表数据
-const queryfileListData = ref([])//文件列表
-
 // 重置搜索，返回文件夹视图
 function resetSearch() {
+  searchCurrentPage.value = 1
   showSearchResults.value = false; // 关闭搜索结果区域
   // 重置筛选表单
   Object.assign(filterForm, { fileType: '', dateRange: [], createBy: '', keyWords: '', fileName: '' });
@@ -2233,6 +2270,13 @@ onBeforeUnmount(() => {
   justify-content: center;
   align-items: center;
   padding: 80px 0;
+}
+
+.search-pagination-container {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 16px;
 }
 
 /* 适配不同屏幕尺寸 */

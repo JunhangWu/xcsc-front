@@ -19,10 +19,10 @@
       <el-icon class="el-icon--upload"><upload-filled /></el-icon>
       <div class="el-upload__text">
         {{ uploadType === 'file' ? '点击或拖拽文件到此处上传' : '点击或拖拽文件夹到此处上传' }}
-        <!-- <div class="el-upload__tip"> 支持图片：jpeg / jpg / png / bmp / gif；视频：mp4 / mov / avi / mkv / flv / m4v；文档：docx /
+        <div class="el-upload__tip"> 支持图片：jpeg / jpg / png / bmp / gif；视频：mp4 / mov / avi / mkv / flv / m4v；文档：docx / doc /
           pdf / pptx
           <br>单个文件大小不超过2048MB，总文件大小不超过5120MB
-        </div> -->
+        </div>
       </div>
     </el-upload>
       
@@ -634,11 +634,18 @@ async function uploadChunkWithProgress(fileHash, chunkIndex, chunk, folderId, fo
   }
 }
 // ==================== 上传前校验与文件选择处理 ====================
+// 支持的文件格式
+const supportedFormats = {
+  image: ['jpeg', 'jpg', 'png', 'bmp', 'gif'],
+  video: ['mp4', 'mov', 'avi', 'mkv', 'flv', 'm4v'],
+  document: ['docx', 'doc', 'pptx', 'pdf']
+}
+
 // 检查文件格式是否支持
-// const isSupportedFormat = (filename) => {
-//   const ext = filename.split('.').pop().toLowerCase()
-//   return Object.values(supportedFormats).flat().includes(ext)
-// }
+const isSupportedFormat = (filename) => {
+  const ext = filename.split('.').pop().toLowerCase()
+  return Object.values(supportedFormats).flat().includes(ext)
+}
 
 // 计算字符串的UTF8字符数
 const getUtf8Length = (str) => {
@@ -654,18 +661,18 @@ const handleBeforeUpload = (file) => {
     return false;
   }
   
-  // // 格式验证（图片/视频/文档）
-  // const ext = file.name.split('.').pop().toLowerCase();
-  // const validFormats = [...supportedFormats.image, ...supportedFormats.video, ...supportedFormats.document];
-  // if (!validFormats.includes(ext)) {
-  //   ElMessage.error(`不支持${ext}格式，请上传${Object.values(supportedFormats).flat().join('/')}文件`);
-  //   return false;
-  // }
-  // // 检查文件格式
-  // if (!isSupportedFormat(file.name)) {
-  //   ElMessage.error(`文件 ${file.name} 格式不符合要求，请上传支持的文件格式`)
-  //   return false
-  // }
+  // 格式验证（图片/视频/文档）
+  const ext = file.name.split('.').pop().toLowerCase();
+  const validFormats = [...supportedFormats.image, ...supportedFormats.video, ...supportedFormats.document];
+  if (!validFormats.includes(ext)) {
+    ElMessage.error(`不支持${ext}格式，请上传${Object.values(supportedFormats).flat().join('/')}文件`);
+    return false;
+  }
+  // 检查文件格式
+  if (!isSupportedFormat(file.name)) {
+    ElMessage.error(`文件 ${file.name} 格式不符合要求，请上传支持的文件格式`)
+    return false
+  }
   // // 检查文件大小（可选，可根据需要添加）
   // const maxSize = 2048 * 1024 * 1024 // 2048MB
   // if (file.size > maxSize) {
@@ -691,7 +698,7 @@ const handleFileChange = (file, fileList) => {
   isConfirmDisabled.value = true;
   let hasUploadError = false; // 标记是否存在不可上传的错误
   // 检查所有文件的UTF8字符数
-  const overLengthFiles = fileList.filter(file => getUtf8Length(file.name) > 255);
+  const overLengthFiles = fileList.filter(file => getUtf8Length(file.name) > 244);
   console.log("overLengthFiles",overLengthFiles.value)
   if (overLengthFiles.length > 0) {
     ElMessage.error(`文件名字符数超过限制：${overLengthFiles.map(file => file.name).join('、')}，请缩短文件名后上传！`);
@@ -718,15 +725,15 @@ const handleFileChange = (file, fileList) => {
   //   hasUploadError = true;
   //   return false
   // }
-  // // 检查文件格式
-  // const invalidFiles = fileList.filter(f => !isSupportedFormat(f.name))
-  // if (invalidFiles.length > 0) {
-  //   ElMessage.error(`素材格式不符合，请上传支持的文件格式`)
-  //   hasUploadError = true;
-  //   // 移除不支持格式的文件
-  //   fileList.value = fileList.filter(f => isSupportedFormat(f.name))
-  //   return
-  // }
+  // 检查文件格式
+  const invalidFiles = fileList.filter(f => !isSupportedFormat(f.name))
+  if (invalidFiles.length > 0) {
+    ElMessage.error(`素材格式不符合，请上传支持的文件格式`)
+    hasUploadError = true;
+    // 移除不支持格式的文件
+    fileList.value = fileList.filter(f => isSupportedFormat(f.name))
+    return
+  }
     // 检查上传列表中是否存在相同文件名的文件
   const fileNames = fileList.map(f => f.name);
   const duplicateNamesInList = fileNames.filter((name, index) => fileNames.indexOf(name) !== index);

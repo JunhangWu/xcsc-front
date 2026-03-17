@@ -123,6 +123,15 @@ export function countAllFile(query) {
     })
 }
 
+// 根据部门ID统计素材数量
+export function countByDeptId(deptId) {
+    return request({
+        url: '/file/countByDeptId',
+        method: 'get',
+        params: { deptId }
+    })
+}
+
 export const getCollectFileList = (params) => request({ url: '/file/collect/list', method: 'get', params });
 
 // 板块分类(按照公司/部门)

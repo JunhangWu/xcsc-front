@@ -18,7 +18,7 @@
       <el-button type="primary" @click="getQueryData" icon="Search">搜索</el-button>
     </div>
 
-    <div class="folderBox" v-if="showFolder">
+    <div class="folderBox" v-if="showFolder" ref="folderBoxRef">
       <div class="folderItem" v-for="(item, index) in visibleFolderData" :key="index"
         @click="selectFolder(item, 'isRootFolder')">
         <el-icon>
@@ -44,6 +44,15 @@
           </div>
         </div>
         <div class="pageTopRight">
+          <el-button
+            type="primary"
+            plain
+            size="default"
+            @click="toggleSelectAllFiles"
+            :disabled="availableSelectableFiles.length === 0"
+          >
+            {{ allFilesSelected ? '取消全选' : '全选' }}
+          </el-button>
           <el-button type="primary" plain @click="refreshData" size="default">
             <el-icon style="margin-right: 6px;">
               <Refresh />
@@ -81,6 +90,12 @@
             </template>
           </el-dropdown>
         </div>
+      </div>
+      <div class="selection-toolbar" v-if="selectedFiles.length > 0">
+        <span class="selection-count">已选择{{ selectedFiles.length }}个文件</span>
+        <el-button type="primary" plain size="small" @click="renameSelectedFiles">批量重命名</el-button>
+        <el-button type="danger" plain size="small" @click="deleteSelectedFiles">批量删除</el-button>
+        <el-button text size="small" @click="clearSelectedFiles">取消选择</el-button>
       </div>
       <div class="sort-controls" v-if="viewMode === 'thumbnail'">
         <span class="sort-label">排序方式：</span>
@@ -122,7 +137,14 @@
           <div v-else-if="viewMode === 'thumbnail'" class="material-grid">
             <!-- 搜索结果文件列表 -->
             <div v-for="material in queryfileListData" :key="material.id" class="material-item"
+              :class="{ 'is-selected': isFileSelected(material) }"
               @mouseenter="onSubFolderMouseEnter(material)" @mouseleave="onSubFolderMouseLeave(material)">
+                <span class="file-select-box" v-show="material._hover || isFileSelected(material)" @click.stop>
+                  <el-checkbox
+                    :model-value="isFileSelected(material)"
+                    @change="(checked) => toggleFileSelected(material, checked)"
+                  />
+                </span>
                 <span class="subFolder-actions">
                   <el-icon class="action-icon" @click.stop="editFile(material)" title="重命名" v-show="material._hover" style="color: #409eff;">
                     <Edit />
@@ -173,7 +195,14 @@
             </div>
           </div>
           <div v-else class="material-table-wrapper">
-            <el-table :data="queryfileListData" class="material-table" :row-key="getListRowKey">
+            <el-table
+              ref="queryTableRef"
+              :data="queryfileListData"
+              class="material-table"
+              :row-key="getListRowKey"
+              @selection-change="handleSearchTableSelectionChange"
+            >
+              <el-table-column type="selection" width="52" />
               <el-table-column min-width="360">
                 <template #header>
                   <div class="sortable-header" @click="sortFiles('name')">
@@ -290,6 +319,15 @@
         </div>
         <div class="pageTopRight">
           <div class="btnList">
+            <el-button
+              type="primary"
+              plain
+              @click="toggleSelectAllFiles"
+              size="default"
+              :disabled="availableSelectableFiles.length === 0 || curFolderObj.filePath === SHARED_FOLDER_NAME"
+            >
+              {{ allFilesSelected ? '取消全选' : '全选' }}
+            </el-button>
             <el-button type="primary" plain @click="refreshData" size="default">
               <el-icon style="margin-right: 6px;">
                 <Refresh />
@@ -345,6 +383,12 @@
             </template>
           </el-dropdown>
         </div>
+      </div>
+      <div class="selection-toolbar" v-if="selectedFiles.length > 0">
+        <span class="selection-count">已选择{{ selectedFiles.length }}个文件</span>
+        <el-button type="primary" plain size="small" @click="renameSelectedFiles" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">批量重命名</el-button>
+        <el-button type="danger" plain size="small" @click="deleteSelectedFiles" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">批量删除</el-button>
+        <el-button text size="small" @click="clearSelectedFiles">取消选择</el-button>
       </div>
       <div class="file-count-info">
         共 {{ fileListData.length }} 个文件，{{ visibleFolderData.length }} 个文件夹
@@ -416,7 +460,15 @@
             </div>
             <!-- 文件列表 -->
             <div v-for="material in fileListData" :key="material.id" class="material-item"
+              :class="{ 'is-selected': isFileSelected(material) }"
               @mouseenter="onSubFolderMouseEnter(material)" @mouseleave="onSubFolderMouseLeave(material)">
+                <span class="file-select-box" v-show="material._hover || isFileSelected(material)" @click.stop>
+                  <el-checkbox
+                    :model-value="isFileSelected(material)"
+                    :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME"
+                    @change="(checked) => toggleFileSelected(material, checked)"
+                  />
+                </span>
                 <span class="subFolder-actions">
                   <el-icon class="action-icon" @click.stop="editFile(material)" title="重命名" v-show="material._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME" style="color: #409eff;">
                     <Edit />
@@ -469,7 +521,14 @@
             </div>
           </div>
           <div v-else class="material-table-wrapper">
-            <el-table :data="listViewRows" class="material-table" :row-key="getListRowKey">
+            <el-table
+              ref="folderTableRef"
+              :data="listViewRows"
+              class="material-table"
+              :row-key="getListRowKey"
+              @selection-change="handleFolderTableSelectionChange"
+            >
+              <el-table-column type="selection" width="52" :selectable="isFolderFileSelectable" />
               <el-table-column min-width="360">
                 <template #header>
                   <div class="sortable-header" @click="sortFiles('name')">
@@ -610,11 +669,11 @@
 <script setup name="Annotation">
 // ==================== 依赖与基础上下文 ====================
 const { proxy } = getCurrentInstance();
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, nextTick } from 'vue'
 import { api as viewerApi } from "v-viewer";
 import { Search, VideoCamera, Document, Check, Edit, VideoPlay, Back, ArrowRight, ArrowUp, FolderAdd, FolderOpened, Delete, Grid, List, DocumentCopy, Refresh, Share, Loading } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { getFolderList, getSharedFolderList, updateShared, getFileList, updateFile } from "@/api/xcsc/uploadFile"
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { getFolderList, getSharedFolderList, updateShared, getFileList, updateFile, delFile } from "@/api/xcsc/uploadFile"
 import auth from '@/plugins/auth'
 import MarkDialog from './components/markDialog.vue'
 import UploadFileManager from './components/uploadFileManager.vue'
@@ -642,16 +701,39 @@ const statusFilter = ref('')// 素材状态筛选
 const showSearchResults = ref(false) // 是否显示搜索结果
 
 // 排序相关
+const SORT_PREFERENCE_KEY = 'material_upload_sort_preference'
 const sortField = ref('name') // 当前排序字段：name, size, date
 const sortOrder = ref('asc') // 当前排序方向：asc, desc
 const viewMode = ref('thumbnail') // 当前展示模式：thumbnail, list
 const nameCollator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' }) // 用于文件名排序的比较器
+
+function loadSortPreference() {
+  try {
+    const raw = localStorage.getItem(SORT_PREFERENCE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw)
+    const validField = ['name', 'size', 'date', 'type'].includes(parsed?.field)
+    const validOrder = ['asc', 'desc'].includes(parsed?.order)
+    if (validField) sortField.value = parsed.field
+    if (validOrder) sortOrder.value = parsed.order
+  } catch (_) {
+    // 忽略损坏的本地缓存
+  }
+}
+
+function saveSortPreference() {
+  localStorage.setItem(SORT_PREFERENCE_KEY, JSON.stringify({
+    field: sortField.value,
+    order: sortOrder.value
+  }))
+}
 
 // ==================== 文件夹导航与列表数据 ====================
 // 素材列表
 const loading = ref(false)
 //是否开启文件夹模式（用于根目录）
 const showFolder = ref(true)
+const folderBoxRef = ref(null)
 //当前文件夹对象
 const curFolderObj = reactive({
   filePath: '',
@@ -660,9 +742,56 @@ const curFolderObj = reactive({
 })
 //面包屑导航
 const breadcrumbData = ref([])
+const SCROLL_ROOT_KEY = 'view:root-folder'
+const SCROLL_FOLDER_KEY_PREFIX = 'view:folder:'
+const scrollPositionMap = new Map()
+
+function getPageScrollTop() {
+  return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0
+}
+
+function setPageScrollTop(top) {
+  window.scrollTo({ top, behavior: 'auto' })
+}
+
+function getFolderScrollKeyById(bizId) {
+  if (!bizId) return SCROLL_ROOT_KEY
+  return `${SCROLL_FOLDER_KEY_PREFIX}${bizId}`
+}
+
+function getCurrentScrollKey() {
+  if (showFolder.value) {
+    return SCROLL_ROOT_KEY
+  }
+  return getFolderScrollKeyById(curFolderObj.bizId || 0)
+}
+
+function saveCurrentScrollPosition() {
+  const key = getCurrentScrollKey()
+  if (!key) return
+  if (showFolder.value && folderBoxRef.value) {
+    scrollPositionMap.set(key, folderBoxRef.value.scrollTop || 0)
+    return
+  }
+  scrollPositionMap.set(key, getPageScrollTop())
+}
+
+function restoreScrollPositionByKey(key) {
+  const targetTop = scrollPositionMap.get(key) || 0
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      if (key === SCROLL_ROOT_KEY && folderBoxRef.value) {
+        folderBoxRef.value.scrollTop = targetTop
+        return
+      }
+      setPageScrollTop(targetTop)
+    })
+  })
+}
 
 //点击子文件展示相关文件夹及文件
 function selectFolder(item, type) {
+  saveCurrentScrollPosition()
   console.log('====item==', item);
   Object.assign(curFolderObj, item)
    
@@ -679,16 +808,17 @@ function selectFolder(item, type) {
       bizId: item.bizId,
     })
   }
-  getFolderData(item.bizId)
+  getFolderData(item.bizId, { restoreScrollKey: getFolderScrollKeyById(item.bizId) })
   
   console.log('=== breadcrumbData.value===', breadcrumbData.value);
 
 }
 //点击面包屑
 function clickBreadcrumb(item, index) {
+  saveCurrentScrollPosition()
   console.log('===item===', item);
   Object.assign(curFolderObj, item)
-  getFolderData(item.bizId)
+  getFolderData(item.bizId, { restoreScrollKey: getFolderScrollKeyById(item.bizId) })
   if (index == 0) {
     breadcrumbData.value = [{
       filePath: item.filePath,
@@ -703,6 +833,7 @@ function clickBreadcrumb(item, index) {
 }
 // 返回按钮
 const backFolder = () => {
+  saveCurrentScrollPosition()
   //返回根目录
   if (breadcrumbData.value.length == 1) {
     showFolder.value = true
@@ -712,7 +843,7 @@ const backFolder = () => {
       bizId: 0,
       id: 0
     });
-    getFolderData(0)
+    getFolderData(0, { restoreScrollKey: SCROLL_ROOT_KEY })
     // return
   } 
   else {
@@ -723,7 +854,10 @@ const backFolder = () => {
       id: prevFolder.id,
       isShared: prevFolder.isShared
     });
-    getFolderData(breadcrumbData.value[breadcrumbData.value.length - 2].bizId) //获取上一级文件夹的bizId
+    getFolderData(
+      breadcrumbData.value[breadcrumbData.value.length - 2].bizId,
+      { restoreScrollKey: getFolderScrollKeyById(breadcrumbData.value[breadcrumbData.value.length - 2].bizId) }
+    ) //获取上一级文件夹的bizId
     breadcrumbData.value.pop()
   }
   console.log('===返回后的curFolderObj===', curFolderObj);
@@ -748,6 +882,103 @@ const listViewRows = computed(() => {
   const files = fileListData.value.map(item => ({ ...item, _rowType: 'file' }))
   return [...folders, ...files]
 })
+
+const queryTableRef = ref(null)
+const folderTableRef = ref(null)
+const selectedFileIds = ref([])
+const availableSelectableFiles = computed(() => {
+  const source = showSearchResults.value ? queryfileListData.value : fileListData.value
+  if (!showSearchResults.value && curFolderObj.filePath === SHARED_FOLDER_NAME) {
+    return []
+  }
+  return source.filter(item => item?.id)
+})
+const allFilesSelected = computed(() => {
+  if (availableSelectableFiles.value.length === 0) return false
+  const idSet = new Set(selectedFileIds.value)
+  return availableSelectableFiles.value.every(item => idSet.has(item.id))
+})
+const selectedFiles = computed(() => {
+  const idSet = new Set(selectedFileIds.value)
+  const source = showSearchResults.value ? queryfileListData.value : fileListData.value
+  return source.filter(item => idSet.has(item.id))
+})
+
+function clearSelectedFiles() {
+  selectedFileIds.value = []
+  nextTick(() => {
+    queryTableRef.value?.clearSelection?.()
+    folderTableRef.value?.clearSelection?.()
+  })
+}
+
+function isFileSelected(file) {
+  return selectedFileIds.value.includes(file?.id)
+}
+
+function toggleFileSelected(file, checked) {
+  if (!file?.id) return
+  if (!showSearchResults.value && curFolderObj.filePath === SHARED_FOLDER_NAME) return
+  if (checked) {
+    if (!selectedFileIds.value.includes(file.id)) {
+      selectedFileIds.value = [...selectedFileIds.value, file.id]
+    }
+    return
+  }
+  selectedFileIds.value = selectedFileIds.value.filter(id => id !== file.id)
+}
+
+function handleSearchTableSelectionChange(rows) {
+  selectedFileIds.value = rows.map(item => item.id)
+}
+
+function isFolderFileSelectable(row) {
+  if (row?._rowType === 'folder') return false
+  if (curFolderObj.filePath === SHARED_FOLDER_NAME) return false
+  return true
+}
+
+function handleFolderTableSelectionChange(rows) {
+  selectedFileIds.value = rows
+    .filter(item => item?._rowType === 'file')
+    .map(item => item.id)
+}
+
+function syncTableSelectionByIds() {
+  nextTick(() => {
+    const idSet = new Set(selectedFileIds.value)
+    if (showSearchResults.value) {
+      const table = queryTableRef.value
+      table?.clearSelection?.()
+      queryfileListData.value.forEach((row) => {
+        if (idSet.has(row.id)) {
+          table?.toggleRowSelection?.(row, true)
+        }
+      })
+      return
+    }
+    const table = folderTableRef.value
+    table?.clearSelection?.()
+    listViewRows.value.forEach((row) => {
+      if (row?._rowType === 'file' && idSet.has(row.id)) {
+        table?.toggleRowSelection?.(row, true)
+      }
+    })
+  })
+}
+
+function toggleSelectAllFiles() {
+  if (allFilesSelected.value) {
+    clearSelectedFiles()
+    return
+  }
+  if (availableSelectableFiles.value.length === 0) {
+    ElMessage.warning('当前没有可选择的文件')
+    return
+  }
+  selectedFileIds.value = availableSelectableFiles.value.map(item => item.id)
+  syncTableSelectionByIds()
+}
 
 function getFolderShareStatus(folder) {
   const val = folder?.isShared ?? false;
@@ -779,7 +1010,9 @@ function switchViewMode(mode) {
   }
 }
 //获取文件夹及文件列表数据
-function getFolderData(pid) {
+async function getFolderData(pid, options = {}) {
+  clearSelectedFiles()
+  const restoreScrollKey = options.restoreScrollKey
   let params = {
     pid: pid,
   }
@@ -788,39 +1021,49 @@ function getFolderData(pid) {
   console.log('===curFolderObj===', curFolderObj);
   //如果当前文件夹是共享文件夹
   if (curFolderObj.filePath === SHARED_FOLDER_NAME) {
-    getSharedFolderList().then(res => {
+    await getSharedFolderList().then(res => {
       const sharedFolders = res.data || []
       console.log('===sharedFolders===', sharedFolders);
       folderData.value = sharedFolders
       console.log('===folderData.value===', folderData.value);
       fileListData.value = []
+      applyCurrentSort()
     })
   }
   //其他文件夹
   else{
-    getFolderList(params).then(res => {
+    const folderPromise = getFolderList(params).then(res => {
       folderData.value = res.data || []
     })
+    let filePromise = Promise.resolve()
     if (pid !== 0) {
       let param = {
         folderId: pid,
       }
       console.log('===params===', params);
-      getFileList(param).then(res => {
+      filePromise = getFileList(param).then(res => {
         fileListData.value = res.data || []
         console.log('===fileListData.value===', fileListData.value);
       })
     } else {
       fileListData.value = []
+      filePromise = Promise.resolve()
     }
+    await Promise.all([folderPromise, filePromise])
+    applyCurrentSort()
+  }
+  if (restoreScrollKey) {
+    restoreScrollPositionByKey(restoreScrollKey)
   }
 }
+loadSortPreference()
 getFolderData(0)
 
 // ==================== 搜索与刷新 ====================
 // 获取搜索结果文件列表
 const queryfileListData = ref([])//文件列表
 function getQueryData() {
+  clearSelectedFiles()
   // loading.value = true
   let params = {
     fileName: searchKeyword.value,
@@ -830,6 +1073,7 @@ function getQueryData() {
     queryfileListData.value = res.data || []
     showSearchResults.value = true // 显示搜索结果
     showFolder.value = false // 隐藏文件夹模式
+    applyCurrentSort()
   }).finally(() => {
     loading.value = false
   })
@@ -846,6 +1090,7 @@ function refreshData() {
 
 // 重置搜索态并回到目录视图
 function resetSearch() {
+  clearSelectedFiles()
   showSearchResults.value = false
   if (curFolderObj.bizId == 0) {
     showFolder.value = true // 确保显示文件夹视图
@@ -872,6 +1117,26 @@ function getFileExtension(name) {
   if (!name) return ''
   const dotIndex = name.lastIndexOf('.')
   return dotIndex > -1 ? name.substring(dotIndex) : ''
+}
+
+function getPathDirectory(path) {
+  if (!path) return ''
+  const slashIndex = path.lastIndexOf('/')
+  return slashIndex > -1 ? path.substring(0, slashIndex) : ''
+}
+
+function buildRenameLocalPath(file, newName) {
+  const fromLocalPath = getPathDirectory(file?.localPath || '')
+  if (fromLocalPath) {
+    return `${fromLocalPath}/${newName}`
+  }
+  if (!showSearchResults.value) {
+    const folderPath = getCurrentFolderPath()
+    if (folderPath) {
+      return `${folderPath}/${newName}`
+    }
+  }
+  return ''
 }
 
 // ==================== 批量文件操作 ====================
@@ -902,6 +1167,80 @@ function renameFilesByFolderName() {
   }).then(() => {
     ElMessage.success('批量重命名成功！')
     getFolderData(curFolderObj.bizId)
+  }).catch(() => { })
+}
+
+// 勾选文件批量删除
+function deleteSelectedFiles() {
+  if (selectedFiles.value.length === 0) {
+    ElMessage.warning('请先勾选文件')
+    return
+  }
+  proxy.$modal.confirm(`是否确认删除选中的${selectedFiles.value.length}个文件?`).then(() => {
+    const deletePromises = selectedFiles.value.map(file => delFile(file.id))
+    return Promise.allSettled(deletePromises)
+  }).then((results) => {
+    const failed = results.filter(item => item.status === 'rejected').length
+    const success = results.length - failed
+    if (success > 0) {
+      ElMessage.success(`已删除${success}个文件`)
+    }
+    if (failed > 0) {
+      ElMessage.warning(`${failed}个文件删除失败，请重试`)
+    }
+    clearSelectedFiles()
+    refreshData()
+  }).catch(() => { })
+}
+
+// 勾选文件批量重命名（前缀 + 序号）
+function renameSelectedFiles() {
+  if (selectedFiles.value.length === 0) {
+    ElMessage.warning('请先勾选文件')
+    return
+  }
+  if (!showSearchResults.value && curFolderObj.filePath === SHARED_FOLDER_NAME) {
+    ElMessage.warning('共享文件夹下不支持重命名')
+    return
+  }
+
+  const defaultPrefix = showSearchResults.value ? '文件' : (curFolderObj.filePath || '文件')
+  ElMessageBox.prompt('请输入批量重命名前缀，系统会自动追加序号并保留原后缀', '批量重命名', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    inputValue: defaultPrefix,
+    inputPlaceholder: '例如：样本_',
+    inputValidator: (value) => {
+      if (!value || !value.trim()) return '前缀不能为空'
+      return true
+    }
+  }).then(({ value }) => {
+    const prefix = value.trim()
+    const updatePromises = selectedFiles.value.map((file, idx) => {
+      const ext = getFileExtension(file.fileName || getFileName(file.minioPath))
+      const newName = `${prefix}${idx + 1}${ext}`
+      const localPath = buildRenameLocalPath(file, newName)
+      const params = {
+        id: file.id,
+        fileName: newName,
+      }
+      if (localPath) {
+        params.localPath = localPath
+      }
+      return updateFile(params)
+    })
+    return Promise.allSettled(updatePromises)
+  }).then((results) => {
+    const failed = results.filter(item => item.status === 'rejected').length
+    const success = results.length - failed
+    if (success > 0) {
+      ElMessage.success(`已重命名${success}个文件`)
+    }
+    if (failed > 0) {
+      ElMessage.warning(`${failed}个文件重命名失败，请检查命名冲突后重试`)
+    }
+    clearSelectedFiles()
+    refreshData()
   }).catch(() => { })
 }
 
@@ -1033,6 +1372,11 @@ function showMaterialDetail(material) {
 
 // 排序文件
 function sortFiles(field) {
+  // 根目录（一级公司文件夹）不参与排序
+  if (!showSearchResults.value && showFolder.value) {
+    return
+  }
+
   // 如果点击的是当前排序字段，则切换排序方向
   if (sortField.value === field) {
     sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
@@ -1041,14 +1385,21 @@ function sortFiles(field) {
     sortField.value = field
     sortOrder.value = 'asc'
   }
-  
-  // 根据当前视图对相应的文件列表进行排序
+  saveSortPreference()
+  applyCurrentSort()
+}
+
+function applyCurrentSort() {
   if (showSearchResults.value) {
     sortFileList(queryfileListData)
-  } else {
-    sortFolderList(folderData)
-    sortFileList(fileListData)
+    return
   }
+  // 根目录（一级公司文件夹）保持接口原顺序
+  if (showFolder.value) {
+    return
+  }
+  sortFolderList(folderData)
+  sortFileList(fileListData)
 }
 
 // 具体的排序实现
@@ -1336,6 +1687,21 @@ function sortFolderList(folderList) {
   font-weight: 500;
 }
 
+.selection-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: #f5faff;
+  border-bottom: 1px solid #d9ecff;
+}
+
+.selection-count {
+  font-size: 14px;
+  color: #303133;
+  font-weight: 500;
+}
+
 .file-count-info {
   padding: 12px 20px;
   font-size: 14px;
@@ -1562,6 +1928,58 @@ function sortFolderList(folderList) {
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     }
+
+    &.is-selected {
+      border-color: #409eff;
+      background-color: #ecf5ff;
+      box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.15);
+    }
+
+  .file-select-box {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 11;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.98);
+    border: 1px solid rgba(64, 158, 255, 0.28);
+    border-radius: 6px;
+    line-height: 0;
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+  }
+
+  .file-select-box :deep(.el-checkbox) {
+    margin: 0;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .file-select-box :deep(.el-checkbox__input) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .file-select-box :deep(.el-checkbox__inner) {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border-color: #9ec5ff;
+  }
+
+  .file-select-box :deep(.el-checkbox__inner::after) {
+    left: 6px;
+    top: 2px;
+    width: 4px;
+    height: 8px;
+  }
 
   .material-thumb {
     // flex: 2;

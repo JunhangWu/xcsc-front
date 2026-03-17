@@ -154,6 +154,7 @@ const fileUploadStatus = ref([]); // 存储每个文件的上传状态和进度
 const uploadManagerVisible = ref(false) // 上传管理面板显示状态
 const uploadTasks = ref([]) // 上传任务列表
 let taskIdCounter = 1 // 任务ID计数器
+let isQueueRunning = false // 队列是否正在处理
 
 // 计算当前任务数量（用于徽章显示）
 const uploadTaskCount = computed(() => {
@@ -217,6 +218,32 @@ function cancelTask(taskId) {
 function clearCompletedTasks() {
   uploadTasks.value = uploadTasks.value.filter(task => task.status !== 'completed' && task.status !== 'failed')
 }
+
+// 单线程队列调度：保证新任务只会按顺序等待
+async function runUploadQueue() {
+  if (isQueueRunning) {
+    return
+  }
+
+  isQueueRunning = true
+  try {
+    while (true) {
+      const nextTask = uploadTasks.value.find(task => task.status === 'waiting' && !task.isProcessing)
+      if (!nextTask) {
+        break
+      }
+
+      await processUploadTask(nextTask)
+
+      if (nextTask.status === 'completed') {
+        emit('upload-complete', nextTask.folderId)
+      }
+    }
+  } finally {
+    isQueueRunning = false
+  }
+}
+
 function uploadFile() {
   fileList.value = []
   uploadDialogVisible.value = true
@@ -420,7 +447,10 @@ async function confirmUpload() {
   });
 
   // 3. 为每个文件创建上传任务
-  const tasks = [];
+  if (files.length === 0) {
+    return;
+  }
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const task = reactive({
@@ -447,20 +477,14 @@ async function confirmUpload() {
       cancelSource: null
     });
     uploadTasks.value.push(task);
-    tasks.push(task);
   }
 
   // 4. 关闭上传对话框并显示提示
   uploadDialogVisible.value = false;
   ElMessage.success('任务已添加后台运行！');
 
-  // 5. 后台执行上传任务
-  for (let task of tasks) {
-    await processUploadTask(task);
-  }
-
-  // 6. 上传完成后刷新文件列表
-  emit('upload-complete', props.curFolderObj.bizId);
+  // 5. 后台执行上传任务（若已有任务在上传，则只追加到队列）
+  runUploadQueue();
 }
 
 // 处理单个上传任务

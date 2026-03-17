@@ -24,7 +24,7 @@
     <el-row :gutter="16">
       <el-col :xs="24" :lg="16">
         <el-card class="chart-card" shadow="hover">
-          <template #header>近12个月上传趋势（折线图）</template>
+          <template #header>近30天素材与稿件每日上传趋势（折线图）</template>
           <div ref="trendChartRef" class="chart-panel chart-panel-lg"></div>
         </el-card>
       </el-col>
@@ -81,6 +81,8 @@ import { ElMessage } from "element-plus"
 import { listMaterial } from "@/api/xcsc/material"
 import { listAllArticle } from "@/api/xcsc/article"
 import { listDept } from "@/api/system/dept"
+import { countAllFile, countByDeptId, getFileList } from "@/api/xcsc/uploadFile"
+
 
 const loading = ref(false)
 const trendChartRef = ref(null)
@@ -145,6 +147,10 @@ function formatNumber(value) {
   return new Intl.NumberFormat("zh-CN").format(Number(value || 0))
 }
 
+function normalizeCompanyName(value) {
+  return typeof value === "string" ? value.trim() : ""
+}
+
 function parseDate(value) {
   if (!value) return null
   const date = new Date(value)
@@ -164,6 +170,29 @@ function getRecentMonthKeys(total = 12) {
     const temp = new Date(base)
     temp.setMonth(base.getMonth() - i)
     keys.push(`${temp.getFullYear()}-${String(temp.getMonth() + 1).padStart(2, "0")}`)
+  }
+  return keys
+}
+
+function toDayKey(dateValue) {
+  const date = parseDate(dateValue)
+  if (!date) return ""
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`
+}
+
+function getRecentDayKeys(total = 30) {
+  const keys = []
+  const base = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  for (let i = total - 1; i >= 0; i -= 1) {
+    const temp = new Date(base)
+    temp.setDate(base.getDate() - i)
+    keys.push(
+      `${temp.getFullYear()}-${String(temp.getMonth() + 1).padStart(2, "0")}-${String(
+        temp.getDate()
+      ).padStart(2, "0")}`
+    )
   }
   return keys
 }
@@ -194,6 +223,29 @@ function buildDeptNameMap(deptRows) {
     }
   }
   return deptNameMap
+}
+
+function buildDeptItems(deptRows) {
+  const deptItems = []
+  const seen = new Set()
+  const queue = Array.isArray(deptRows) ? [...deptRows] : []
+  while (queue.length) {
+    const item = queue.shift()
+    if (!item || typeof item !== "object") continue
+    const deptId = item.deptId
+    const deptName = item.deptName
+    if (deptId !== undefined && deptId !== null && typeof deptName === "string" && deptName.trim()) {
+      const key = String(deptId)
+      if (!seen.has(key)) {
+        seen.add(key)
+        deptItems.push({ deptId: key, deptName: deptName.trim() })
+      }
+    }
+    if (Array.isArray(item.children) && item.children.length) {
+      queue.push(...item.children)
+    }
+  }
+  return deptItems
 }
 
 function getCompanyName(row, deptNameMap) {
@@ -232,9 +284,12 @@ async function fetchAllRows(apiFn, baseQuery = {}) {
   return allRows
 }
 
-function buildStats(materialRows, articleRows, deptRows = []) {
+function buildStats(materialRows, articleRows, deptRows = [], fileRows = []) {
   const monthKeys = getRecentMonthKeys(12)
   const trendMap = new Map(monthKeys.map((k) => [k, { material: 0, article: 0 }]))
+  const dayKeys = getRecentDayKeys(30)
+  const materialDailyMap = new Map(dayKeys.map((k) => [k, 0]))
+  const articleDailyMap = new Map(dayKeys.map((k) => [k, 0]))
   const userMap = new Map()
   const monthUserMap = new Map()
   const deptNameMap = buildDeptNameMap(deptRows)
@@ -255,8 +310,23 @@ function buildStats(materialRows, articleRows, deptRows = []) {
     }
   })
 
+  // 使用 getFileList 接口返回的真实素材数据，根据 createTime 筛选并按天统计
+  const sourceFileRows = Array.isArray(fileRows) ? fileRows : []
+  let monthMaterialFromFileList = 0
+  sourceFileRows.forEach((row) => {
+    const createMonthKey = toMonthKey(row?.createTime)
+    const dayKey = toDayKey(row?.createTime)
+    if (createMonthKey === monthKey) {
+      monthMaterialFromFileList += 1
+    }
+    if (materialDailyMap.has(dayKey)) {
+      materialDailyMap.set(dayKey, (materialDailyMap.get(dayKey) || 0) + 1)
+    }
+  })
+
   articleRows.forEach((row) => {
     const key = toMonthKey(row.createTime || row.submitTime)
+    const dayKey = toDayKey(row.createTime || row.submitTime)
     const user = getUserName(row, "article")
     const approvalStatus = normalizeApprovalStatus(row.approvalStatus)
     const companyName = getCompanyName(row, deptNameMap)
@@ -276,6 +346,9 @@ function buildStats(materialRows, articleRows, deptRows = []) {
       curr.total += 1
       monthUserMap.set(user, curr)
     }
+    if (articleDailyMap.has(dayKey)) {
+      articleDailyMap.set(dayKey, (articleDailyMap.get(dayKey) || 0) + 1)
+    }
   })
 
   const monthTrend = monthKeys.map((k) => ({
@@ -283,7 +356,13 @@ function buildStats(materialRows, articleRows, deptRows = []) {
     material: trendMap.get(k).material,
     article: trendMap.get(k).article
   }))
-  const monthMaterial = monthTrend[monthTrend.length - 1]?.material || 0
+  const dailyTrend = dayKeys.map((k) => ({
+    day: k,
+    material: materialDailyMap.get(k) || 0,
+    article: articleDailyMap.get(k) || 0
+  }))
+  const monthMaterialByTrend = monthTrend[monthTrend.length - 1]?.material || 0
+  const monthMaterial = sourceFileRows.length ? monthMaterialFromFileList : monthMaterialByTrend
   const monthArticle = monthTrend[monthTrend.length - 1]?.article || 0
   const monthTotal = monthMaterial + monthArticle
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
@@ -324,6 +403,7 @@ function buildStats(materialRows, articleRows, deptRows = []) {
 
   return {
     monthTrend,
+    dailyTrend,
     top10,
     companyCompare: [],
     companyApprovalRatio,
@@ -402,13 +482,13 @@ function buildCompanyApprovalRatioMockData(deptRows) {
   })
 }
 
-function createTrendOption(monthTrend) {
+function createTrendOption(dailyTrend) {
   return {
     color: ["#3c8cff", "#36b37e"],
     tooltip: { trigger: "axis" },
     legend: {
       top: 10,
-      data: ["素材上传量", "稿件上传量"]
+      data: ["素材每日上传量", "稿件每日上传量"]
     },
     grid: {
       left: "4%",
@@ -419,7 +499,7 @@ function createTrendOption(monthTrend) {
     },
     xAxis: {
       type: "category",
-      data: monthTrend.map((item) => item.month),
+      data: dailyTrend.map((item) => item.day),
       boundaryGap: false
     },
     yAxis: {
@@ -428,18 +508,18 @@ function createTrendOption(monthTrend) {
     },
     series: [
       {
-        name: "素材上传量",
+        name: "素材每日上传量",
         type: "line",
         smooth: true,
         areaStyle: { opacity: 0.16 },
-        data: monthTrend.map((item) => item.material)
+        data: dailyTrend.map((item) => item.material)
       },
       {
-        name: "稿件上传量",
+        name: "稿件每日上传量",
         type: "line",
         smooth: true,
         areaStyle: { opacity: 0.12 },
-        data: monthTrend.map((item) => item.article)
+        data: dailyTrend.map((item) => item.article)
       }
     ]
   }
@@ -723,7 +803,7 @@ function initChartsIfNeeded() {
 
 function renderCharts(stats) {
   initChartsIfNeeded()
-  trendChartInstance?.setOption(createTrendOption(stats.monthTrend), true)
+  trendChartInstance?.setOption(createTrendOption(stats.dailyTrend), true)
   pieChartInstance?.setOption(
     createPieOption(stats.summary.materialTotal, stats.summary.articleTotal),
     true
@@ -747,15 +827,55 @@ function resizeCharts() {
 async function loadData() {
   loading.value = true
   try {
-    const [materialRows, articleRows, deptResp] = await Promise.all([
+    const [materialRows, articleRows, deptResp, fileCountResp, fileListResp] = await Promise.all([
       fetchAllRows(listMaterial),
       fetchAllRows(listAllArticle),
-      listDept()
+      listDept(),
+      countAllFile(),
+      getFileList()
     ])
 
-    const stats = buildStats(materialRows, articleRows, deptResp?.data)
-    stats.companyCompare = buildCompanyCompareMockData(deptResp?.data)
+    const stats = buildStats(materialRows, articleRows, deptResp?.data, fileListResp?.data)
     stats.companyApprovalRatio = buildCompanyApprovalRatioMockData(deptResp?.data)
+    // 使用 countAllFile 接口返回的素材总量
+    if (fileCountResp?.data) {
+      stats.summary.materialTotal = fileCountResp.data
+    }
+
+    // 先从 dept 表提取每个部门的 deptId
+    const deptItems = buildDeptItems(deptResp?.data)
+    const deptIds = deptItems.map((item) => item.deptId)
+    
+    // 再将 deptId 传入 countByDeptId，统计各部门素材数量（不含稿件）
+    const materialCountPromises = deptIds.map(deptId => 
+      countByDeptId(deptId).catch(() => ({ data: 0 }))
+    )
+    const materialCountResponses = await Promise.all(materialCountPromises)
+    
+    // 构建部门素材数量映射
+    const materialCountMap = new Map()
+    deptIds.forEach((deptId, index) => {
+      materialCountMap.set(deptId, Number(materialCountResponses[index]?.data || 0))
+    })
+    
+    // 构建各公司稿件数量映射（按稿件 createBy 与公司名称匹配）
+    const articleCountMap = new Map()
+    articleRows.forEach((row) => {
+      const companyName = normalizeCompanyName(row.createBy)
+      if (companyName) {
+        articleCountMap.set(companyName, (articleCountMap.get(companyName) || 0) + 1)
+      }
+    })
+    
+    // 构建公司对比数据
+    stats.companyCompare = deptItems
+      .map(({ deptId, deptName }) => ({
+        name: deptName,
+        material: materialCountMap.get(deptId) || 0,
+        article: articleCountMap.get(normalizeCompanyName(deptName)) || 0
+      }))
+      .sort((a, b) => (b.material + b.article) - (a.material + a.article))
+
     summary.value = stats.summary
     tableData.value = stats.table
 

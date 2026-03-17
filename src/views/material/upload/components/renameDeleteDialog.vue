@@ -142,6 +142,7 @@ function handleAddFolderConfirm() {
     })
     const params = {
       id: editFileObj.id,
+      bizId: editFileObj.bizId,
       fileName: editFileName.value.trim(),
       localPath: folderPath + '/' + editFileName.value.trim(),
     }
@@ -193,10 +194,10 @@ function handleAddFolderConfirm() {
     }
     
     params.id = editOrDeleteFolderObj.id
+    params.bizId = editOrDeleteFolderObj.bizId
+    console.log("params.bizId", params.bizId)
     updateFolder(params).then(res => {
-      debugger
       // 获取该文件夹下的所有文件
-      console.log("editOrDeleteFolderObj.bizId", editOrDeleteFolderObj.bizId)
       getFileList({ folderId: editOrDeleteFolderObj.bizId }).then(filesRes => {
         const files = filesRes.data
         // 遍历文件并更新路径
@@ -209,7 +210,6 @@ function handleAddFolderConfirm() {
             }
           })
           folderPath += '/' + folderName.value.trim()
-          console.log("folderPath", folderPath)
           const params = {
             id: file.id,
             localPath: folderPath + '/' + file.fileName,
@@ -246,6 +246,7 @@ function editFile(item) {
   addFolderDialogVisible.value = true
   handleFolderType.value = 'edit_file'
   editFileObj.id = item.id
+  editFileObj.bizId = item.bizId
   editFileObj.minioPath = item.minioPath
   // 从minioPath中提取文件名
   const fileName = item.fileName

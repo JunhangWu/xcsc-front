@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="app-container chart-page">
     <div class="page-header">
       <div>
@@ -8,6 +8,14 @@
       <div class="header-actions">
         <el-tag type="info" effect="plain">{{ todayLabel }}</el-tag>
         <el-button type="primary" :loading="loading" @click="loadData">刷新数据</el-button>
+      </div>
+    </div>
+
+    <!-- 加载中覆盖层 -->
+    <div v-if="loading" class="loading-overlay">
+      <div class="loading-content">
+        <el-loading-spinner></el-loading-spinner>
+        <div class="loading-text">正在加载统计数据...</div>
       </div>
     </div>
 
@@ -898,6 +906,7 @@ onBeforeUnmount(() => {
   padding: 16px;
   background: linear-gradient(180deg, #f5f8ff 0%, #f8fbff 220px, #f7f8fa 100%);
   min-height: calc(100vh - 84px);
+  position: relative;
 }
 
 .page-header {
@@ -989,5 +998,48 @@ onBeforeUnmount(() => {
   .metric-value {
     font-size: 24px;
   }
+}
+
+/* 加载中样式 */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.loading-content {
+  text-align: center;
+  padding: 30px;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.loading-text {
+  margin-top: 16px;
+  font-size: 14px;
+  color: #606266;
+}
+
+.el-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #409eff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 </style>

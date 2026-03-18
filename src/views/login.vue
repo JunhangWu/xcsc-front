@@ -22,7 +22,7 @@
           <img :src="codeUrl" @click="getCode" class="login-code-img" />
         </div>
       </el-form-item>
-      <el-checkbox v-model="loginForm.rememberMe" style="margin:0px 0px 25px 0px;">记住密码</el-checkbox>
+
       <el-form-item style="width:100%;">
         <el-button :loading="loading" size="large" type="primary" style="width:100%;" @click.prevent="handleLogin">
           <span v-if="!loading">登 录</span>
@@ -52,9 +52,8 @@ const router = useRouter();
 const { proxy } = getCurrentInstance();
 
 const loginForm = ref({
-  username: "admin",
-  password: "admin123",
-  rememberMe: false,
+  username: "",
+  password: "",
   code: "",
   uuid: ""
 });
@@ -81,15 +80,6 @@ function handleLogin() {
   proxy.$refs.loginRef.validate(valid => {
     if (valid) {
       loading.value = true;
-      // 勾选了需要记住密码设置在 cookie 中设置记住用户名
-      if (loginForm.value.rememberMe) {
-        Cookies.set("username", loginForm.value.username, { expires: 30 });
-        Cookies.set("rememberMe", loginForm.value.rememberMe, { expires: 30 });
-      } else {
-        // 否则移除
-        Cookies.remove("username");
-        Cookies.remove("rememberMe");
-      }
       // 调用action的登录方法
       loginForm.value.password = encrypt(loginForm.value.password) || loginForm.value.password;
       userStore.login(loginForm.value).then(() => {
@@ -123,17 +113,10 @@ function getCode() {
 }
 
 function getCookie() {
-  const username = Cookies.get("username");
-  const rememberMe = Cookies.get("rememberMe");
-  loginForm.value = {
-    username: username === undefined ? loginForm.value.username : username,
-    password: "",
-    rememberMe: rememberMe === undefined ? false : Boolean(rememberMe)
-  };
+  // 不再从Cookies中读取用户名
 }
 
 getCode();
-getCookie();
 </script>
 
 <style lang='scss' scoped>

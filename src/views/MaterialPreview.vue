@@ -53,7 +53,7 @@
           </div>
           <div class="metadata-item">
             <span class="metadata-label">所属路径：</span>
-            <span class="metadata-value">{{ material.localPath || '未分类' }}</span>
+            <span class="metadata-value">{{ buildDisplayLocalPath(material.localPath, material.fileName) || '未分类' }}</span>
           </div>
           <div class="metadata-item">
             <span class="metadata-label">文件大小：</span>
@@ -379,6 +379,15 @@ function getFileName(path) {
     if (!path) return '';
     const idx = path.lastIndexOf('/');
     return idx !== -1 ? path.substring(idx + 1) : path;
+}
+// 展示用路径：localPath 最后一个 "/" 前的目录 + fileName
+function buildDisplayLocalPath(localPath, fileName) {
+  if (!fileName) return localPath || '';
+  if (!localPath) return fileName;
+  const idx = localPath.lastIndexOf('/');
+  if (idx === -1) return fileName;
+  const dir = localPath.substring(0, idx);
+  return dir ? `${dir}/${fileName}` : fileName;
 }
 //获取文件路径
 function getFilePath(path) {

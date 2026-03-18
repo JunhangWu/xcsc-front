@@ -79,7 +79,7 @@ function logout() {
     type: 'warning'
   }).then(() => {
     userStore.logOut().then(() => {
-      location.href = '/index';
+      window.location.replace('#/login');
     })
   }).catch(() => { });
 }

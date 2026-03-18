@@ -199,37 +199,9 @@ function handleAddFolderConfirm() {
     params.bizId = editOrDeleteFolderObj.bizId
     console.log("params.bizId", params.bizId)
     updateFolder(params).then(res => {
-      // 获取该文件夹下的所有文件
-      getFileList({ folderId: editOrDeleteFolderObj.bizId }).then(filesRes => {
-        const files = filesRes.data
-        // 遍历文件并更新路径
-        const updatePromises = files.map(file => {
-          let folderPath = ''
-          props.breadcrumbData.forEach((item, idx) => {
-            folderPath += item.filePath
-            if (idx !== props.breadcrumbData.length - 1) {
-              folderPath += '/'  
-            }
-          })
-          folderPath += '/' + folderName.value.trim()
-          const filePathMapping = {
-            id: file.id,
-          }
-          
-          updateFile(filePathMapping, '').then(res => {
-          }).catch(err => {
-            console.error('修改文件路径失败:', err)
-          })
-        })
-        
-        
-        // 等待所有文件更新完成
-        return Promise.all(updatePromises)
-      }).then(() => {
-        ElMessage.success('修改成功')
-        folderName.value = ''
-        emit('refresh-folder')
-      })
+      ElMessage.success('修改成功')
+      folderName.value = ''
+      emit('refresh-folder')
     })
   }
 }

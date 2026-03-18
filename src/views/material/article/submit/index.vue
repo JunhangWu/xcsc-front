@@ -215,6 +215,7 @@ import { uploadFileWithChunk } from "@/utils/chunkUpload"
 import { getFolderList, getFolderListWithoutPremission, addFolder } from "@/api/xcsc/uploadFile"
 import useUserStore from "@/store/modules/user"
 import { parseTime } from "@/utils/common"
+import { normalizeEditorHtmlImageSrcToAbsolute } from "@/utils/richText"
 
 // ========== 页面变量 ==========
 const articleTitle = ref('')
@@ -649,7 +650,7 @@ async function handleSubmit() {
   // }
 
   // 从编辑器实例获取 HTML 内容
-  const contentHtml = editorRef.value?.getHtml() || ''
+  const contentHtml = normalizeEditorHtmlImageSrcToAbsolute(editorRef.value?.getHtml() || '')
 
   // 创建 FormData 并填充数据
   const formData = new FormData();

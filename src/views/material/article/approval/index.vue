@@ -131,9 +131,10 @@
           <el-table-column prop="approvalComments" label="审批意见" min-width="150" align="center" />
 
           <!-- <el-table-column prop="companyName" label="所属公司" min-width="150" align="center" /> -->
-          <el-table-column label="操作" width="200" align="center" fixed="right">
+          <el-table-column label="操作" width="260" align="center" fixed="right">
             <template #default="scope">
               <el-button link type="primary" size="middle" @click="handleView(scope.row)">查看</el-button>
+              <el-button link type="warning" size="middle" @click="handleEdit(scope.row)">修改</el-button>
               <el-button link type="success" size="middle" @click="handleApprove(scope.row)" v-if="activeTab === 'pending' && scope.row.approvalStatus === 1">通过</el-button>
               <el-button link type="danger" size="middle" @click="handleReject(scope.row)" v-if="activeTab === 'pending' && scope.row.approvalStatus === 2">不通过</el-button>
               <el-button link type="primary" size="middle" @click="handleApproveAction(scope.row)" v-if="scope.row.approvalStatus === 0">审批</el-button>
@@ -235,18 +236,20 @@
       :url-list="[previewImageUrl]"
       @close="imageViewerVisible = false"
     />
+
+    <article-edit-dialog ref="articleEditDialogRef" @saved="handleEditSaved" />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed, useSSRContext } from 'vue'
-import { ElMessage, ElMessageBox, ElImageViewer } from 'element-plus'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { ElMessage, ElImageViewer } from 'element-plus'
 import { ArrowDown, ArrowUp, Clock, CircleCheck } from '@element-plus/icons-vue'
-import { listArticle, listAllArticle, getArticle, updateArticle, exportHtmlToWord, approvalArticle} from "@/api/xcsc/article"
-import { downloadFile } from "@/api/xcsc/uploadFile"
+import { listAllArticle, getArticle, exportHtmlToWord, approvalArticle,updateArticleContent } from "@/api/xcsc/article"
 import useUserStore from '@/store/modules/user'
 import { parseTime } from '@/utils/common'
 import { openPdfPreview } from '@/utils/filePreview'
+import ArticleEditDialog from './ArticleEditDialog.vue'
 
 const getProxyPath = (url) => {
   if (!url) return ''
@@ -288,6 +291,7 @@ const pendingCount = ref(0)
 const viewDialogVisible = ref(false)
 const approveDialogVisible = ref(false)
 const currentArticle = ref({})
+const articleEditDialogRef = ref(null)
 const approveForm = reactive({
   id: null,
   approvalStatus: '',
@@ -471,6 +475,14 @@ const handleView = async (row) => {
     ElMessage.error('获取稿件详情失败')
     console.error('获取稿件详情失败:', error)
   }
+}
+
+const handleEdit = (row) => {
+  articleEditDialogRef.value?.open(row)
+}
+
+const handleEditSaved = () => {
+  getList()
 }
 
 const handleApproveAction = (row) => {

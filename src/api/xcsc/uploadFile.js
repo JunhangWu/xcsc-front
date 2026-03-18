@@ -158,12 +158,22 @@ export function delFile(id) {
         method: 'delete'
     })
 }
+// 获取临时fileKey（5分钟有效）
+export function getFileEditKey(fileId) {
+    return request({
+        url: '/file/getFileEditKey',
+        method: 'get',
+        params: { fileId }
+    })
+}
+
 // 修改文件
-export function updateFile(data) {
+export function updateFile(filePathMapping, fileKey) {
     return request({
         url: '/file',
         method: 'put',
-        data: data
+        data: filePathMapping,
+        params: { fileKey }
     })
 }
 

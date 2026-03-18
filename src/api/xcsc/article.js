@@ -42,6 +42,15 @@ export function updateArticle(data) {
   })
 }
 
+// 修改稿件标题和内容
+export function updateArticleContent(data) {
+  return request({
+    url: '/article/content',
+    method: 'put',
+    data: data
+  })
+}
+
 // 审批稿件
 export function approvalArticle(data) {
   return request({

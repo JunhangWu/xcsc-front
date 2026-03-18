@@ -39,11 +39,20 @@
     <el-row :gutter="16">
       <el-col :xs="24" :lg="12">
         <el-card class="chart-card" shadow="hover">
-          <template #header>本月人员贡献 Top10（柱状图）</template>
+          <template #header>本月素材贡献 Top10（柱状图）</template>
           <div ref="rankChartRef" class="chart-panel chart-panel-md"></div>
         </el-card>
       </el-col>
       <el-col :xs="24" :lg="12">
+        <el-card class="chart-card" shadow="hover">
+          <template #header>本月稿件贡献 Top10（柱状图）</template>
+          <div ref="articleRankChartRef" class="chart-panel chart-panel-md"></div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="16">
+      <el-col :xs="24">
         <el-card class="chart-card" shadow="hover">
           <template #header>各子公司素材与稿件数量对比（柱状图）</template>
           <div ref="monthlyChartRef" class="chart-panel chart-panel-md"></div>
@@ -61,7 +70,7 @@
     </el-row>
 
     <el-card class="table-card" shadow="hover">
-      <template #header>人员贡献明细（表格）</template>
+      <template #header>人员贡献明细（素材/稿件分开）</template>
       <el-table :data="tableData" stripe border height="420">
         <el-table-column prop="rank" label="排名" width="76" align="center" />
         <el-table-column prop="name" label="人员" min-width="180" />
@@ -88,11 +97,13 @@ const loading = ref(false)
 const trendChartRef = ref(null)
 const pieChartRef = ref(null)
 const rankChartRef = ref(null)
+const articleRankChartRef = ref(null)
 const monthlyChartRef = ref(null)
 const approvalRatioChartRef = ref(null)
 let trendChartInstance = null
 let pieChartInstance = null
 let rankChartInstance = null
+let articleRankChartInstance = null
 let monthlyChartInstance = null
 let approvalRatioChartInstance = null
 
@@ -204,9 +215,30 @@ function getUserName(row, source) {
   return row.authorName || row.createBy || row.submitter || row.userName || "未知用户"
 }
 
+function getFileMappingUserName(row) {
+  return (
+    row?.creatby ||
+    row?.createBy ||
+    row?.uploadUser ||
+    row?.userName ||
+    row?.authorName ||
+    "未知用户"
+  )
+}
+
+function getArticleMappingUserName(row) {
+  return row?.creatby || row?.createBy || row?.authorName || row?.submitter || row?.userName || "未知用户"
+}
+
 function normalizeApprovalStatus(value) {
   const num = Number(value)
   return Number.isNaN(num) ? -1 : num
+}
+
+function getArticleCompanyFromCreateField(row) {
+  return normalizeCompanyName(
+    row?.creatbu || row?.createBu || row?.creatby || row?.createBy || row?.companyName || ""
+  )
 }
 
 function buildDeptNameMap(deptRows) {
@@ -291,7 +323,8 @@ function buildStats(materialRows, articleRows, deptRows = [], fileRows = []) {
   const materialDailyMap = new Map(dayKeys.map((k) => [k, 0]))
   const articleDailyMap = new Map(dayKeys.map((k) => [k, 0]))
   const userMap = new Map()
-  const monthUserMap = new Map()
+  const monthMaterialUserMap = new Map()
+  const monthArticleUserMap = new Map()
   const deptNameMap = buildDeptNameMap(deptRows)
   const companyApprovalMap = new Map()
 
@@ -302,12 +335,6 @@ function buildStats(materialRows, articleRows, deptRows = [], fileRows = []) {
       trendMap.get(key).material += 1
       userMap.set(user, (userMap.get(user) || 0) + 1)
     }
-    if (key === monthKey) {
-      const curr = monthUserMap.get(user) || { material: 0, article: 0, total: 0 }
-      curr.material += 1
-      curr.total += 1
-      monthUserMap.set(user, curr)
-    }
   })
 
   // 使用 getFileList 接口返回的真实素材数据，根据 createTime 筛选并按天统计
@@ -316,8 +343,10 @@ function buildStats(materialRows, articleRows, deptRows = [], fileRows = []) {
   sourceFileRows.forEach((row) => {
     const createMonthKey = toMonthKey(row?.createTime)
     const dayKey = toDayKey(row?.createTime)
+    const user = getFileMappingUserName(row)
     if (createMonthKey === monthKey) {
       monthMaterialFromFileList += 1
+      monthMaterialUserMap.set(user, (monthMaterialUserMap.get(user) || 0) + 1)
     }
     if (materialDailyMap.has(dayKey)) {
       materialDailyMap.set(dayKey, (materialDailyMap.get(dayKey) || 0) + 1)
@@ -325,11 +354,12 @@ function buildStats(materialRows, articleRows, deptRows = [], fileRows = []) {
   })
 
   articleRows.forEach((row) => {
-    const key = toMonthKey(row.createTime || row.submitTime)
-    const dayKey = toDayKey(row.createTime || row.submitTime)
+    const key = toMonthKey(row.createTime)
+    const dayKey = toDayKey(row.createTime)
     const user = getUserName(row, "article")
-    const approvalStatus = normalizeApprovalStatus(row.approvalStatus)
-    const companyName = getCompanyName(row, deptNameMap)
+    const articleMapUser = getArticleMappingUserName(row)
+    const approvalStatus = normalizeApprovalStatus(row.approval_status ?? row.approvalStatus)
+    const companyName = getArticleCompanyFromCreateField(row) || getCompanyName(row, deptNameMap)
     if (trendMap.has(key)) {
       trendMap.get(key).article += 1
       userMap.set(user, (userMap.get(user) || 0) + 1)
@@ -341,10 +371,7 @@ function buildStats(materialRows, articleRows, deptRows = [], fileRows = []) {
       companyApprovalMap.set(companyName, curr)
     }
     if (key === monthKey) {
-      const curr = monthUserMap.get(user) || { material: 0, article: 0, total: 0 }
-      curr.article += 1
-      curr.total += 1
-      monthUserMap.set(user, curr)
+      monthArticleUserMap.set(articleMapUser, (monthArticleUserMap.get(articleMapUser) || 0) + 1)
     }
     if (articleDailyMap.has(dayKey)) {
       articleDailyMap.set(dayKey, (articleDailyMap.get(dayKey) || 0) + 1)
@@ -367,16 +394,21 @@ function buildStats(materialRows, articleRows, deptRows = [], fileRows = []) {
   const monthTotal = monthMaterial + monthArticle
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
 
-  const rankList = Array.from(monthUserMap.entries())
+  const materialRankList = Array.from(monthMaterialUserMap.entries())
     .map(([name, info]) => ({
       name,
-      material: info.material,
-      article: info.article,
-      total: info.total
+      total: info
+    }))
+    .sort((a, b) => b.total - a.total)
+  const articleRankList = Array.from(monthArticleUserMap.entries())
+    .map(([name, info]) => ({
+      name,
+      total: info
     }))
     .sort((a, b) => b.total - a.total)
 
-  const top10 = rankList.slice(0, 10)
+  const top10Material = materialRankList.slice(0, 10)
+  const top10Article = articleRankList.slice(0, 10)
   const companyApprovalRatio = Array.from(companyApprovalMap.entries())
     .map(([name, info]) => {
       const total = info.pass + info.reject
@@ -392,7 +424,21 @@ function buildStats(materialRows, articleRows, deptRows = [], fileRows = []) {
       }
     })
     .sort((a, b) => b.total - a.total)
-  const table = rankList.slice(0, 50).map((item, index) => ({
+  const allUsers = Array.from(new Set([...monthMaterialUserMap.keys(), ...monthArticleUserMap.keys()]))
+  const mixedRankList = allUsers
+    .map((name) => {
+      const materialCount = monthMaterialUserMap.get(name) || 0
+      const articleCount = monthArticleUserMap.get(name) || 0
+      const totalCount = materialCount + articleCount
+      return {
+        name,
+        material: materialCount,
+        article: articleCount,
+        total: totalCount
+      }
+    })
+    .sort((a, b) => b.total - a.total)
+  const table = mixedRankList.slice(0, 50).map((item, index) => ({
     rank: index + 1,
     name: item.name,
     materialCount: item.material,
@@ -404,7 +450,8 @@ function buildStats(materialRows, articleRows, deptRows = [], fileRows = []) {
   return {
     monthTrend,
     dailyTrend,
-    top10,
+    top10Material,
+    top10Article,
     companyCompare: [],
     companyApprovalRatio,
     table,
@@ -420,67 +467,6 @@ function buildStats(materialRows, articleRows, deptRows = [], fileRows = []) {
   }
 }
 
-function buildCompanyCompareMockData(deptRows) {
-  const deptNames = []
-  const queue = Array.isArray(deptRows) ? [...deptRows] : []
-  while (queue.length) {
-    const item = queue.shift()
-    if (!item || typeof item !== "object") continue
-    const name = item.deptName
-    if (typeof name === "string" && name.trim().length > 0) {
-      deptNames.push(name.trim())
-    }
-    if (Array.isArray(item.children) && item.children.length) {
-      queue.push(...item.children)
-    }
-  }
-
-  const names = deptNames.length ? deptNames : ["综合管理部", "运营中心", "内容中心", "技术中心", "市场部"]
-
-  return names.map((name, index) => {
-    const material = 36 + ((index * 17 + 9) % 95)
-    const article = 24 + ((index * 11 + 7) % 82)
-    return {
-      name,
-      material,
-      article
-    }
-  })
-}
-
-function buildCompanyApprovalRatioMockData(deptRows) {
-  const deptNames = []
-  const queue = Array.isArray(deptRows) ? [...deptRows] : []
-  while (queue.length) {
-    const item = queue.shift()
-    if (!item || typeof item !== "object") continue
-    const name = item.deptName
-    if (typeof name === "string" && name.trim().length > 0) {
-      deptNames.push(name.trim())
-    }
-    if (Array.isArray(item.children) && item.children.length) {
-      queue.push(...item.children)
-    }
-  }
-
-  const names = deptNames.length ? deptNames : ["综合管理部", "运营中心", "内容中心", "技术中心", "市场部"]
-
-  return names.map((name, index) => {
-    const pass = 22 + ((index * 13 + 5) % 61)
-    const reject = 6 + ((index * 7 + 3) % 21)
-    const total = pass + reject
-    const passRate = Number(((pass / total) * 100).toFixed(1))
-    const rejectRate = Number(((reject / total) * 100).toFixed(1))
-    return {
-      name,
-      pass,
-      reject,
-      total,
-      passRate,
-      rejectRate
-    }
-  })
-}
 
 function createTrendOption(dailyTrend) {
   return {
@@ -552,16 +538,16 @@ function createPieOption(materialTotal, articleTotal) {
   }
 }
 
-function createRankOption(rankData) {
+function createRankOption(rankData, color = "#ff9f43") {
   return {
-    color: ["#ff9f43", "#3c8cff"],
+    color: [color],
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "shadow" }
     },
     legend: {
       top: 10,
-      data: ["素材", "稿件"]
+      data: ["贡献数"]
     },
     grid: {
       left: "5%",
@@ -581,18 +567,10 @@ function createRankOption(rankData) {
     },
     series: [
       {
-        name: "素材",
+        name: "贡献数",
         type: "bar",
-        stack: "total",
         barMaxWidth: 22,
-        data: rankData.map((item) => item.material)
-      },
-      {
-        name: "稿件",
-        type: "bar",
-        stack: "total",
-        barMaxWidth: 22,
-        data: rankData.map((item) => item.article)
+        data: rankData.map((item) => item.total)
       }
     ],
     graphic: rankData.length
@@ -793,6 +771,9 @@ function initChartsIfNeeded() {
   if (!rankChartInstance && rankChartRef.value) {
     rankChartInstance = echarts.init(rankChartRef.value)
   }
+  if (!articleRankChartInstance && articleRankChartRef.value) {
+    articleRankChartInstance = echarts.init(articleRankChartRef.value)
+  }
   if (!monthlyChartInstance && monthlyChartRef.value) {
     monthlyChartInstance = echarts.init(monthlyChartRef.value)
   }
@@ -808,7 +789,8 @@ function renderCharts(stats) {
     createPieOption(stats.summary.materialTotal, stats.summary.articleTotal),
     true
   )
-  rankChartInstance?.setOption(createRankOption(stats.top10), true)
+  rankChartInstance?.setOption(createRankOption(stats.top10Material, "#3c8cff"), true)
+  articleRankChartInstance?.setOption(createRankOption(stats.top10Article, "#36b37e"), true)
   monthlyChartInstance?.setOption(createMonthlyCompareOption(stats.companyCompare), true)
   approvalRatioChartInstance?.setOption(
     createCompanyApprovalRatioOption(stats.companyApprovalRatio),
@@ -820,6 +802,7 @@ function resizeCharts() {
   trendChartInstance?.resize()
   pieChartInstance?.resize()
   rankChartInstance?.resize()
+  articleRankChartInstance?.resize()
   monthlyChartInstance?.resize()
   approvalRatioChartInstance?.resize()
 }
@@ -836,7 +819,6 @@ async function loadData() {
     ])
 
     const stats = buildStats(materialRows, articleRows, deptResp?.data, fileListResp?.data)
-    stats.companyApprovalRatio = buildCompanyApprovalRatioMockData(deptResp?.data)
     // 使用 countAllFile 接口返回的素材总量
     if (fileCountResp?.data) {
       stats.summary.materialTotal = fileCountResp.data
@@ -899,11 +881,13 @@ onBeforeUnmount(() => {
   trendChartInstance?.dispose()
   pieChartInstance?.dispose()
   rankChartInstance?.dispose()
+  articleRankChartInstance?.dispose()
   monthlyChartInstance?.dispose()
   approvalRatioChartInstance?.dispose()
   trendChartInstance = null
   pieChartInstance = null
   rankChartInstance = null
+  articleRankChartInstance = null
   monthlyChartInstance = null
   approvalRatioChartInstance = null
 })

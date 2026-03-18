@@ -411,6 +411,7 @@ import { uploadFileWithChunk } from '@/utils/chunkUpload'
 import { getFolderList, getFolderListWithoutPremission, addFolder, delFile, getFileList } from '@/api/xcsc/uploadFile'
 import useUserStore from '@/store/modules/user'
 import { parseTime } from '@/utils/common'
+import { normalizeEditorHtmlImageSrcToAbsolute } from '@/utils/richText'
 
 const getProxyPath = (url) => {
   if (!url) return ''
@@ -1135,7 +1136,8 @@ const handleSaveEdit = async () => {
     formData.append('authorName', editArticleForm.value.authorName)
     formData.append('reviewer', editArticleForm.value.reviewer || '')
     formData.append('finalReviewer', editArticleForm.value.finalReviewer || '')
-    formData.append('content', editArticleForm.value.content)
+    const normalizedContent = normalizeEditorHtmlImageSrcToAbsolute(editArticleForm.value.content)
+    formData.append('content', normalizedContent)
     // 有图片时才 append file
     if (fileList.value.length > 0 && fileList.value[0].raw) {
       formData.append('file', fileList.value[0].raw)

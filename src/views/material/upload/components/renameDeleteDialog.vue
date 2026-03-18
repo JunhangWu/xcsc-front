@@ -15,7 +15,7 @@
 <script setup>
 import { ref, reactive, computed, getCurrentInstance } from 'vue'
 import { ElMessage } from 'element-plus'
-import { addFolder, updateFolder, delFolder, getFileList, delFile, updateFile } from "@/api/xcsc/uploadFile"
+import { addFolder, updateFolder, delFolder, getFileList, delFile, updateFile, getFileEditKey } from "@/api/xcsc/uploadFile"
 
 const { proxy } = getCurrentInstance();
 
@@ -52,6 +52,7 @@ const folderName = ref('')
 // 编辑文件名
 const editFileName = ref('')
 const editFileObj = reactive({})
+const tempFileKey = ref('')
 
 // 获取对话框标题
 const getDialogTitle = computed(() => {
@@ -84,6 +85,7 @@ const getDialogPlaceholder = computed(() => {
 function handleAddFolderClose() {
   folderName.value = ''
   editFileName.value = ''
+  tempFileKey.value = ''
   addFolderDialogVisible.value = false
 }
 function handleAddFolder() {
@@ -140,14 +142,14 @@ function handleAddFolderConfirm() {
         folderPath += '/'  
       }
     })
-    const params = {
+    const filePathMapping = {
       id: editFileObj.id,
       bizId: editFileObj.bizId,
       fileName: editFileName.value.trim(),
-      localPath: folderPath + '/' + editFileName.value.trim(),
+      // localPath: folderPath + '/' + editFileName.value.trim(),
     }
     
-    updateFile(params).then(res => {
+    updateFile(filePathMapping, tempFileKey.value).then(res => {
       ElMessage.success('文件名修改成功')
       editFileName.value = ''
       // 刷新文件列表
@@ -210,12 +212,11 @@ function handleAddFolderConfirm() {
             }
           })
           folderPath += '/' + folderName.value.trim()
-          const params = {
+          const filePathMapping = {
             id: file.id,
-            localPath: folderPath + '/' + file.fileName,
           }
           
-          updateFile(params).then(res => {
+          updateFile(filePathMapping, '').then(res => {
           }).catch(err => {
             console.error('修改文件路径失败:', err)
           })
@@ -243,14 +244,21 @@ function editFolder(item) {
 }
 // 编辑文件
 function editFile(item) {
-  addFolderDialogVisible.value = true
-  handleFolderType.value = 'edit_file'
-  editFileObj.id = item.id
-  editFileObj.bizId = item.bizId
-  editFileObj.minioPath = item.minioPath
-  // 从minioPath中提取文件名
-  const fileName = item.fileName
-  editFileName.value = fileName
+  // 获取文件编辑Key
+  getFileEditKey(item.id).then(res => {
+    tempFileKey.value = res.data.fileKey
+    addFolderDialogVisible.value = true
+    handleFolderType.value = 'edit_file'
+    editFileObj.id = item.id
+    editFileObj.bizId = item.bizId
+    editFileObj.minioPath = item.minioPath
+    // 从minioPath中提取文件名
+    const fileName = item.fileName
+    editFileName.value = fileName
+  }).catch(err => {
+    ElMessage.error('获取文件密钥失败，请重试')
+    console.error('获取文件密钥失败:', err)
+  })
 }
 //  删除文件夹
 function deleteFolder(item) {

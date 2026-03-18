@@ -6,18 +6,18 @@
             <div class="material-preview-container">
                 <div class="material-preview">
                     <template v-if="getFileTypeText(currentMaterial.minioPath) == '图片'">
-                        <img :src="currentMaterial.minioPath" class="preview-image" />
+                        <img :src="getProxyPath(currentMaterial.minioPath)" class="preview-image" />
                     </template>
                     <template v-else-if="getFileTypeText(currentMaterial.minioPath) == '视频'">
                         <div class="preview-video">
-                            <video :src="currentMaterial.minioPath" controls autoplay loop muted playsinline
+                            <video :src="getProxyPath(currentMaterial.minioPath)" controls autoplay loop muted playsinline
                                 style="max-width: 100%; max-height: 400px; width: auto; height: auto; display: block; object-fit: contain;"></video>
                         </div>
                     </template>
                     <template v-else>
                         <div class="preview-file">
                             <!-- 文件名称 -->
-                            <el-link type="primary" :href="currentMaterial.minioPath" target="_blank">{{ currentMaterial.fileName
+                            <el-link type="primary" :href="getProxyPath(currentMaterial.minioPath)" target="_blank">{{ currentMaterial.fileName
                                 }}</el-link>
                         </div>
                     </template>
@@ -167,6 +167,21 @@ import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { AIMark } from "@/api/xcsc/uploadFile"
 import { updateFile } from "@/api/xcsc/uploadFile"
+
+const getProxyPath = (url) => {
+  if (!url) return ''
+  const u = new URL(url)
+  const parts = u.pathname.replace(/^\/+/, '').split('/')
+  const bucket = parts.shift()
+  const objectKey = parts.join('/')
+// 自动获取当前环境的 API 前缀（例如 /dev-api）
+  const baseApi = import.meta.env.VITE_APP_BASE_API || ''
+  const params = new URLSearchParams({
+    bucketName: bucket,
+    filePath: objectKey
+  })
+  return `${baseApi}/minio/proxy?${params.toString()}`
+}
 
 const dialogLoading = ref(false)
 const dialogVisible = ref(false)

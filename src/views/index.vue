@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="main-content">
     <!-- 左侧边栏 -->
     <div class="sidebar">
@@ -173,13 +173,13 @@
               <!-- 搜索结果文件列表 -->
               <div v-for="material in paginatedSearchFileListData" :key="material.id" class="material-item">
                 <div class="material-thumb">
-                  <img v-if="isImage(material.minioPath)" :src="material.coverPath || material.minioPath" :alt="getFileName(material.minioPath)"
+                  <img v-if="isImage(material.minioPath)" :src="getProxyPath(material.coverPath) || getProxyPath(material.minioPath)" :alt="getFileName(material.minioPath)"
                     @click="handleMaterialClick(material)" />
                   <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
                     <el-icon class="file-icon">
                       <VideoPlay />
                     </el-icon>
-                    <img :src="material.coverPath" :alt="material.fileName"/>
+                    <img :src="getProxyPath(material.coverPath)" :alt="material.fileName"/>
                     <!-- <video :src="material.minioPath" playsinline muted preload="metadata"
                       style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video> -->
                   </div>
@@ -222,14 +222,14 @@
                       <img
                         v-if="isImage(row.minioPath)"
                         class="table-thumb"
-                        :src="row.coverPath || row.minioPath"
+                        :src="getProxyPath(row.coverPath) || getProxyPath(row.minioPath)"
                         :alt="row.fileName"
                         @click.stop="handleMaterialClick(row)"
                       />
                       <img
                         v-else-if="isVideo(row.minioPath) && row.coverPath"
                         class="table-thumb"
-                        :src="row.coverPath"
+                        :src="getProxyPath(row.coverPath)"
                         :alt="row.fileName"
                         @click.stop="handleMaterialClick(row)"
                       />
@@ -456,7 +456,7 @@
           <!-- 列表模式 -->
           <div v-else-if="activeSpace !== 'all' && viewMode === 'thumbnail'" class="material-grid">
             <!-- 文件夹列表 -->
-            <div class="subFolder" v-if="activeSpace !== 'all'" v-for="(item, index) in folderData" :key="index"
+            <div class="subFolder" v-if="activeSpace !== 'all'" v-for="(item, index) in sortedFolderData" :key="index"
               @mouseenter="onSubFolderMouseEnter(item)" @mouseleave="onSubFolderMouseLeave(item)">
               <el-icon @click="selectFolder(item)">
                 <FolderOpened />
@@ -466,13 +466,13 @@
             <!-- 文件列表 -->
             <div v-for="material in sortedFileListData" :key="material.id" class="material-item">
               <div class="material-thumb">
-                <img v-if="isImage(material.minioPath)" :src="material.coverPath || material.minioPath" :alt="getFileName(material.minioPath)"
+                <img v-if="isImage(material.minioPath)" :src="getProxyPath(material.coverPath) || getProxyPath(material.minioPath)" :alt="getFileName(material.minioPath)"
                   @click="handleMaterialClick(material)" />
                 <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
                   <el-icon class="file-icon">
                     <VideoPlay />
                   </el-icon>
-                  <img :src="material.coverPath" :alt="material.fileName"/>
+                  <img :src="getProxyPath(material.coverPath)" :alt="material.fileName"/>
                   <!-- <video :src="material.minioPath" playsinline muted preload="metadata"
                     style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video> -->
                 </div>
@@ -526,14 +526,14 @@
                     <img
                       v-if="isImage(row.minioPath)"
                       class="table-thumb"
-                      :src="row.coverPath || row.minioPath"
+                      :src="getProxyPath(row.coverPath) || getProxyPath(row.minioPath)"
                       :alt="row.fileName"
                       @click.stop="handleMaterialClick(row)"
                     />
                     <img
                       v-else-if="isVideo(row.minioPath) && row.coverPath"
                       class="table-thumb"
-                      :src="row.coverPath"
+                      :src="getProxyPath(row.coverPath)"
                       :alt="row.fileName"
                       @click.stop="handleMaterialClick(row)"
                     />
@@ -618,13 +618,13 @@
               <div class="material-grid">
                 <div v-for="material in paginatedAllFiles[everydayData]" :key="material.id" class="material-item">
                   <div class="material-thumb">
-                    <img v-if="isImage(material.minioPath)" :src="material.coverPath || material.minioPath"
+                    <img v-if="isImage(material.minioPath)" :src="getProxyPath(material.coverPath) || getProxyPath(material.minioPath)"
                       :alt="getFileName(material.minioPath)" @click="handleMaterialClick(material)" />
                     <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="handleMaterialClick(material)">
                       <el-icon class="file-icon">
                         <VideoPlay />
                       </el-icon>
-                      <img :src="material.coverPath" :alt="material.fileName"/>
+                      <img :src="getProxyPath(material.coverPath)" :alt="material.fileName"/>
                       <!-- <video :src="material.minioPath" playsinline muted preload="metadata"
                         style="max-width: 90%; max-height: 90%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video> -->
                     </div>
@@ -709,6 +709,21 @@ import {
   getFileType
 } from '@/views/utils/materialCommon'
 
+const getProxyPath = (url) => {
+  if (!url) return ''
+  const u = new URL(url)
+  const parts = u.pathname.replace(/^\/+/, '').split('/')
+  const bucket = parts.shift()
+  const objectKey = parts.join('/')
+// 自动获取当前环境的 API 前缀（例如 /dev-api）
+  const baseApi = import.meta.env.VITE_APP_BASE_API || ''
+  const params = new URLSearchParams({
+    bucketName: bucket,
+    filePath: objectKey
+  })
+  return `${baseApi}/minio/proxy?${params.toString()}`
+}
+
 const router = useRouter()
 const contentAreaRef = ref(null)
 const showSearchResults = ref(false) // 控制是否显示搜索结果
@@ -739,8 +754,8 @@ function onSubFolderMouseLeave(item) {
 
 // 计算列表视图的行数据
 const listViewRows = computed(() => {
-  const folders = folderData.value.map(item => ({ ...item, _rowType: 'folder' }))
-  const files = fileListData.value.map(item => ({ ...item, _rowType: 'file' }))
+  const folders = sortedFolderData.value.map(item => ({ ...item, _rowType: 'folder' }))
+  const files = sortedFileListData.value.map(item => ({ ...item, _rowType: 'file' }))
   return [...folders, ...files]
 })
 
@@ -799,6 +814,11 @@ function setFavoriteDefaultSort() {
 }
 
 // 获取排序后的文件列表（用于缩略图视图）
+const sortedFolderData = computed(() => {
+  if (showSearchResults.value) return []
+  return [...folderData.value].sort((a, b) => sortCompare(a, b));
+});
+
 const sortedFileListData = computed(() => {
   if (showSearchResults.value) {
     return [...queryfileListData.value].sort((a, b) => sortCompare(a, b));
@@ -823,11 +843,33 @@ function handleSearchPageChange(page) {
 }
 
 // 排序比较函数
+function getSortName(item) {
+  return item?.fileName || item?.filePath || ''
+}
+
+function startsWithNumber(value) {
+  return /^\d/.test(String(value || '').trim())
+}
+
+function getSortType(item) {
+  if (!item?.minioPath) return 'folder'
+  return getFileType(item.minioPath || '')
+}
+
 function sortCompare(a, b) {
   if (sortField.value === 'name') {
+    const nameA = getSortName(a)
+    const nameB = getSortName(b)
+    const aStartsWithNumber = startsWithNumber(nameA)
+    const bStartsWithNumber = startsWithNumber(nameB)
+
+    if (aStartsWithNumber !== bStartsWithNumber) {
+      return aStartsWithNumber ? -1 : 1
+    }
+
     return sortOrder.value === 'asc'
-      ? nameCollator.compare(a?.fileName || '', b?.fileName || '')
-      : nameCollator.compare(b?.fileName || '', a?.fileName || '');
+      ? nameCollator.compare(nameA, nameB)
+      : nameCollator.compare(nameB, nameA);
   } else if (sortField.value === 'size') {
     const sizeA = Number(a?.fileSize) || 0;
     const sizeB = Number(b?.fileSize) || 0;
@@ -841,8 +883,8 @@ function sortCompare(a, b) {
     const timeB = getFavoriteTimestamp(b);
     return sortOrder.value === 'asc' ? timeA - timeB : timeB - timeA;
   } else if (sortField.value === 'type') {
-    const typeA = getFileType(a?.minioPath || '');
-    const typeB = getFileType(b?.minioPath || '');
+    const typeA = getSortType(a);
+    const typeB = getSortType(b);
     return sortOrder.value === 'asc'
       ? nameCollator.compare(typeA, typeB)
       : nameCollator.compare(typeB, typeA);
@@ -1386,46 +1428,46 @@ const getFavoriteFiles = async (mode = 'normal') => {
 // 下载素材
 // 处理下载
 const handleDownload = async (material) => {
-    if (!material.minioPath) {
-        ElMessage.warning('文件路径不存在，无法下载')
-        return
+  if (!material.minioPath) {
+    ElMessage.warning('文件路径不存在，无法下载')
+    return
+  }
+  console.log('下载文件:', material.fileName)
+  try {
+    // 使用fetch API获取文件内容
+    const response = await fetch(getProxyPath(material.minioPath), {
+      method: 'GET',
+      credentials: 'include' // 包含cookies等认证信息
+    })
+    if (!response.ok) {
+      throw new Error(`服务器响应错误: ${response.status}`)
     }
-    console.log('下载文件:', material.fileName)
-    try {
-        // 使用fetch API获取文件内容
-        const response = await fetch(material.minioPath, {
-            method: 'GET',
-            credentials: 'include' // 包含cookies等认证信息
-        })
-        if (!response.ok) {
-            throw new Error(`服务器响应错误: ${response.status}`)
-        }
-        // 获取文件内容并创建Blob对象
-        const blob = await response.blob()
-        // 创建下载链接
-        const link = document.createElement('a')
-        // 创建指向Blob的URL
-        const url = window.URL.createObjectURL(blob)
-        // 设置下载属性
-        link.href = url
-        link.download = material.fileName || getFileNameFromUrl(material.minioPath) || 'download_file'
-        // 隐藏链接
-        link.style.display = 'none'
-        // 添加到文档并触发点击
-        document.body.appendChild(link)
-        link.click()
-        // 延迟清理
-        setTimeout(() => {
-            // 移除链接
-            document.body.removeChild(link)
-            // 释放Blob URL
-            window.URL.revokeObjectURL(url)
-        }, 100)
-        ElMessage.success('文件下载已开始')
-    } catch (error) {
-        console.error('文件下载失败:', error)
-        ElMessage.error('文件下载失败，请稍后重试')
-    }
+    // 获取文件内容并创建Blob对象
+    const blob = await response.blob()
+    // 创建下载链接
+    const link = document.createElement('a')
+    // 创建指向Blob的URL
+    const url = window.URL.createObjectURL(blob)
+    // 设置下载属性
+    link.href = url
+    link.download = material.fileName || getFileNameFromUrl(material.minioPath) || 'download_file'
+    // 隐藏链接
+    link.style.display = 'none'
+    // 添加到文档并触发点击
+    document.body.appendChild(link)
+    link.click()
+    // 延迟清理
+    setTimeout(() => {
+      // 移除链接
+      document.body.removeChild(link)
+      // 释放Blob URL
+      window.URL.revokeObjectURL(url)
+    }, 100)
+    ElMessage.success('文件下载已开始')
+  } catch (error) {
+    console.error('文件下载失败:', error)
+    ElMessage.error('文件下载失败，请稍后重试')
+  }
 }
 //=======================================================================================================================
 

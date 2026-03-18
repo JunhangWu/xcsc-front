@@ -255,7 +255,9 @@ const checkPassword = (rule, value, callback) => {
   if(!/[A-Z]+/.test(value) || !/[a-z]+/.test(value) || !/\d+/.test(value)
     || !/[`~!@#$%^&*()\-=_+,.?<>/;':"\[\]{}|\\]+/.test(value)) {
     callback(new Error("密码必须长度必须大于10位，且包含大小写字母、数字和特殊字符"));
+    return;
   }
+  callback();
 };
 const data = reactive(
   {
@@ -467,7 +469,7 @@ function handleUpdate(row) {
     form.value.roleIds = response.roleIds;
     open.value = true;
     title.value = "修改用户";
-    form.password = "";
+    form.value.password = "";
   });
 };
 /** 提交按钮 */

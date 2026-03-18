@@ -111,7 +111,7 @@
               <div class="material-preview-container" @click="previewMaterial(material)" style="cursor: pointer;">
                 <img 
                   v-if="isImage(material.minioPath)" 
-                  :src="material.coverPath || material.minioPath" 
+                  :src="getProxyPath(material.coverPath) || getProxyPath(material.minioPath)" 
                   class="material-thumbnail" 
                 />
                 <!-- <div v-else-if="isVideo(material.minioPath)" src="material.minioPath" class="video-placeholder">
@@ -121,7 +121,7 @@
                   <el-icon class="file-icon">
                     <VideoPlay />
                   </el-icon>
-                  <img :src="material.coverPath" :alt="material.fileName"/>
+                  <img :src="getProxyPath(material.coverPath)" :alt="material.fileName"/>
                   <!-- <video :src="material.minioPath" playsinline muted preload="metadata"
                     style="max-width: 95%; max-height: 95%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video> -->
                 </div>
@@ -218,7 +218,7 @@
               )"
               class="image-preview"
           >
-            <img :src="selectedMaterial.minioPath" class="full-image" />
+            <img :src="getProxyPath(selectedMaterial.minioPath)" class="full-image" />
           </div>
           <div
               v-else-if="['mp4','mov','avi','mkv','flv','wmv','webm'].includes(
@@ -227,7 +227,7 @@
               class="video-preview"
           >
             <div class="video-placeholder">
-                  <video :src="selectedMaterial.minioPath" controls autoplay loop muted playsinline
+                  <video :src="getProxyPath(selectedMaterial.minioPath)" controls autoplay loop muted playsinline
                       style="max-width: 100%; max-height: 400px; width: auto; height: auto; display: block; object-fit: contain;"></video>
               <!-- <span>视频预览区域</span> -->
             </div>
@@ -293,6 +293,22 @@ import { ElMessage } from 'element-plus'
 import {getSearchList, addSearch, delSearch, delAllSearchHistory} from "@/api/xcsc/search"
 import {getFileList,getFileBatch} from "@/api/xcsc/uploadFile"
 import useUserStore from '@/store/modules/user'
+
+const getProxyPath = (url) => {
+  if (!url) return ''
+  const u = new URL(url)
+  const parts = u.pathname.replace(/^\/+/, '').split('/')
+  const bucket = parts.shift()
+  const objectKey = parts.join('/')
+// 自动获取当前环境的 API 前缀（例如 /dev-api）
+  const baseApi = import.meta.env.VITE_APP_BASE_API || ''
+  const params = new URLSearchParams({
+    bucketName: bucket,
+    filePath: objectKey
+  })
+  return `${baseApi}/minio/proxy?${params.toString()}`
+}
+
 //当前用户
 const userStore = useUserStore()
 // 搜索关键词
@@ -568,7 +584,7 @@ const downloadMaterial = async (material) => {
   console.log('下载文件:', material.fileName)
   try {
     // 使用fetch API获取文件内容
-    const response = await fetch(material.minioPath, {
+    const response = await fetch(getProxyPath(material.minioPath), {
       method: 'GET',
       credentials: 'include' // 包含cookies等认证信息
     })

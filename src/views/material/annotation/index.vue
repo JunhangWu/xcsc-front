@@ -125,13 +125,13 @@
                     </el-icon>
                   </span>
                   <div class="material-thumb">
-                    <img v-if="isImage(material.minioPath)" :src="material.coverPath || material.minioPath" :alt="material.fileName"
+                    <img v-if="isImage(material.minioPath)" :src="getProxyPath(material.coverPath) || getProxyPath(material.minioPath)" :alt="material.fileName"
                       @click="previewImg(material)" />
                     <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="previewVideo(material)">
                       <el-icon class="file-icon">
                         <VideoPlay />
                       </el-icon>
-                      <img :src="material.coverPath" :alt="material.fileName"/>
+                      <img :src="getProxyPath(material.coverPath)" :alt="material.fileName"/>
                     </div>
                     <el-icon v-else class="file-icon" @click="downloadFile(material)" style="cursor:pointer;">
                       <Document />
@@ -172,14 +172,14 @@
                         <img
                           v-if="isImage(row.minioPath)"
                           class="table-thumb"
-                          :src="row.coverPath || row.minioPath"
+                          :src="getProxyPath(row.coverPath) || getProxyPath(row.minioPath)"
                           :alt="row.fileName"
                           @click.stop="previewImg(row)"
                         />
                         <img
                           v-else-if="isVideo(row.minioPath) && row.coverPath"
                           class="table-thumb"
-                          :src="row.coverPath"
+                          :src="getProxyPath(row.coverPath)"
                           :alt="row.fileName"
                           @click.stop="previewVideo(row)"
                         />
@@ -305,7 +305,7 @@ import { api as viewerApi } from "v-viewer";
 import { parseTime, } from '@/utils/common'
 import { Search, VideoCamera, Document, Check, Edit, VideoPlay, VideoPause, Back, ArrowRight, ArrowUp, FolderAdd, FolderOpened, Upload, UploadFilled, Delete, Grid, Close, List, Files, DocumentCopy, Refresh, Clock, CircleCheck, CircleCheckFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile, updateFile, checkChunks, uploadFileChunk, mergeFileChunks } from "@/api/xcsc/uploadFile"
+import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile, updateFile, checkChunks, uploadFileChunk, mergeFileChunks,minioProxyUrl} from "@/api/xcsc/uploadFile"
 import auth from '@/plugins/auth'
 import useUserStore from '@/store/modules/user'
 import MarkDialog from '../upload/components/markDialog.vue'
@@ -491,7 +491,7 @@ const videoFilePath = ref('')
 const videoDialogTitle = ref('')
 function previewVideo(material) {
   videoDialogVisible.value = true
-  videoFilePath.value = material.minioPath
+  videoFilePath.value = getProxyPath(material.minioPath)
   videoDialogTitle.value = material.fileName
 }
 
@@ -528,8 +528,23 @@ function getStatusTagType(status) {
   return typeMap[status] || 'info'
 }
 
+const getProxyPath = (url) => {
+  if (!url) return ''
+  const u = new URL(url)
+  const parts = u.pathname.replace(/^\/+/, '').split('/')
+  const bucket = parts.shift()
+  const objectKey = parts.join('/')
+// 自动获取当前环境的 API 前缀（例如 /dev-api）
+  const baseApi = import.meta.env.VITE_APP_BASE_API || ''
+  const params = new URLSearchParams({
+    bucketName: bucket,
+    filePath: objectKey
+  })
+  return `${baseApi}/minio/proxy?${params.toString()}`
+}
+
 function previewImg(material) {
-  const images = [material.coverPath || material.minioPath]
+  const images = [getProxyPath(material.minioPath)]
   viewerApi({
     images: images,
     options: {

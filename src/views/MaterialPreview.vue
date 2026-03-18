@@ -3,20 +3,20 @@
     <!-- 左侧预览区 -->
     <div class="preview-area">
       <div v-if="getFileType(material.minioPath) === 'image'" class="image-preview">
-        <img :src="material.minioPath" :alt="material.fileName" class="preview-image" />
+        <img :src="getProxyPath(material.minioPath)" :alt="material.fileName" class="preview-image" />
       </div>
       <div v-else-if="getFileType(material.minioPath) === 'video'" class="video-preview">
         <!-- <video :src="material.thumbnail" controls class="preview-video">
           您的浏览器不支持视频播放
         </video> -->
-        <video :src="material.minioPath" controls autoplay loop muted playsinline
+        <video :src="getProxyPath(material.minioPath)" controls autoplay loop muted playsinline
           style="max-width: 100%; max-height: 600px; width: auto; height: auto; display: block; object-fit: contain;"></video>
       </div>
       <div v-else class="file-preview">
         <!-- <el-icon class="file-icon"> -->
           <!-- <Document v-if="getFileType(material.minioPath) === 'document'" />
           <Collection v-else-if="getFileType(material.minioPath) === 'ppt'" /> -->
-          <el-link type="primary" :href="material.minioPath" target="_blank">{{ material.fileName}}</el-link>
+          <el-link type="primary" :href="getProxyPath(material.minioPath)" target="_blank">{{ material.fileName}}</el-link>
         <!-- </el-icon> -->
         <!-- <p class="file-text">无法在线预览该类型文件</p> -->
       </div>
@@ -211,7 +211,7 @@
 </template>
 
 <script setup name="MaterialPreview">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Document, Collection, ArrowLeft, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -255,12 +255,28 @@ const manualTagForm = reactive({
 // 标注信息 - 补充标签
 const supplementTags = ref('')
 
+const getProxyPath = (url) => {
+  if (!url) return ''
+  const u = new URL(url)
+  const parts = u.pathname.replace(/^\/+/, '').split('/')
+  const bucket = parts.shift()
+  const objectKey = parts.join('/')
+// 自动获取当前环境的 API 前缀（例如 /dev-api）
+  const baseApi = import.meta.env.VITE_APP_BASE_API || ''
+  const params = new URLSearchParams({
+    bucketName: bucket,
+    filePath: objectKey
+  })
+  return `${baseApi}/minio/proxy?${params.toString()}`
+}
+
 const handleShare = () => {
-  if (!material.minioPath) {
-    ElMessage.warning('暂无素材链接可分享');
-    return;
+  const previewUrl = window.location.href
+  if (!previewUrl) {
+    ElMessage.warning('当前页面地址不可用')
+    return
   }
-  navigator.clipboard.writeText(material.minioPath)
+  navigator.clipboard.writeText(previewUrl)
       .then(() => ElMessage.success('链接已复制到剪贴板'))
       .catch(() => ElMessage.error('复制失败，请手动复制'));
 };
@@ -433,7 +449,7 @@ const handleDownload = async () => {
   console.log('下载文件:', material.fileName)
   try {
     // 使用fetch API获取文件内容
-    const response = await fetch(material.minioPath, {
+    const response = await fetch(getProxyPath(material.minioPath), {
       method: 'GET',
       credentials: 'include' // 包含cookies等认证信息
     })
@@ -576,7 +592,7 @@ const getRealResolution = (imageUrl) => {
 //预览文件
 function downloadFile(material) {
   if (material && material.minioPath) {
-    window.open(material.minioPath, '_blank');
+    window.open(getProxyPath(material.minioPath), '_blank');
   }
 }
 // 组件挂载时获取素材数据

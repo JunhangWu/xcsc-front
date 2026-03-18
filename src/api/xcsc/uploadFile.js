@@ -166,6 +166,16 @@ export function updateFile(data) {
         data: data
     })
 }
+
+// 代理访问MinIO文件
+export function minioProxyUrl(params) {
+    return request({
+        url: '/minio/proxy',
+        method: 'get',
+        params: params,
+        responseType: 'blob'
+    })
+}
 // 下载文件
 export function downloadFile(data) {
     return request({

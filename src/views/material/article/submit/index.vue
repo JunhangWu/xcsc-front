@@ -246,8 +246,41 @@ const toolbarConfig = {
     'insertFormula', 'fullScreen', 'divider', 'emotion','insertLink','todo'
   ]
 }
-// 获取当前页面的基础网址（协议+域名+端口）
-const currentOrigin = window.location.origin;
+const getProxyPath = (url) => {
+  if (!url) return ''
+  try {
+    if (url.includes('/minio/proxy?')) return url
+    const u = new URL(url, window.location.origin)
+    const parts = u.pathname.replace(/^\/+/, '').split('/')
+    const bucket = parts.shift()
+    const objectKey = parts.join('/')
+    if (!bucket || !objectKey) return url
+    const baseApi = import.meta.env.VITE_APP_BASE_API || ''
+    const params = new URLSearchParams({
+      bucketName: bucket,
+      filePath: objectKey
+    })
+    return `${baseApi}/minio/proxy?${params.toString()}`
+  } catch (error) {
+    return url
+  }
+}
+
+const resolveEditorUploadUrl = (res) => {
+  const data = res?.data
+  if (typeof data === 'string') return data
+  if (Array.isArray(data)) {
+    if (typeof data[0] === 'string') return data[0]
+    if (data[0] && typeof data[0] === 'object') {
+      return data[0].url || data[0].src || data[0].path || ''
+    }
+  }
+  if (data && typeof data === 'object') {
+    return data.url || data.src || data.path || ''
+  }
+  return res?.url || res?.src || res?.path || ''
+}
+
 // 编辑器配置
 const editorConfig = {
   placeholder: '请输入文章正文内容...',
@@ -269,6 +302,12 @@ const editorConfig = {
       onSuccess(file, res) { console.log(`${file.name} 上传成功`, res) },
       onFailed(file, res) { console.log(`${file.name} 上传失败`, res) },
       onError(file, err, res) { console.log(`${file.name} 上传出错`, err, res) },
+      customInsert(res, insertFn) {
+        const rawUrl = resolveEditorUploadUrl(res)
+        const proxyUrl = getProxyPath(rawUrl)
+        if (!proxyUrl) return
+        insertFn(proxyUrl, '', '')
+      },
     }
   }
 }

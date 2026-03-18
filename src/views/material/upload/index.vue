@@ -1,4 +1,4 @@
-﻿<template>
+﻿﻿<template>
   <div class="app-container">
     <!-- 搜索和筛选 -->
     <div class="search-filter">
@@ -154,13 +154,13 @@
                   </el-icon>
                 </span>
               <div class="material-thumb">
-                <img v-if="isImage(material.minioPath)" :src="material.coverPath || material.minioPath" :alt="material.fileName"
+                <img v-if="isImage(material.minioPath)" :src="getProxyPath(material.coverPath) || getProxyPath(material.minioPath)" :alt="material.fileName"
                   @click="previewImg(material)" />
                 <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="previewVideo(material)">
                   <el-icon class="file-icon">
                     <VideoPlay />
                   </el-icon>
-                  <img :src="material.coverPath" :alt="material.fileName"/>
+                  <img :src="getProxyPath(material.coverPath)" :alt="material.fileName"/>
                   <!-- <video :src="material.minioPath" playsinline muted preload="metadata"
                     style="max-width: 95%; max-height: 95%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video> -->
                 </div>
@@ -217,14 +217,14 @@
                     <img
                       v-if="isImage(row.minioPath)"
                       class="table-thumb"
-                      :src="row.coverPath || row.minioPath"
+                      :src="getProxyPath(row.coverPath) || getProxyPath(row.minioPath)"
                       :alt="row.fileName"
                       @click.stop="previewImg(row)"
                     />
                     <img
                       v-else-if="isVideo(row.minioPath) && row.coverPath"
                       class="table-thumb"
-                      :src="row.coverPath"
+                      :src="getProxyPath(row.coverPath)"
                       :alt="row.fileName"
                       @click.stop="previewVideo(row)"
                     />
@@ -490,7 +490,7 @@
                   </el-icon>
                 </span>
               <div class="material-thumb">
-                <img v-if="isImage(material.minioPath)" :src="material.coverPath || material.minioPath" :alt="material.fileName"
+                <img v-if="isImage(material.minioPath)" :src="getProxyPath(material.coverPath) || getProxyPath(material.minioPath)" :alt="material.fileName"
                   @click="previewImg(material)" />
                 <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="previewVideo(material)">
                   <el-icon class="file-icon">
@@ -498,7 +498,7 @@
                   </el-icon>
                   <!-- <video :src="material.minioPath" playsinline muted preload="metadata"
                     style="max-width: 95%; max-height: 95%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video> -->
-                  <img :src="material.coverPath" :alt="material.fileName"/>
+                  <img :src="getProxyPath(material.coverPath)" :alt="material.fileName"/>
                 </div>
                 <el-icon v-else class="file-icon" @click="downloadFile(material)" style="cursor:pointer;">
                   <Document />
@@ -565,14 +565,14 @@
                     <img
                       v-if="isImage(row.minioPath)"
                       class="table-thumb"
-                      :src="row.coverPath || row.minioPath"
+                      :src="getProxyPath(row.coverPath) || getProxyPath(row.minioPath)"
                       :alt="row.fileName"
                       @click.stop="previewImg(row)"
                     />
                     <img
                       v-else-if="isVideo(row.minioPath) && row.coverPath"
                       class="table-thumb"
-                      :src="row.coverPath"
+                      :src="getProxyPath(row.coverPath)"
                       :alt="row.fileName"
                       @click.stop="previewVideo(row)"
                     />
@@ -1368,6 +1368,21 @@ const getStatusText = (status) => {
 }
 
 // ==================== 文件预览与下载 ====================
+
+const getProxyPath = (url) => {
+  if (!url) return ''
+  const u = new URL(url)
+  const parts = u.pathname.replace(/^\/+/, '').split('/')
+  const bucket = parts.shift()
+  const objectKey = parts.join('/')
+// 自动获取当前环境的 API 前缀（例如 /dev-api）
+  const baseApi = import.meta.env.VITE_APP_BASE_API || ''
+  const params = new URLSearchParams({
+    bucketName: bucket,
+    filePath: objectKey
+  })
+  return `${baseApi}/minio/proxy?${params.toString()}`
+}
 // 预览图片
 function previewImg(material) {
   const $viewer = viewerApi({
@@ -1376,7 +1391,7 @@ function previewImg(material) {
       initialViewIndex: 0,
       title: (image) => `${material.fileName}`,
     },
-    images: [material.minioPath],
+    images: [getProxyPath(material.minioPath)],
   });
 }
 
@@ -1386,7 +1401,7 @@ const videoFilePath = ref('')
 const videoDialogTitle = ref('')
 function previewVideo(material) {
   videoDialogVisible.value = true
-  videoFilePath.value = material.minioPath
+  videoFilePath.value = getProxyPath(material.minioPath)
   videoDialogTitle.value = material.fileName
 }
 
@@ -1441,6 +1456,23 @@ function applyCurrentSort() {
   sortFileList(fileListData)
 }
 
+function startsWithNumber(value) {
+  return /^\d/.test(String(value || '').trim())
+}
+
+function compareNameWithNumberPriority(nameA, nameB, order) {
+  const normalizedA = String(nameA || '').toLowerCase()
+  const normalizedB = String(nameB || '').toLowerCase()
+  const aStartsWithNumber = startsWithNumber(normalizedA)
+  const bStartsWithNumber = startsWithNumber(normalizedB)
+
+  if (aStartsWithNumber !== bStartsWithNumber) {
+    return aStartsWithNumber ? -1 : 1
+  }
+
+  return nameCollator.compare(normalizedA, normalizedB) * order
+}
+
 // 具体的排序实现
 function sortFileList(fileList) {
   const order = sortOrder.value === 'asc' ? 1 : -1
@@ -1451,7 +1483,7 @@ function sortFileList(fileList) {
         // 按文件名排序
         const nameA = (a.fileName || '').toLowerCase()
         const nameB = (b.fileName || '').toLowerCase()
-        return nameCollator.compare(nameA, nameB) * order
+        return compareNameWithNumberPriority(nameA, nameB, order)
       
       case 'size':
         // 按文件大小排序
@@ -1486,7 +1518,7 @@ function sortFolderList(folderList) {
       case 'name': {
         const nameA = (a.filePath || '').toLowerCase()
         const nameB = (b.filePath || '').toLowerCase()
-        return nameCollator.compare(nameA, nameB) * order
+        return compareNameWithNumberPriority(nameA, nameB, order)
       }
       case 'date': {
         const dateA = new Date(a.updateTime || a.createTime || 0).getTime()

@@ -113,6 +113,23 @@ export function getFileList(query) {
         params: query
     })
 }
+// 文件列表(分页)
+export function getFileListPage(query) {
+    return request({
+        url: '/file/listPage',
+        method: 'get',
+        params: query
+    })
+}
+
+// 根据文件夹ID获取文件列表
+export function getFilesByFolderId(folderId) {
+    return request({
+        url: '/file/listByFolderId',
+        method: 'get',
+        params: { folderId }
+    })
+}
 
 // 统计总文件数量
 export function countAllFile(query) {

@@ -685,7 +685,7 @@ import { ref, reactive, onMounted, computed, nextTick } from 'vue'
 import { api as viewerApi } from "v-viewer";
 import { Search, VideoCamera, Document, Check, Edit, VideoPlay, Back, ArrowRight, ArrowUp, FolderAdd, FolderOpened, Delete, Grid, List, DocumentCopy, Refresh, Share, Loading } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getFolderList, getSharedFolderList, updateShared, getFileList, updateFile, delFile } from "@/api/xcsc/uploadFile"
+import { getFolderList, getSharedFolderList, updateShared, getFileList, updateFile, delFile, getFileEditKey } from "@/api/xcsc/uploadFile"
 import auth from '@/plugins/auth'
 import MarkDialog from './components/markDialog.vue'
 import UploadFileManager from './components/uploadFileManager.vue'
@@ -1187,16 +1187,24 @@ function renameFilesByFolderName() {
   }
   const folderName = curFolderObj.filePath || '文件'
   const folderPath = getCurrentFolderPath()
-  proxy.$modal.confirm(`确定将当前文件夹下的${fileListData.value.length}个文件重命名为"${folderName}1"..."${folderName}${fileListData.value.length}"吗?`).then(() => {
-    const updatePromises = fileListData.value.map((file, idx) => {
-      const ext = getFileExtension(file.fileName || getFileName(file.minioPath))
-      const newName = `${folderName}${idx + 1}${ext}`
-      const params = {
-        id: file.id,
-        fileName: newName,
-        localPath: `${folderPath}/${newName}`,
+  proxy.$modal.confirm(`确定将当前文件夹下的${fileListData.value.length}个文件重命名为"${folderName}1"..."${folderName}${fileListData.value.length}"吗?`).then(async () => {
+    const updatePromises = fileListData.value.map(async (file, idx) => {
+      try {
+        // 获取文件编辑Key
+        const keyRes = await getFileEditKey(file.id)
+        const tempFileKey = keyRes.data.fileKey
+        const ext = getFileExtension(file.fileName || getFileName(file.minioPath))
+        const newName = `${folderName}${idx + 1}${ext}`
+        const params = {
+          id: file.id,
+          fileName: newName,
+          localPath: `${folderPath}/${newName}`,
+        }
+        return updateFile(params, tempFileKey)
+      } catch (err) {
+        console.error('获取文件密钥失败:', err)
+        throw err
       }
-      return updateFile(params)
     })
     return Promise.all(updatePromises)
   }).then(() => {
@@ -1249,20 +1257,28 @@ function renameSelectedFiles() {
       if (!value || !value.trim()) return '前缀不能为空'
       return true
     }
-  }).then(({ value }) => {
+  }).then(async ({ value }) => {
     const prefix = value.trim()
-    const updatePromises = selectedFiles.value.map((file, idx) => {
-      const ext = getFileExtension(file.fileName || getFileName(file.minioPath))
-      const newName = `${prefix}${idx + 1}${ext}`
-      const localPath = buildRenameLocalPath(file, newName)
-      const params = {
-        id: file.id,
-        fileName: newName,
+    const updatePromises = selectedFiles.value.map(async (file, idx) => {
+      try {
+        // 获取文件编辑Key
+        const keyRes = await getFileEditKey(file.id)
+        const tempFileKey = keyRes.data.fileKey
+        const ext = getFileExtension(file.fileName || getFileName(file.minioPath))
+        const newName = `${prefix}${idx + 1}${ext}`
+        const localPath = buildRenameLocalPath(file, newName)
+        const params = {
+          id: file.id,
+          fileName: newName,
+        }
+        if (localPath) {
+          params.localPath = localPath
+        }
+        return updateFile(params, tempFileKey)
+      } catch (err) {
+        console.error('获取文件密钥失败:', err)
+        throw err
       }
-      if (localPath) {
-        params.localPath = localPath
-      }
-      return updateFile(params)
     })
     return Promise.allSettled(updatePromises)
   }).then((results) => {

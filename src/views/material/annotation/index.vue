@@ -222,7 +222,7 @@
                       </div>
                     </template>
                     <template #default="{ row }">
-                      {{ getListFileType(row) }}
+                      {{ getFileType(row.minioPath) }}
                     </template>
                   </el-table-column>
                   <el-table-column width="200">
@@ -283,7 +283,7 @@
     </el-dialog>
 
     <el-dialog v-model="addFolderDialogVisible" :title="getDialogTitle" width="500px" @close="handleAddFolderClose">
-      <el-input v-model="getInputModel" :placeholder="getDialogPlaceholder" />
+      <el-input v-model="editFileName" placeholder="请输入文件名称" />
       <template #footer>
         <div class="dialogFoot">
           <el-button @click="handleAddFolderClose">取消</el-button>
@@ -305,7 +305,7 @@ import { api as viewerApi } from "v-viewer";
 import { parseTime, } from '@/utils/common'
 import { Search, VideoCamera, Document, Check, Edit, VideoPlay, VideoPause, Back, ArrowRight, ArrowUp, FolderAdd, FolderOpened, Upload, UploadFilled, Delete, Grid, Close, List, Files, DocumentCopy, Refresh, Clock, CircleCheck, CircleCheckFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileList, delFile, updateFile, checkChunks, uploadFileChunk, mergeFileChunks,minioProxyUrl} from "@/api/xcsc/uploadFile"
+import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileListPage, delFile, updateFile, checkChunks, uploadFileChunk, mergeFileChunks,minioProxyUrl, getFileEditKey} from "@/api/xcsc/uploadFile"
 import auth from '@/plugins/auth'
 import useUserStore from '@/store/modules/user'
 import MarkDialog from '../upload/components/markDialog.vue'
@@ -322,8 +322,6 @@ const sortField = ref('date')
 const sortOrder = ref('desc')
 const viewMode = ref('thumbnail')
 const nameCollator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' })
-
-const totalFileListData = ref([])
 
 // 分页相关数据
 const currentPage = ref(1)
@@ -346,13 +344,7 @@ const filteredFileList = computed(() => {
     )
   }
   
-  const sortedData = sortData(result)
-  total.value = sortedData.length
-  
-  // 分页处理
-  const startIndex = (currentPage.value - 1) * pageSize.value
-  const endIndex = startIndex + pageSize.value
-  return sortedData.slice(startIndex, endIndex)
+  return sortData(result)
 })
 
 function sortData(data) {
@@ -395,6 +387,7 @@ function switchViewMode(mode) {
 
 function handleSearch() {
   currentPage.value = 1
+  getFileListData()
 }
 
 function refreshData() {
@@ -405,51 +398,44 @@ function refreshData() {
 function handleSizeChange(size) {
   pageSize.value = size
   currentPage.value = 1
+  getFileListData()
 }
 
 function handleCurrentChange(page) {
   currentPage.value = page
+  getFileListData()
 }
 
-function getFileListData() {
+async function getFileListData() {
   loading.value = true
-  // 构建查询参数，包含用户的部门/公司ID
-  const params = {
-    deptId: userStore.deptId
-  }
-  // 先获取所有状态的文件数据，用于统计各状态数量
-  getFileList(params).then(res => {
-    totalFileListData.value = res.data
-    // 然后根据当前选中的状态过滤显示的数据
-    filterFileListByStatus()
-    updateStatusCounts()
-  }).finally(() => {
-    loading.value = false
-  })
-}
-
-function filterFileListByStatus() {
-  fileListData.value = totalFileListData.value.filter(item => 
-    item.annotationStatus === currentStatus.value
-  )
-}
-
-function updateStatusCounts() {
-  const counts = { '0': 0, '1': 0, '2': 0 }
-  totalFileListData.value.forEach(item => {
-    if (item.annotationStatus !== undefined && counts[item.annotationStatus] !== undefined) {
-      counts[item.annotationStatus]++
+  try {
+    const params = {
+      deptid: userStore.deptId,
+      annotationStatus: Number(currentStatus.value),
+      pageNum: currentPage.value,
+      pageSize: pageSize.value
     }
-  })
-  statusList.value.forEach(status => {
-    status.count = counts[status.value] || 0
-  })
+    if (searchKeyword.value.trim()) {
+      params.fileName = searchKeyword.value.trim()
+    }
+    const res = await getFileListPage(params)
+    fileListData.value = Array.isArray(res?.rows) ? res.rows : []
+    total.value = Number(res?.total || 0)
+    
+    // 更新当前状态的计数
+    const currentStatusItem = statusList.value.find(item => item.value === currentStatus.value)
+    if (currentStatusItem) {
+      currentStatusItem.count = total.value
+    }
+  } finally {
+    loading.value = false
+  }
 }
 
 function handleStatusChange(status) {
   currentStatus.value = status
   currentPage.value = 1
-  filterFileListByStatus()
+  getFileListData()
 }
 
 function getStatusTitle(status) {
@@ -482,9 +468,7 @@ function getFileType(path) {
   return typeMap[ext] || '其他'
 }
 
-function getListFileType(row) {
-  return getFileType(row.minioPath)
-}
+
 //预览视频
 const videoDialogVisible = ref(false)
 const videoFilePath = ref('')
@@ -593,36 +577,37 @@ const handleFolderType = ref('edit_file')
 const addFolderDialogVisible = ref(false)
 const editFileName = ref('')
 const editFileObj = reactive({})
+const tempFileKey = ref('')
 
 const getDialogTitle = computed(() => {
   if (handleFolderType.value === 'edit_file') return '请输入文件名称'
   return '请输入名称'
 })
 
-const getInputModel = computed({
-  get: () => editFileName.value,
-  set: (val) => {
-    editFileName.value = val
-  }
-})
 
-const getDialogPlaceholder = computed(() => {
-  if (handleFolderType.value === 'edit_file') return '请输入文件名称'
-  return '请输入文件名称'
-})
+
+
 
 function handleAddFolderClose() {
   editFileName.value = ''
+  tempFileKey.value = ''
   addFolderDialogVisible.value = false
 }
 
 function editFile(item) {
-  addFolderDialogVisible.value = true
-  handleFolderType.value = 'edit_file'
-  editFileObj.id = item.id
-  editFileObj.minioPath = item.minioPath
-  const fileName = item.fileName
-  editFileName.value = fileName
+  // 获取文件编辑Key
+  getFileEditKey(item.id).then(res => {
+    tempFileKey.value = res.data.fileKey
+    addFolderDialogVisible.value = true
+    handleFolderType.value = 'edit_file'
+    editFileObj.id = item.id
+    editFileObj.minioPath = item.minioPath
+    const fileName = item.fileName
+    editFileName.value = fileName
+  }).catch(err => {
+    ElMessage.error('获取文件密钥失败，请重试')
+    console.error('获取文件密钥失败:', err)
+  })
 }
 
 function handleAddFolderConfirm() {
@@ -634,7 +619,7 @@ function handleAddFolderConfirm() {
   
   addFolderDialogVisible.value = false
   
-  const originalName = item.fileName || getFileName(editFileObj.minioPath || editFileName.value)
+  const originalName = getFileName(editFileObj.minioPath || editFileName.value)
   const dotIndex = originalName.lastIndexOf('.')
   if (dotIndex > -1) {
     const ext = originalName.substring(dotIndex)
@@ -659,9 +644,10 @@ function handleAddFolderConfirm() {
     localPath: editFileName.value.trim(),
   }
   
-  updateFile(params).then(res => {
+  updateFile(params, tempFileKey.value).then(res => {
     ElMessage.success('文件名修改成功')
     editFileName.value = ''
+    tempFileKey.value = ''
     getFileListData()
   }).catch(err => {
     ElMessage.error('文件名修改失败')
@@ -692,7 +678,34 @@ function showMaterialDetail(material) {
   }
 }
 
-onMounted(() => {
+async function initStatusCounts() {
+  try {
+    await Promise.all(
+      statusList.value.map(async (status) => {
+        try {
+          const params = {
+            deptid: userStore.deptId,
+            annotationStatus: Number(status.value),
+            pageNum: 1,
+            pageSize: 1
+          }
+          if (searchKeyword.value.trim()) {
+            params.fileName = searchKeyword.value.trim()
+          }
+          const res = await getFileListPage(params)
+          status.count = Number(res?.total || 0)
+        } catch (e) {
+          status.count = 0
+        }
+      })
+    )
+  } catch (e) {
+    console.error('初始化状态计数失败:', e)
+  }
+}
+
+onMounted(async () => {
+  await initStatusCounts()
   getFileListData()
 })
 </script>

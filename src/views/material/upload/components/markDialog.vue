@@ -165,7 +165,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { AIMark } from "@/api/xcsc/uploadFile"
+import { AIMark, getFileEditKey } from "@/api/xcsc/uploadFile"
 import { updateFile } from "@/api/xcsc/uploadFile"
 
 const getProxyPath = (url) => {
@@ -236,91 +236,101 @@ const resetTagForms = () => {
 }
 
 // 保存标注
-const saveAnnotation = () => {
-    // 定义需要处理的autoTagForm字段列表
-    const autoFields = [
-    'sceneCategory',
-    'characterBehavior',
-    'coreObjects',
-    'activityEvent',
-    'textInfo',
-    'colorTone',
-    'shootingAngle' // 补充你未写完的字段
-    ];
-    //autoTagForm字符串转为数组
-    autoFields.forEach(field => {
-        const value = autoTagForm[field];
-        if (typeof value === 'string') {
-            autoTagForm[field] = value
-            .split(',')
-            .map(item => item.trim())
-            .filter(item => item); // 过滤空值
-        }
-    });
-    
-    // 定义需要处理的manualTagForm字段列表
-    const manualFields = [
-    'timeInfo',
-    'locationInfo',
-    'personNames',
-    'buildingNames',
-    'relatedThemes',
-    'eventInfo'
-    ];
+const saveAnnotation = async () => {
+    try {
+        // 获取文件编辑Key
+        const keyRes = await getFileEditKey(currentMaterial.id)
+        const tempFileKey = keyRes.data.fileKey
+        
+        // 定义需要处理的autoTagForm字段列表
+        const autoFields = [
+        'sceneCategory',
+        'characterBehavior',
+        'coreObjects',
+        'activityEvent',
+        'textInfo',
+        'colorTone',
+        'shootingAngle' // 补充你未写完的字段
+        ];
+        //autoTagForm字符串转为数组
+        autoFields.forEach(field => {
+            const value = autoTagForm[field];
+            if (typeof value === 'string') {
+                autoTagForm[field] = value
+                .split(',')
+                .map(item => item.trim())
+                .filter(item => item); // 过滤空值
+            }
+        });
+        
+        // 定义需要处理的manualTagForm字段列表
+        const manualFields = [
+        'timeInfo',
+        'locationInfo',
+        'personNames',
+        'buildingNames',
+        'relatedThemes',
+        'eventInfo'
+        ];
 
-    // 处理manualTagForm字段，将空字符串转换为null
-    manualFields.forEach(field => {
-        const value = manualTagForm[field];
-        if (typeof value === 'string') {
-            // 去除首尾空格，将空字符串转换为null
-            const trimvalue = value.trim();
-            manualTagForm[field] = trimvalue
+        // 处理manualTagForm字段，将空字符串转换为null
+        manualFields.forEach(field => {
+            const value = manualTagForm[field];
+            if (typeof value === 'string') {
+                // 去除首尾空格，将空字符串转换为null
+                const trimvalue = value.trim();
+                manualTagForm[field] = trimvalue
+            }
+        });
+        // autoTagForm.materialDescription = [autoTagForm.materialDescription]
+        // 构建完整的标注数据
+        let params = {
+            id: currentMaterial.id,
+            fileName: currentMaterial.fileName,
+            annotationStatus: "2", // 已审核
+            annotationContent: JSON.stringify(autoTagForm), //标签信息
+            // 显式列出所有manualTagForm字段，确保null值能正确传递
+            timeInfo: manualTagForm.timeInfo,
+            locationInfo: manualTagForm.locationInfo,
+            personNames: manualTagForm.personNames,
+            buildingNames: manualTagForm.buildingNames,
+            relatedThemes: manualTagForm.relatedThemes,
+            eventInfo: manualTagForm.eventInfo,
+            supplementAnnotation: supplementTags.value.join(',')  // 补充标签
         }
-    });
-    // autoTagForm.materialDescription = [autoTagForm.materialDescription]
-    // 构建完整的标注数据
-    let params = {
-        id: currentMaterial.id,
-        annotationStatus: "2", // 已审核
-        annotationContent: JSON.stringify(autoTagForm), //标签信息
-        // 显式列出所有manualTagForm字段，确保null值能正确传递
-        timeInfo: manualTagForm.timeInfo,
-        locationInfo: manualTagForm.locationInfo,
-        personNames: manualTagForm.personNames,
-        buildingNames: manualTagForm.buildingNames,
-        relatedThemes: manualTagForm.relatedThemes,
-        eventInfo: manualTagForm.eventInfo,
-        supplementAnnotation: supplementTags.value.join(',')  // 补充标签
-    }
-    console.log("manualTagForm.locationInfo", manualTagForm.locationInfo)
-    console.log("autoTagForm",autoTagForm)
-    console.log("JSON.stringify(autoTagForm)",JSON.stringify(autoTagForm))
-    updateFile(params).then(res => {
-        console.log("标注状态更新成功", res)
-        ElMessage.success('标注保存成功！')
-        // 关闭窗口
-        dialogVisible.value = false
-        // 清空数据
-        Object.keys(currentMaterial).forEach(key => {
-            delete currentMaterial[key]
+        console.log("manualTagForm.locationInfo", manualTagForm.locationInfo)
+        console.log("autoTagForm",autoTagForm)
+        console.log("JSON.stringify(autoTagForm)",JSON.stringify(autoTagForm))
+        updateFile(params, tempFileKey).then(res => {
+            console.log("标注状态更新成功", res)
+            ElMessage.success('标注保存成功！')
+            // 关闭窗口
+            dialogVisible.value = false
+            // 清空数据
+            Object.keys(currentMaterial).forEach(key => {
+                delete currentMaterial[key]
+            })
+            // 清空表单
+            Object.keys(autoTagForm).forEach(key => {
+                autoTagForm[key] = typeof autoTagForm[key] === 'string' ? '' : []
+            })
+            Object.keys(manualTagForm).forEach(key => {
+                manualTagForm[key] = ''
+            }) 
+            supplementTags.value = []
+            newSupplementTag.value = ''
+            // 发送事件刷新文件列表
+            emit("updateFileList");
         })
-        // 清空表单
-        Object.keys(autoTagForm).forEach(key => {
-            autoTagForm[key] = typeof autoTagForm[key] === 'string' ? '' : []
-        })
-        Object.keys(manualTagForm).forEach(key => {
-            manualTagForm[key] = ''
-        }) 
-        supplementTags.value = []
-        newSupplementTag.value = ''
-        // 发送事件刷新文件列表
-        emit("updateFileList");
-    })
-    const annotationData = {
-        materialId: currentMaterial.id,
-        autoTags: { ...autoTagForm },
-        manualTags: {},
-        // supplementTags: [...supplementTags.value]
+        const annotationData = {
+            materialId: currentMaterial.id,
+            autoTags: { ...autoTagForm },
+            manualTags: {},
+            // supplementTags: [...supplementTags.value]
+        }
+    } catch (err) {
+        ElMessage.error('获取文件密钥失败，请重试')
+        console.error('获取文件密钥失败:', err)
     }
 }
 

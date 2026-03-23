@@ -7,7 +7,7 @@
       </div>
       <div class="header-actions">
         <el-tag type="info" effect="plain">{{ todayLabel }}</el-tag>
-        <el-button type="primary" :loading="loading" @click="loadData">刷新数据</el-button>
+        <el-button type="primary" :loading="loading" @click="loadMaterialCount">刷新数据</el-button>
       </div>
     </div>
 
@@ -78,8 +78,8 @@
     </el-row>
 
     <el-card class="table-card" shadow="hover">
-      <template #header>人员贡献明细（素材/稿件分开）</template>
-      <el-table :data="tableData" stripe border height="420">
+      <template #header>本月人员贡献明细</template>
+      <el-table :data="contributionDetails" stripe border height="420">
         <el-table-column prop="rank" label="排名" width="76" align="center" />
         <el-table-column prop="name" label="人员" min-width="180" />
         <el-table-column prop="materialCount" label="素材上传数" width="120" align="center" />
@@ -92,13 +92,12 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import * as echarts from "echarts"
-import { ElMessage } from "element-plus"
-import { listMaterial } from "@/api/xcsc/material"
-import { listAllArticle } from "@/api/xcsc/article"
+import { countAllFile } from "@/api/xcsc/uploadFile"
+import { getArticleTotal, getMaterialIncreaseRecent30Days, getMaterialIncreaseCurrentMonth, getArticleIncreaseCurrentMonth, getArticleIncreaseRecent30Days as getArticleDailyTrend, getMaterialTop10ByUser, getArticleTop10ByUser, getMaterialTotalByDept, getArticleTotalByDept, getArticleStatusByDept } from "@/api/xcsc/statistics"
 import { listDept } from "@/api/system/dept"
-import { countAllFile, countByDeptId, getFileList } from "@/api/xcsc/uploadFile"
+
 
 
 const loading = ref(false)
@@ -114,6 +113,24 @@ let rankChartInstance = null
 let articleRankChartInstance = null
 let monthlyChartInstance = null
 let approvalRatioChartInstance = null
+let previousBodyOverflow = ""
+
+function setPageScrollLocked(locked) {
+  if (typeof document === "undefined") return
+  if (locked) {
+    previousBodyOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return
+  }
+  document.body.style.overflow = previousBodyOverflow || ""
+}
+
+// 部门映射，用于存储部门id和部门名称的对应关系
+const deptMap = ref(new Map())
+const EXCLUDED_DEPT_NAMES = new Set(["共享文件夹", "安徽交控集团"])
+
+// 人员贡献明细数据
+const contributionDetails = ref([])
 
 const summary = ref({
   materialTotal: 0,
@@ -124,7 +141,6 @@ const summary = ref({
   monthArticle: 0,
   dailyAvg: 0
 })
-const tableData = ref([])
 
 const now = new Date()
 const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
@@ -134,6 +150,17 @@ const todayLabel = computed(() => {
   const d = String(now.getDate()).padStart(2, "0")
   return `数据日期：${y}-${m}-${d}`
 })
+function getRecentMonthKeys(total = 12) {
+  const keys = []
+  const base = new Date(now.getFullYear(), now.getMonth(), 1)
+  for (let i = total - 1; i >= 0; i -= 1) {
+    const temp = new Date(base)
+    temp.setMonth(base.getMonth() - i)
+    keys.push(`${temp.getFullYear()}-${String(temp.getMonth() + 1).padStart(2, "0")}`)
+  }
+  return keys
+}
+
 const rangeLabel = computed(() => {
   const [start] = getRecentMonthKeys(12)
   return `${start} 至 ${monthKey}`
@@ -151,54 +178,19 @@ const metricCards = computed(() => [
     desc: `本月新增 ${formatNumber(summary.value.monthArticle)}`
   },
   {
-    label: "活跃上传人员",
+    label: "本月活跃用户",
     value: formatNumber(summary.value.activeUsers),
-    desc: "按近12个月统计"
+    desc: "本月有上传行为的用户"
   },
   {
     label: "本月总贡献",
-    value: formatNumber(summary.value.monthTotal),
-    desc: `日均 ${summary.value.dailyAvg.toFixed(1)}`
+    value: formatNumber(summary.value.monthMaterial + summary.value.monthArticle),
+    desc: `日均 ${((summary.value.monthMaterial + summary.value.monthArticle) / new Date().getDate()).toFixed(1)}`
   }
 ])
 
 function formatNumber(value) {
   return new Intl.NumberFormat("zh-CN").format(Number(value || 0))
-}
-
-function normalizeCompanyName(value) {
-  return typeof value === "string" ? value.trim() : ""
-}
-
-function parseDate(value) {
-  if (!value) return null
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date
-}
-
-function toMonthKey(dateValue) {
-  const date = parseDate(dateValue)
-  if (!date) return ""
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-}
-
-function getRecentMonthKeys(total = 12) {
-  const keys = []
-  const base = new Date(now.getFullYear(), now.getMonth(), 1)
-  for (let i = total - 1; i >= 0; i -= 1) {
-    const temp = new Date(base)
-    temp.setMonth(base.getMonth() - i)
-    keys.push(`${temp.getFullYear()}-${String(temp.getMonth() + 1).padStart(2, "0")}`)
-  }
-  return keys
-}
-
-function toDayKey(dateValue) {
-  const date = parseDate(dateValue)
-  if (!date) return ""
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
-    date.getDate()
-  ).padStart(2, "0")}`
 }
 
 function getRecentDayKeys(total = 30) {
@@ -215,266 +207,6 @@ function getRecentDayKeys(total = 30) {
   }
   return keys
 }
-
-function getUserName(row, source) {
-  if (source === "material") {
-    return row.uploadUser || row.createBy || row.userName || "未知用户"
-  }
-  return row.authorName || row.createBy || row.submitter || row.userName || "未知用户"
-}
-
-function getFileMappingUserName(row) {
-  return (
-    row?.creatby ||
-    row?.createBy ||
-    row?.uploadUser ||
-    row?.userName ||
-    row?.authorName ||
-    "未知用户"
-  )
-}
-
-function getArticleMappingUserName(row) {
-  return row?.creatby || row?.createBy || row?.authorName || row?.submitter || row?.userName || "未知用户"
-}
-
-function normalizeApprovalStatus(value) {
-  const num = Number(value)
-  return Number.isNaN(num) ? -1 : num
-}
-
-function getArticleCompanyFromCreateField(row) {
-  return normalizeCompanyName(
-    row?.creatbu || row?.createBu || row?.creatby || row?.createBy || row?.companyName || ""
-  )
-}
-
-function buildDeptNameMap(deptRows) {
-  const deptNameMap = new Map()
-  const queue = Array.isArray(deptRows) ? [...deptRows] : []
-  while (queue.length) {
-    const item = queue.shift()
-    if (!item || typeof item !== "object") continue
-    if (item.deptId !== undefined && item.deptId !== null && item.deptName) {
-      deptNameMap.set(String(item.deptId), item.deptName)
-    }
-    if (Array.isArray(item.children) && item.children.length) {
-      queue.push(...item.children)
-    }
-  }
-  return deptNameMap
-}
-
-function buildDeptItems(deptRows) {
-  const deptItems = []
-  const seen = new Set()
-  const queue = Array.isArray(deptRows) ? [...deptRows] : []
-  while (queue.length) {
-    const item = queue.shift()
-    if (!item || typeof item !== "object") continue
-    const deptId = item.deptId
-    const deptName = item.deptName
-    if (deptId !== undefined && deptId !== null && typeof deptName === "string" && deptName.trim()) {
-      const key = String(deptId)
-      if (!seen.has(key)) {
-        seen.add(key)
-        deptItems.push({ deptId: key, deptName: deptName.trim() })
-      }
-    }
-    if (Array.isArray(item.children) && item.children.length) {
-      queue.push(...item.children)
-    }
-  }
-  return deptItems
-}
-
-function getCompanyName(row, deptNameMap) {
-  const directName =
-    row.companyName || row.deptName || row.company || row.organizationName || row.orgName
-  if (typeof directName === "string" && directName.trim()) {
-    return directName.trim()
-  }
-  const deptId = row.deptId ?? row.companyId ?? row.orgId
-  if (deptId !== undefined && deptId !== null) {
-    const mappedName = deptNameMap.get(String(deptId))
-    if (mappedName) return mappedName
-  }
-  return "未知公司"
-}
-
-async function fetchAllRows(apiFn, baseQuery = {}) {
-  const pageSize = 200
-  const maxPages = 100
-  const allRows = []
-
-  for (let pageNum = 1; pageNum <= maxPages; pageNum += 1) {
-    const resp = await apiFn({
-      ...baseQuery,
-      pageNum,
-      pageSize
-    })
-    const rows = Array.isArray(resp?.rows) ? resp.rows : []
-    const total = Number(resp?.total || 0)
-    allRows.push(...rows)
-
-    if (rows.length < pageSize || allRows.length >= total) {
-      break
-    }
-  }
-  return allRows
-}
-
-function buildStats(materialRows, articleRows, deptRows = [], fileRows = []) {
-  const monthKeys = getRecentMonthKeys(12)
-  const trendMap = new Map(monthKeys.map((k) => [k, { material: 0, article: 0 }]))
-  const dayKeys = getRecentDayKeys(30)
-  const materialDailyMap = new Map(dayKeys.map((k) => [k, 0]))
-  const articleDailyMap = new Map(dayKeys.map((k) => [k, 0]))
-  const userMap = new Map()
-  const monthMaterialUserMap = new Map()
-  const monthArticleUserMap = new Map()
-  const deptNameMap = buildDeptNameMap(deptRows)
-  const companyApprovalMap = new Map()
-
-  materialRows.forEach((row) => {
-    const key = toMonthKey(row.uploadTime || row.createTime)
-    const user = getUserName(row, "material")
-    if (trendMap.has(key)) {
-      trendMap.get(key).material += 1
-      userMap.set(user, (userMap.get(user) || 0) + 1)
-    }
-  })
-
-  // 使用 getFileList 接口返回的真实素材数据，根据 createTime 筛选并按天统计
-  const sourceFileRows = Array.isArray(fileRows) ? fileRows : []
-  let monthMaterialFromFileList = 0
-  sourceFileRows.forEach((row) => {
-    const createMonthKey = toMonthKey(row?.createTime)
-    const dayKey = toDayKey(row?.createTime)
-    const user = getFileMappingUserName(row)
-    if (createMonthKey === monthKey) {
-      monthMaterialFromFileList += 1
-      monthMaterialUserMap.set(user, (monthMaterialUserMap.get(user) || 0) + 1)
-    }
-    if (materialDailyMap.has(dayKey)) {
-      materialDailyMap.set(dayKey, (materialDailyMap.get(dayKey) || 0) + 1)
-    }
-  })
-
-  articleRows.forEach((row) => {
-    const key = toMonthKey(row.createTime)
-    const dayKey = toDayKey(row.createTime)
-    const user = getUserName(row, "article")
-    const articleMapUser = getArticleMappingUserName(row)
-    const approvalStatus = normalizeApprovalStatus(row.approval_status ?? row.approvalStatus)
-    const companyName = getArticleCompanyFromCreateField(row) || getCompanyName(row, deptNameMap)
-    if (trendMap.has(key)) {
-      trendMap.get(key).article += 1
-      userMap.set(user, (userMap.get(user) || 0) + 1)
-    }
-    if (approvalStatus === 1 || approvalStatus === 2) {
-      const curr = companyApprovalMap.get(companyName) || { pass: 0, reject: 0 }
-      if (approvalStatus === 1) curr.pass += 1
-      if (approvalStatus === 2) curr.reject += 1
-      companyApprovalMap.set(companyName, curr)
-    }
-    if (key === monthKey) {
-      monthArticleUserMap.set(articleMapUser, (monthArticleUserMap.get(articleMapUser) || 0) + 1)
-    }
-    if (articleDailyMap.has(dayKey)) {
-      articleDailyMap.set(dayKey, (articleDailyMap.get(dayKey) || 0) + 1)
-    }
-  })
-
-  const monthTrend = monthKeys.map((k) => ({
-    month: k,
-    material: trendMap.get(k).material,
-    article: trendMap.get(k).article
-  }))
-  const dailyTrend = dayKeys.map((k) => ({
-    day: k,
-    material: materialDailyMap.get(k) || 0,
-    article: articleDailyMap.get(k) || 0
-  }))
-  const monthMaterialByTrend = monthTrend[monthTrend.length - 1]?.material || 0
-  const monthMaterial = sourceFileRows.length ? monthMaterialFromFileList : monthMaterialByTrend
-  const monthArticle = monthTrend[monthTrend.length - 1]?.article || 0
-  const monthTotal = monthMaterial + monthArticle
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-
-  const materialRankList = Array.from(monthMaterialUserMap.entries())
-    .map(([name, info]) => ({
-      name,
-      total: info
-    }))
-    .sort((a, b) => b.total - a.total)
-  const articleRankList = Array.from(monthArticleUserMap.entries())
-    .map(([name, info]) => ({
-      name,
-      total: info
-    }))
-    .sort((a, b) => b.total - a.total)
-
-  const top10Material = materialRankList.slice(0, 10)
-  const top10Article = articleRankList.slice(0, 10)
-  const companyApprovalRatio = Array.from(companyApprovalMap.entries())
-    .map(([name, info]) => {
-      const total = info.pass + info.reject
-      const passRate = total ? Number(((info.pass / total) * 100).toFixed(1)) : 0
-      const rejectRate = total ? Number(((info.reject / total) * 100).toFixed(1)) : 0
-      return {
-        name,
-        pass: info.pass,
-        reject: info.reject,
-        total,
-        passRate,
-        rejectRate
-      }
-    })
-    .sort((a, b) => b.total - a.total)
-  const allUsers = Array.from(new Set([...monthMaterialUserMap.keys(), ...monthArticleUserMap.keys()]))
-  const mixedRankList = allUsers
-    .map((name) => {
-      const materialCount = monthMaterialUserMap.get(name) || 0
-      const articleCount = monthArticleUserMap.get(name) || 0
-      const totalCount = materialCount + articleCount
-      return {
-        name,
-        material: materialCount,
-        article: articleCount,
-        total: totalCount
-      }
-    })
-    .sort((a, b) => b.total - a.total)
-  const table = mixedRankList.slice(0, 50).map((item, index) => ({
-    rank: index + 1,
-    name: item.name,
-    materialCount: item.material,
-    articleCount: item.article,
-    totalCount: item.total,
-    ratio: `${monthTotal ? ((item.total / monthTotal) * 100).toFixed(1) : 0}%`
-  }))
-
-  return {
-    monthTrend,
-    dailyTrend,
-    top10Material,
-    top10Article,
-    companyCompare: [],
-    companyApprovalRatio,
-    table,
-    summary: {
-      materialTotal: materialRows.length,
-      articleTotal: articleRows.length,
-      activeUsers: userMap.size,
-      monthTotal,
-      monthMaterial,
-      monthArticle,
-      dailyAvg: monthTotal / daysInMonth
-    }
-  }
-}
-
 
 function createTrendOption(dailyTrend) {
   return {
@@ -599,7 +331,25 @@ function createRankOption(rankData, color = "#ff9f43") {
 }
 
 function createMonthlyCompareOption(compareData) {
+  console.log("createMonthlyCompareOption 数据:", compareData)
   const enableZoom = compareData.length > 8
+  
+  // 如果没有数据，添加空数据提示
+  const graphic = compareData.length
+    ? []
+    : [
+        {
+          type: "text",
+          left: "center",
+          top: "middle",
+          style: {
+            text: "暂无数据",
+            fill: "#909399",
+            fontSize: 14
+          }
+        }
+      ]
+  
   return {
     color: ["#2563eb", "#f97316"],
     tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
@@ -652,7 +402,8 @@ function createMonthlyCompareOption(compareData) {
         barMaxWidth: 28,
         data: compareData.map((item) => item.article)
       }
-    ]
+    ],
+    graphic: graphic
   }
 }
 
@@ -790,18 +541,279 @@ function initChartsIfNeeded() {
   }
 }
 
-function renderCharts(stats) {
+async function loadMaterialCount() {
+  loading.value = true
+  try {
+    // 获取素材总量
+    const materialResponse = await countAllFile()
+    if (materialResponse?.data) {
+      summary.value.materialTotal = materialResponse.data
+    }
+    
+    // 获取稿件总量
+    const articleResponse = await getArticleTotal({})
+    if (articleResponse?.data) {
+      summary.value.articleTotal = articleResponse.data
+    }
+    
+    // 获取近30天每日素材上传量
+    const dailyMaterialResponse = await getMaterialIncreaseRecent30Days()
+    if (dailyMaterialResponse?.data) {
+      summary.value.dailyMaterialTrend = dailyMaterialResponse.data
+    }
+    
+    // 获取近30天每日新增稿件数量
+    const dailyArticleResponse = await getArticleDailyTrend()
+    if (dailyArticleResponse?.data) {
+      summary.value.dailyArticleTrend = dailyArticleResponse.data
+    }
+    
+    // 获取本月新增素材量
+    const currentMonthMaterialResponse = await getMaterialIncreaseCurrentMonth()
+    if (currentMonthMaterialResponse?.data) {
+      summary.value.monthMaterial = currentMonthMaterialResponse.data.count
+    }
+    
+    // 获取本月新增稿件量
+    const currentMonthArticleResponse = await getArticleIncreaseCurrentMonth()
+    if (currentMonthArticleResponse?.data) {
+      summary.value.monthArticle = currentMonthArticleResponse.data.count
+    }
+    
+    // 获取本月素材上传量前十名（按创建人）
+    const materialTop10Response = await getMaterialTop10ByUser()
+    if (materialTop10Response?.data) {
+      summary.value.top10Material = materialTop10Response.data.top10List
+    }
+    
+    // 获取本月稿件上传量前十名（按创建人）
+    const articleTop10Response = await getArticleTop10ByUser()
+    if (articleTop10Response?.data) {
+      summary.value.top10Article = articleTop10Response.data.top10List
+    }
+    
+    // 获取各子公司素材和稿件数量
+    const deptMaterialList = []
+    console.log("部门映射大小:", deptMap.value.size)
+    for (const [deptId, deptName] of deptMap.value) {
+      try {
+        console.log(`获取部门 ${deptName} (${deptId}) 的统计数据`)
+        // 获取部门素材数量
+        const deptMaterialResponse = await getMaterialTotalByDept(deptId)
+        console.log(`部门 ${deptName} 素材响应:`, deptMaterialResponse)
+        const materialCount = deptMaterialResponse?.data?.total || 0
+        
+        // 获取部门稿件数量
+        const deptArticleResponse = await getArticleTotalByDept(deptId)
+        console.log(`部门 ${deptName} 稿件响应:`, deptArticleResponse)
+        const articleCount = deptArticleResponse?.data?.total || 0
+        
+        const deptData = {
+          name: deptName,
+          material: materialCount,
+          article: articleCount
+        }
+        console.log(`部门 ${deptName} 数据:`, deptData)
+        deptMaterialList.push(deptData)
+      } catch (error) {
+        console.error(`获取部门 ${deptName} 的统计数据失败:`, error)
+      }
+    }
+    console.log("各子公司统计数据:", deptMaterialList)
+    summary.value.companyCompare = deptMaterialList
+    
+    // 获取各部门稿件通过/不通过数量
+    try {
+      const articleStatusResponse = await getArticleStatusByDept()
+      console.log("各部门稿件状态响应:", articleStatusResponse)
+      
+      // 创建部门状态映射（兼容后端返回字段：passedCount/notPassedCount）
+      const statusMap = new Map()
+      if (articleStatusResponse?.data) {
+        articleStatusResponse.data.forEach(item => {
+          statusMap.set(Number(item.deptId), item)
+        })
+      }
+      
+      // 确保所有部门都显示在图表中，即使没有稿件
+      const statusData = []
+      for (const [deptId, deptName] of deptMap.value) {
+        const item = statusMap.get(Number(deptId)) || {}
+        const passCount = Number(item.passedCount ?? item.pass ?? 0)
+        const rejectCount = Number(item.notPassedCount ?? item.reject ?? 0)
+        const total = passCount + rejectCount
+        const passRate = total > 0 ? Math.round((passCount / total) * 100) : 0
+        const rejectRate = total > 0 ? Math.round((rejectCount / total) * 100) : 0
+        
+        statusData.push({
+          name: deptName,
+          pass: passCount,
+          reject: rejectCount,
+          passRate: passRate,
+          rejectRate: rejectRate
+        })
+      }
+      
+      console.log("处理后的稿件状态数据:", statusData)
+      summary.value.companyApprovalRatio = statusData
+    } catch (error) {
+      console.error("获取各部门稿件状态失败:", error)
+      // 即使获取失败，也要显示所有部门
+      const statusData = []
+      for (const [deptId, deptName] of deptMap.value) {
+        statusData.push({
+          name: deptName,
+          pass: 0,
+          reject: 0,
+          passRate: 0,
+          rejectRate: 0
+        })
+      }
+      summary.value.companyApprovalRatio = statusData
+    }
+    
+    // 构建人员贡献明细数据
+    try {
+      // 创建人员贡献映射
+      const contributionMap = new Map()
+      
+      // 处理素材贡献数据
+      if (summary.value.top10Material && summary.value.top10Material.length > 0) {
+        summary.value.top10Material.forEach(item => {
+          const name = item.createBy || '未知用户'
+          if (!contributionMap.has(name)) {
+            contributionMap.set(name, {
+              name: name,
+              materialCount: 0,
+              articleCount: 0
+            })
+          }
+          const userData = contributionMap.get(name)
+          userData.materialCount = item.count || 0
+          contributionMap.set(name, userData)
+        })
+      }
+      
+      // 处理稿件贡献数据
+      if (summary.value.top10Article && summary.value.top10Article.length > 0) {
+        summary.value.top10Article.forEach(item => {
+          const name = item.createBy || '未知用户'
+          if (!contributionMap.has(name)) {
+            contributionMap.set(name, {
+              name: name,
+              materialCount: 0,
+              articleCount: 0
+            })
+          }
+          const userData = contributionMap.get(name)
+          userData.articleCount = item.count || 0
+          contributionMap.set(name, userData)
+        })
+      }
+      
+      // 计算本月活跃用户数
+      summary.value.activeUsers = contributionMap.size
+      console.log("本月活跃用户数:", summary.value.activeUsers)
+      
+      // 转换为数组并计算总贡献数
+      const contributionArray = Array.from(contributionMap.values()).map(item => {
+        const totalCount = item.materialCount + item.articleCount
+        return {
+          ...item,
+          totalCount: totalCount
+        }
+      })
+      
+      // 计算总贡献数总和
+      const totalSum = contributionArray.reduce((sum, item) => sum + item.totalCount, 0)
+      
+      // 计算贡献占比并排序
+      const sortedContributions = contributionArray
+        .map(item => {
+          const ratio = totalSum > 0 ? ((item.totalCount / totalSum) * 100).toFixed(2) + '%' : '0%'
+          return {
+            ...item,
+            ratio: ratio
+          }
+        })
+        .sort((a, b) => b.totalCount - a.totalCount)
+        .map((item, index) => {
+          return {
+            ...item,
+            rank: index + 1
+          }
+        })
+      
+      console.log("人员贡献明细数据:", sortedContributions)
+      contributionDetails.value = sortedContributions
+    } catch (error) {
+      console.error("构建人员贡献明细失败:", error)
+    }
+  } catch (error) {
+    console.error("获取统计数据失败:", error)
+  } finally {
+    loading.value = false
+  }
+}
+
+function renderCharts() {
   initChartsIfNeeded()
-  trendChartInstance?.setOption(createTrendOption(stats.dailyTrend), true)
+  
+  // 准备近30天数据
+  const recentDays = getRecentDayKeys(30)
+  
+  // 处理近30天每日素材和稿件上传量数据
+  const dailyTrend = recentDays.map(day => {
+    // 从dailyMaterialTrend对象中获取对应日期的素材值
+    const materialCount = summary.value.dailyMaterialTrend?.dailyIncrease?.[day] || 0
+    // 从dailyArticleTrend对象中获取对应日期的稿件值
+    const articleCount = summary.value.dailyArticleTrend?.dailyIncrease?.[day] || 0
+    return {
+      day,
+      material: materialCount,
+      article: articleCount
+    }
+  })
+  
+  // 处理top10数据格式，确保与createRankOption函数期望的格式匹配
+  const processedTop10Material = (summary.value.top10Material || []).map(item => ({
+    name: item.createBy || '未知用户',
+    total: item.count || 0
+  }))
+  
+  const processedTop10Article = (summary.value.top10Article || []).map(item => ({
+    name: item.createBy || '未知用户',
+    total: item.count || 0
+  }))
+  
+  const companyCompareData = summary.value.companyCompare || []
+  console.log("传递给图表的公司对比数据:", companyCompareData)
+  
+  const companyApprovalRatioData = summary.value.companyApprovalRatio || []
+  console.log("传递给图表的审批比例数据:", companyApprovalRatioData)
+  
+  const defaultStats = {
+    dailyTrend: dailyTrend,
+    summary: {
+      materialTotal: summary.value.materialTotal,
+      articleTotal: summary.value.articleTotal
+    },
+    top10Material: processedTop10Material,
+    top10Article: processedTop10Article,
+    companyCompare: companyCompareData,
+    companyApprovalRatio: companyApprovalRatioData
+  }
+  
+  trendChartInstance?.setOption(createTrendOption(defaultStats.dailyTrend), true)
   pieChartInstance?.setOption(
-    createPieOption(stats.summary.materialTotal, stats.summary.articleTotal),
+    createPieOption(defaultStats.summary.materialTotal, defaultStats.summary.articleTotal),
     true
   )
-  rankChartInstance?.setOption(createRankOption(stats.top10Material, "#3c8cff"), true)
-  articleRankChartInstance?.setOption(createRankOption(stats.top10Article, "#36b37e"), true)
-  monthlyChartInstance?.setOption(createMonthlyCompareOption(stats.companyCompare), true)
+  rankChartInstance?.setOption(createRankOption(defaultStats.top10Material, "#3c8cff"), true)
+  articleRankChartInstance?.setOption(createRankOption(defaultStats.top10Article, "#36b37e"), true)
+  monthlyChartInstance?.setOption(createMonthlyCompareOption(companyCompareData), true)
   approvalRatioChartInstance?.setOption(
-    createCompanyApprovalRatioOption(stats.companyApprovalRatio),
+    createCompanyApprovalRatioOption(companyApprovalRatioData),
     true
   )
 }
@@ -815,77 +827,56 @@ function resizeCharts() {
   approvalRatioChartInstance?.resize()
 }
 
-async function loadData() {
-  loading.value = true
+// 获取部门列表并构建部门映射
+async function loadDeptMap() {
   try {
-    const [materialRows, articleRows, deptResp, fileCountResp, fileListResp] = await Promise.all([
-      fetchAllRows(listMaterial),
-      fetchAllRows(listAllArticle),
-      listDept(),
-      countAllFile(),
-      getFileList()
-    ])
+    const response = await listDept({})
+    console.log("部门列表响应:", response)
+    // request 拦截器已返回 res.data，这里优先兼容标准 { code, msg, data: [] }
+    const depts = Array.isArray(response?.data)
+      ? response.data
+      : Array.isArray(response?.rows)
+        ? response.rows
+        : Array.isArray(response?.data?.rows)
+          ? response.data.rows
+          : []
 
-    const stats = buildStats(materialRows, articleRows, deptResp?.data, fileListResp?.data)
-    // 使用 countAllFile 接口返回的素材总量
-    if (fileCountResp?.data) {
-      stats.summary.materialTotal = fileCountResp.data
-    }
-
-    // 先从 dept 表提取每个部门的 deptId
-    const deptItems = buildDeptItems(deptResp?.data)
-    const deptIds = deptItems.map((item) => item.deptId)
-    
-    // 再将 deptId 传入 countByDeptId，统计各部门素材数量（不含稿件）
-    const materialCountPromises = deptIds.map(deptId => 
-      countByDeptId(deptId).catch(() => ({ data: 0 }))
-    )
-    const materialCountResponses = await Promise.all(materialCountPromises)
-    
-    // 构建部门素材数量映射
-    const materialCountMap = new Map()
-    deptIds.forEach((deptId, index) => {
-      materialCountMap.set(deptId, Number(materialCountResponses[index]?.data || 0))
-    })
-    
-    // 构建各公司稿件数量映射（按稿件 createBy 与公司名称匹配）
-    const articleCountMap = new Map()
-    articleRows.forEach((row) => {
-      const companyName = normalizeCompanyName(row.createBy)
-      if (companyName) {
-        articleCountMap.set(companyName, (articleCountMap.get(companyName) || 0) + 1)
+    console.log("部门列表:", depts)
+    const newDeptMap = new Map()
+    depts.forEach((dept) => {
+      if (
+        dept?.deptId != null &&
+        dept?.deptName &&
+        !EXCLUDED_DEPT_NAMES.has(dept.deptName)
+      ) {
+        newDeptMap.set(dept.deptId, dept.deptName)
       }
     })
-    
-    // 构建公司对比数据
-    stats.companyCompare = deptItems
-      .map(({ deptId, deptName }) => ({
-        name: deptName,
-        material: materialCountMap.get(deptId) || 0,
-        article: articleCountMap.get(normalizeCompanyName(deptName)) || 0
-      }))
-      .sort((a, b) => (b.material + b.article) - (a.material + a.article))
-
-    summary.value = stats.summary
-    tableData.value = stats.table
-
-    await nextTick()
-    renderCharts(stats)
+    deptMap.value = newDeptMap
+    console.log("部门映射:", deptMap.value)
   } catch (error) {
-    console.error("加载统计数据失败:", error)
-    ElMessage.error("加载统计数据失败，请稍后重试")
-  } finally {
-    loading.value = false
+    console.error("获取部门列表失败:", error)
   }
 }
 
 onMounted(async () => {
-  await loadData()
+  await loadDeptMap()
+  await loadMaterialCount()
+  renderCharts()
   window.addEventListener("resize", resizeCharts)
 })
 
+watch(
+  loading,
+  (isLoading) => {
+    setPageScrollLocked(isLoading)
+  },
+  { immediate: true }
+)
+
 onBeforeUnmount(() => {
   window.removeEventListener("resize", resizeCharts)
+  setPageScrollLocked(false)
   trendChartInstance?.dispose()
   pieChartInstance?.dispose()
   rankChartInstance?.dispose()
@@ -1002,7 +993,7 @@ onBeforeUnmount(() => {
 
 /* 加载中样式 */
 .loading-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;

@@ -22,6 +22,7 @@
 
       <div class="main-content">
         <div class="search-filter">
+          <span class="search-filter-label">素材名：</span>
           <el-input v-model="searchKeyword" placeholder="请输入素材名称" style="width: 300px; margin-right: 10px;">
             <template #prefix>
               <el-icon>
@@ -29,7 +30,16 @@
               </el-icon>
             </template>
           </el-input>
+          <span class="search-filter-label">素材标签：</span>
+          <el-input
+            v-model="searchTagKeywords"
+            placeholder="请输入素材标签（支持多标签，用空格隔开）"
+            clearable
+            style="width: 550px; margin-right: 10px;"
+            @keyup.enter="handleSearch"
+          />
           <el-button type="primary" @click="handleSearch" icon="Search">搜索</el-button>
+          <el-button @click="handleReset" icon="Close">重置</el-button>
         </div>
 
         <div class="card">
@@ -303,6 +313,7 @@ const { proxy } = getCurrentInstance();
 import { ref, reactive, onMounted, computed } from 'vue'
 import { api as viewerApi } from "v-viewer";
 import { parseTime, } from '@/utils/common'
+import { scrollPageTop } from '@/utils/scroll-to'
 import { Search, VideoCamera, Document, Check, Edit, VideoPlay, VideoPause, Back, ArrowRight, ArrowUp, FolderAdd, FolderOpened, Upload, UploadFilled, Delete, Grid, Close, List, Files, DocumentCopy, Refresh, Clock, CircleCheck, CircleCheckFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileListPage, delFile, updateFile, checkChunks, uploadFileChunk, mergeFileChunks,minioProxyUrl, getFileEditKey} from "@/api/xcsc/uploadFile"
@@ -315,6 +326,7 @@ const userStore = useUserStore()
 
 const loading = ref(false)
 const searchKeyword = ref('')
+const searchTagKeywords = ref('')
 const currentStatus = ref('0')
 const fileListData = ref([])
 
@@ -390,19 +402,29 @@ function handleSearch() {
   getFileListData()
 }
 
-function refreshData() {
+function handleReset() {
+  searchKeyword.value = ''
+  searchTagKeywords.value = ''
   currentPage.value = 1
   getFileListData()
+}
+
+async function refreshData() {
+  // currentPage.value = 1
+  await getFileListData()
+  await initStatusCounts() // 标注完成后更新状态计数
 }
 
 function handleSizeChange(size) {
   pageSize.value = size
   currentPage.value = 1
+  scrollPageTop()
   getFileListData()
 }
 
 function handleCurrentChange(page) {
   currentPage.value = page
+  scrollPageTop()
   getFileListData()
 }
 
@@ -418,15 +440,14 @@ async function getFileListData() {
     if (searchKeyword.value.trim()) {
       params.fileName = searchKeyword.value.trim()
     }
+    if (searchTagKeywords.value.trim()) {
+      params.keyWords = searchTagKeywords.value.trim()
+    }
     const res = await getFileListPage(params)
     fileListData.value = Array.isArray(res?.rows) ? res.rows : []
     total.value = Number(res?.total || 0)
     
-    // 更新当前状态的计数
-    const currentStatusItem = statusList.value.find(item => item.value === currentStatus.value)
-    if (currentStatusItem) {
-      currentStatusItem.count = total.value
-    }
+    // 移除更新状态计数的代码，状态计数由initStatusCounts函数单独处理
   } finally {
     loading.value = false
   }
@@ -649,6 +670,7 @@ function handleAddFolderConfirm() {
     editFileName.value = ''
     tempFileKey.value = ''
     getFileListData()
+    initStatusCounts() // 修改文件名后更新状态计数
   }).catch(err => {
     ElMessage.error('文件名修改失败')
     console.error('修改文件名失败:', err)
@@ -666,6 +688,7 @@ function deleteFile(item) {
     return delFile(item.id);
   }).then(() => {
     getFileListData()
+    initStatusCounts() // 删除文件后更新状态计数
     proxy.$modal.msgSuccess("删除成功");
   }).catch(() => { });
 }
@@ -689,9 +712,7 @@ async function initStatusCounts() {
             pageNum: 1,
             pageSize: 1
           }
-          if (searchKeyword.value.trim()) {
-            params.fileName = searchKeyword.value.trim()
-          }
+          // 移除搜索关键词，获取所有文件的数量
           const res = await getFileListPage(params)
           status.count = Number(res?.total || 0)
         } catch (e) {
@@ -931,6 +952,13 @@ onMounted(async () => {
     border-radius: 6px;
     transition: all 0.3s ease;
   }
+}
+
+.search-filter-label {
+  color: #606266;
+  font-size: 14px;
+  margin-right: 8px;
+  white-space: nowrap;
 }
 
 .sort-controls {

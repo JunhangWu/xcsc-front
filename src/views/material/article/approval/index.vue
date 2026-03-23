@@ -2,7 +2,7 @@
   <div class="app-container">
     <div class="approval-layout">
       <div class="sidebar">
-        <div class="sidebar-title">审批管理</div>
+        <div class="sidebar-title">稿件管理</div>
         <div class="sidebar-menu">
           <div 
             class="menu-item" 
@@ -10,7 +10,7 @@
             @click="handleTabChange('pending')"
           >
             <el-icon><Clock /></el-icon>
-            <span>待审批</span>
+            <span>待处理</span>
             <el-badge v-if="pendingCount > 0" :value="pendingCount" class="badge" />
           </div>
           <div 
@@ -19,7 +19,7 @@
             @click="handleTabChange('approved')"
           >
             <el-icon><CircleCheck /></el-icon>
-            <span>已审批</span>
+            <span>已处理</span>
           </div>
         </div>
       </div>
@@ -39,9 +39,9 @@
             />
           </el-form-item>
           <el-form-item v-if="activeTab === 'approved'">
-            <el-select v-model="queryParams.approvalStatus" placeholder="审批状态" clearable style="width: 150px;">
-              <el-option label="通过" value=1 />
-              <el-option label="不通过" value=2 />
+            <el-select v-model="queryParams.approvalStatus" placeholder="处理状态" clearable style="width: 150px;">
+              <el-option label="采用" value=1 />
+              <el-option label="不采用" value=2 />
             </el-select>
           </el-form-item>
           <el-form-item>
@@ -102,6 +102,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="authorName" label="作者姓名" width="120" align="center" />
+          <el-table-column prop="createBy" label="提供者" width="150" align="center" />
           <el-table-column prop="createTime" label="提交时间" width="180" align="center" />
           <el-table-column label="复审人（部门负责人）" width="170" align="center">
             <template #default="scope">
@@ -120,24 +121,24 @@
               <span v-else>--</span>
             </template>
           </el-table-column>
-          <el-table-column prop="approvalStatus" label="审批状态" width="120" align="center">
+          <el-table-column prop="approvalStatus" label="处理状态" width="120" align="center">
             <template #default="scope">
               <el-tag :type="getStatusTagType(scope.row.approvalStatus)">
                 {{ getStatusText(scope.row.approvalStatus) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="approvalTime" label="审批时间" width="180" align="center" />
-          <el-table-column prop="approvalComments" label="审批意见" min-width="150" align="center" />
+          <el-table-column prop="approvalTime" label="处理时间" width="180" align="center" />
+          <el-table-column prop="approvalComments" label="处理意见" min-width="150" align="center" />
 
-          <!-- <el-table-column prop="companyName" label="所属公司" min-width="150" align="center" /> -->
+          <!-- <el-table-column prop="companyName" label="提供者" min-width="150" align="center" /> -->
           <el-table-column label="操作" width="260" align="center" fixed="right">
             <template #default="scope">
               <el-button link type="primary" size="middle" @click="handleView(scope.row)">查看</el-button>
               <el-button link type="warning" size="middle" @click="handleEdit(scope.row)">修改</el-button>
-              <el-button link type="success" size="middle" @click="handleApprove(scope.row)" v-if="activeTab === 'pending' && scope.row.approvalStatus === 1">通过</el-button>
-              <el-button link type="danger" size="middle" @click="handleReject(scope.row)" v-if="activeTab === 'pending' && scope.row.approvalStatus === 2">不通过</el-button>
-              <el-button link type="primary" size="middle" @click="handleApproveAction(scope.row)" v-if="scope.row.approvalStatus === 0">审批</el-button>
+              <el-button link type="success" size="middle" @click="handleApprove(scope.row)" v-if="activeTab === 'pending' && scope.row.approvalStatus === 1">采用</el-button>
+              <el-button link type="danger" size="middle" @click="handleReject(scope.row)" v-if="activeTab === 'pending' && scope.row.approvalStatus === 2">不采用</el-button>
+              <el-button link type="primary" size="middle" @click="handleApproveAction(scope.row)" v-if="scope.row.approvalStatus === 0">是否采用</el-button>
               <el-button link type="primary" size="middle" @click="handleAttachments(scope.row)">附件</el-button>
             </template>
           </el-table-column>
@@ -159,6 +160,7 @@
             <h2 class="article-title">{{ currentArticle.title }}</h2>
             <div class="article-meta">
               <span>作者：{{ currentArticle.authorName }}</span>
+              <span>提供者：{{ currentArticle.createBy || '--' }}</span>
               <span>复审人：{{ currentArticle.reviewer || currentArticle.approver || '--' }}</span>
               <span>终审人：{{ currentArticle.finalReviewer || '--' }}</span>
               <span>提交时间：{{ currentArticle.createTime }}</span>
@@ -195,30 +197,30 @@
       </div>
       <template #footer>
         <el-button @click="viewDialogVisible = false">关闭</el-button>
-        <el-button type="success" @click="handleApprove(currentArticle)" v-if="currentArticle.approvalStatus === 0">通过</el-button>
-        <el-button type="danger" @click="handleReject(currentArticle)" v-if="currentArticle.approvalStatus === 0">不通过</el-button>
+        <el-button type="success" @click="handleApprove(currentArticle)" v-if="currentArticle.approvalStatus === 0">采用</el-button>
+        <el-button type="danger" @click="handleReject(currentArticle)" v-if="currentArticle.approvalStatus === 0">不采用</el-button>
       </template>
     </el-dialog>
 
     <el-dialog
       v-model="approveDialogVisible"
-      title="审批操作"
+      title="是否采用"
       width="500px"
       :close-on-click-modal="false"
     >
       <el-form :model="approveForm" label-width="100px">
-        <el-form-item label="审批结果">
+        <el-form-item label="处理结果">
           <el-radio-group v-model="approveForm.approvalStatus" @change="handleApprovalStatusChange">
-            <el-radio :label="1">通过</el-radio>
-            <el-radio :label="2">不通过</el-radio>
+            <el-radio :label="1">采用</el-radio>
+            <el-radio :label="2">不采用</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="审批意见" v-if="approveForm.approvalStatus === 2" :required="false">
+        <el-form-item label="处理意见" v-if="approveForm.approvalStatus === 2" :required="false">
           <el-input
             v-model="approveForm.approvalComments"
             type="textarea"
             :rows="4"
-            placeholder="请输入不通过的原因"
+            placeholder="请输入不采用的原因"
             maxlength="500"
             show-word-limit
           />
@@ -303,7 +305,7 @@ const imageViewerVisible = ref(false)
 const previewImageUrl = ref('')
 
 const pageTitle = computed(() => {
-  return activeTab.value === 'pending' ? '待审批稿件' : '已审批稿件'
+  return activeTab.value === 'pending' ? '待处理稿件' : '已处理稿件'
 })
 
 const handleTabChange = (tab) => {
@@ -333,11 +335,11 @@ const getStatusTagType = (status) => {
 const getStatusText = (status) => {
   switch (status) {
     case 1:
-      return '通过'
+      return '采用'
     case 2:
-      return '不通过'
+      return '不采用'
     case 0:
-      return '待审批'
+      return '待处理'
     default:
       return '未知'
   }
@@ -540,7 +542,7 @@ const handleApprovalStatusChange = (value) => {
 
 const confirmApprove = async () => {
   // if (approveForm.approvalStatus === 2 && !approveForm.approvalComments.trim()) {
-  //   ElMessage.warning('请输入不通过的原因')
+  //   ElMessage.warning('请输入不采用的原因')
   //   return
   // }
 
@@ -555,13 +557,13 @@ const confirmApprove = async () => {
       finalReviewer: currentArticle.value?.reviewer ? userStore.name : (currentArticle.value?.finalReviewer || '')
     }
     await approvalArticle(updateData)
-    ElMessage.success(approveForm.approvalStatus === 1 ? '审批通过' : '审批不通过')
+    ElMessage.success(approveForm.approvalStatus === 1 ? '采用' : '不采用')
     approveDialogVisible.value = false
     viewDialogVisible.value = false
     getList()
   } catch (error) {
-    ElMessage.error('审批操作失败')
-    console.error('审批操作失败:', error)
+    ElMessage.error('处理失败')
+    console.error('处理失败:', error)
   }
 }
 

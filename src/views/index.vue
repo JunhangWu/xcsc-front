@@ -56,15 +56,15 @@
           </el-form-item>
 
           <el-form-item label="上传人：">
-            <el-input v-model="filterForm.createBy" placeholder="请输入上传人" clearable style="width: 150px;" />
+            <el-input v-model="filterForm.createBy" placeholder="请输入上传人" clearable style="width: 150px;" @keyup.enter="handleQuery"/>
           </el-form-item>
 
           <el-form-item label="文件名：">
-            <el-input v-model="filterForm.fileName" placeholder="请输入文件名" clearable style="width: 250px;" />
+            <el-input v-model="filterForm.fileName" placeholder="请输入文件名" clearable style="width: 250px;" @keyup.enter="handleQuery"/>
           </el-form-item>
 
           <el-form-item label="素材标签：">
-            <el-input v-model="filterForm.keyWords" placeholder="请输入素材标签（支持多标签，用空格隔开）" clearable style="width: 550px;" />
+            <el-input v-model="filterForm.keyWords" placeholder="请输入素材标签（支持多标签，用空格隔开）" clearable style="width: 550px;" @keyup.enter="handleQuery"/>
           </el-form-item>
 
           <el-form-item>
@@ -836,10 +836,12 @@ const paginatedSearchFileListData = computed(() => {
 function handleSearchPageSizeChange(size) {
   searchPageSize.value = size
   searchCurrentPage.value = 1
+  scrollIndexToTop()
 }
 
 function handleSearchPageChange(page) {
   searchCurrentPage.value = page
+  scrollIndexToTop()
 }
 
 // 排序比较函数
@@ -1515,6 +1517,7 @@ const paginatedAllFiles = computed(() => {
 
 function handleAllFilesPageChange(page) {
   currentPage.value = page;
+  scrollIndexToTop()
 }
 //=====================================================分页相关方法==================================================================
 

@@ -15,7 +15,7 @@
 </template>
 
 <script setup>
-import { scrollTo } from '@/utils/scroll-to'
+import { scrollPageTop } from '@/utils/scroll-to'
 
 const props = defineProps({
   total: {
@@ -82,13 +82,13 @@ function handleSizeChange(val) {
   }
   emit('pagination', { page: currentPage.value, limit: val })
   if (props.autoScroll) {
-    scrollTo(0, 800)
+    scrollPageTop()
   }
 }
 function handleCurrentChange(val) {
   emit('pagination', { page: val, limit: pageSize.value })
   if (props.autoScroll) {
-    scrollTo(0, 800)
+    scrollPageTop()
   }
 }
 

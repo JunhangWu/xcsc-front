@@ -100,8 +100,16 @@
             <span>找到 <strong>{{ total }}</strong> 条相关素材</span>
           </div>
           
+          <!-- 空结果提示 -->
+          <div v-if="!loading && materialList.length === 0" class="empty-result">
+            <div class="empty-icon">
+              <el-icon><Search /></el-icon>
+            </div>
+            <p class="empty-text">未找到相关素材，请尝试其他关键词</p>
+          </div>
+          
           <!-- 素材网格 -->
-          <div class="material-grid" v-loading="loading">
+          <div v-else class="material-grid" v-loading="loading">
             <div 
               v-for="material in materialList" 
               :key="material.id" 
@@ -293,6 +301,12 @@ import { ElMessage } from 'element-plus'
 import {getSearchList, addSearch, delSearch, delAllSearchHistory} from "@/api/xcsc/search"
 import {getFileList,getFileBatch} from "@/api/xcsc/uploadFile"
 import useUserStore from '@/store/modules/user'
+import { scrollPageTop } from '@/utils/scroll-to'
+
+// 视频预览相关变量
+const videoDialogVisible = ref(false)
+const videoFilePath = ref('')
+const videoDialogTitle = ref('')
 
 const getProxyPath = (url) => {
   if (!url) return ''
@@ -341,7 +355,7 @@ const searchExamples = ref([
   },
   {
     id: 2,
-    text: '一位领导正在发言'
+    text: '斜拉桥航拍'
   },
   {
     id: 3,
@@ -349,15 +363,19 @@ const searchExamples = ref([
   },
   {
     id: 4,
-    text: '高楼大厦全景图'
+    text: '服务区室内环境'
   }
 ])
 
 function isImage(path) {
-  return ['jpg', 'jpeg', 'png', 'bmp', 'gif'].some(ext => path.toLowerCase().includes(ext));
+  if (!path) return false;
+  const ext = path.split('.').pop()?.toLowerCase();
+  return ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'svg'].includes(ext);
 }
 function isVideo(path) {
-  return ['mp4', 'mov', 'avi', 'mkv', 'flv','m4v'].some(ext => path.toLowerCase().includes(ext));
+  if (!path) return false;
+  const ext = path.split('.').pop()?.toLowerCase();
+  return ['mp4', 'mov', 'avi', 'mkv', 'flv', 'm4v', 'wmv', 'webm'].includes(ext);
 }
 function previewVideo(material) {
   videoDialogVisible.value = true
@@ -381,36 +399,33 @@ function resetSearch() {
 }
 // 搜索素材
 async function searchMaterials() {
-  // debugger
   if (!searchKeyword.value) {
     ElMessage.warning('请输入搜索关键词')
     return
   }
   console.log('searchKeyword.value', searchKeyword.value)
+  // 先获取搜索结果
+  await fetchMaterialList()
   // 保存到搜索历史
   await saveToSearchHistory(searchKeyword.value)
-  fetchMaterialList()
 }
 
 // 保存搜索历史
 async function saveToSearchHistory(keyword) {
-  // debugger
   try {
     // 调用API保存搜索记录
     const data = {
       query: keyword,
       userId: userStore.id,
-      // searchResult: searchResult,
+      searchResult: idList.value.join(',')
     }
     await addSearch(data)
-    // getSearchMaterialIds()
     // 重新获取搜索历史列表
     await fetchSearchHistory(userStore.id)
   } catch (error) {
     console.error('保存搜索历史失败:', error)
     ElMessage.error('保存搜索历史失败')
   }
-  
 }
 //获取搜索结果素材id
 async function getSearchMaterialIds(keyword){
@@ -458,10 +473,10 @@ function searchWithHistory(keyword) {
 }
 
 // 使用搜索示例
-function searchWithExample(text) {
+async function searchWithExample(text) {
   searchKeyword.value = text
-  fetchMaterialList()
-  saveToSearchHistory(text)
+  await fetchMaterialList()
+  await saveToSearchHistory(text)
 }
 
 // 删除单条搜索历史
@@ -499,13 +514,8 @@ async function fetchSearchHistory() {
     }
     console.log('userStore.id', userStore.id)
     const response = await getSearchList(params)
-    // getSearchList(params).then(res => {
-    //   searchHistory.value = res.data || []
-
-    // })
     // 假设API返回的数据格式需要转换为组件需要的格式
     searchHistory.value = response.data || []
-    // console.log('response',response)
   } catch (error) {
     console.log('暂无搜索历史')
     // ElMessage.error('获取搜索历史失败')
@@ -556,11 +566,13 @@ async function fetchMaterialList(keyword) {
 // 分页处理
 function handleSizeChange(size) {
   pageSize.value = size
+  scrollPageTop()
   fetchMaterialList()
 }
 
 function handleCurrentChange(current) {
   currentPage.value = current
+  scrollPageTop()
   fetchMaterialList()
 }
 
@@ -845,6 +857,24 @@ onMounted(function() {
     color: #c0c4cc;
   }
   .suggestion-text {
+    font-size: 16px;
+    margin: 0;
+  }
+  .empty-result {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #909399;
+    text-align: center;
+  }
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    color: #c0c4cc;
+  }
+  .empty-text {
     font-size: 16px;
     margin: 0;
   }

@@ -1006,11 +1006,13 @@ function toggleSelectAllFiles() {
 function handleSearchPageSizeChange(size) {
   searchPageSize.value = size
   searchCurrentPage.value = 1
+  setPageScrollTop(0)
   syncTableSelectionByIds()
 }
 
 function handleSearchPageChange(page) {
   searchCurrentPage.value = page
+  setPageScrollTop(0)
   syncTableSelectionByIds()
 }
 

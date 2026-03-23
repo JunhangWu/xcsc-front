@@ -56,3 +56,18 @@ export function scrollTo(to, duration, callback) {
   }
   animateScroll()
 }
+
+export function scrollPageTop() {
+  // Prefer main content container if it is scrollable.
+  const appMain = document.querySelector('.app-main')
+  if (appMain && appMain.scrollHeight > appMain.clientHeight) {
+    appMain.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }
+
+  // Fallback to document scrolling.
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  document.documentElement.scrollTop = 0
+  if (document.body) {
+    document.body.scrollTop = 0
+  }
+}

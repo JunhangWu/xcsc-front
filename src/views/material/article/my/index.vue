@@ -26,11 +26,11 @@
 
     <!-- 高级搜索区域 -->
     <el-form :model="queryParams" ref="queryRef" :inline="true" class="advanced-search-form" v-if="showAdvancedSearch">
-      <el-form-item label="审批状态">
+      <el-form-item label="处理状态">
         <el-select v-model="queryParams.approvalStatus" placeholder="请选择" clearable style="width: 150px;">
-          <el-option label="通过" value=1 />
-          <el-option label="不通过" value=2 />
-          <el-option label="待审核" value=0 />
+          <el-option label="采用" value=1 />
+          <el-option label="不采用" value=2 />
+          <el-option label="待处理" value=0 />
         </el-select>
       </el-form-item>
       <el-form-item label="复审人（部门负责人）">
@@ -102,17 +102,17 @@
         </template>
       </el-table-column>
       <!-- 审核状态 -->
-      <el-table-column prop="approvalStatus" label="审批状态" width="180" align="center">
+      <el-table-column prop="approvalStatus" label="处理状态" width="180" align="center">
         <template #default="scope">
           <el-tag :type="getStatusTagType(scope.row.approvalStatus)">
-            {{ scope.row.approvalStatus === 1 ? '通过' : scope.row.approvalStatus === 2 ? '不通过' : '待审批' }}
+            {{ scope.row.approvalStatus === 1 ? '采用' : scope.row.approvalStatus === 2 ? '不采用' : '待处理' }}
           </el-tag>
         </template>
       </el-table-column>
-      <!-- 审批时间 -->
-      <el-table-column prop="approvalTime" label="审批时间" width="180" align="center" />
-      <!-- 审批意见 -->
-      <el-table-column prop="approvalComment" label="审批意见" width="180" align="center" />
+      <!-- 处理时间 -->
+      <el-table-column prop="approvalTime" label="处理时间" width="180" align="center" />
+      <!-- 处理意见 -->
+      <el-table-column prop="approvalComment" label="处理意见" width="180" align="center" />
       <!-- 作者姓名 -->
       <el-table-column prop="authorName" label="作者姓名" width="180" align="center" />
 
@@ -183,8 +183,8 @@
       </div>
       <template #footer>
         <el-button @click="viewDialogVisible = false">关闭</el-button>
-        <!-- <el-button type="success" @click="handleApprove(currentArticle)" v-if="currentArticle.approvalStatus === 0">通过</el-button>
-        <el-button type="danger" @click="handleReject(currentArticle)" v-if="currentArticle.approvalStatus === 0">不通过</el-button> -->
+        <!-- <el-button type="success" @click="handleApprove(currentArticle)" v-if="currentArticle.approvalStatus === 0">采用</el-button>
+        <el-button type="danger" @click="handleReject(currentArticle)" v-if="currentArticle.approvalStatus === 0">不采用</el-button> -->
       </template>
     </el-dialog>
 
@@ -964,11 +964,11 @@ const getStatusTagType = (status) => {
 const getStatusText = (status) => {
   switch (status) {
     case 1:
-      return '通过'
+      return '采用'
     case 2:
-      return '不通过'
+      return '不采用'
     case 0:
-      return '待审批'
+      return '待处理'
     default:
       return '未知'
   }

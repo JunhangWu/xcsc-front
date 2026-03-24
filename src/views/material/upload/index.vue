@@ -48,10 +48,10 @@
             type="primary"
             plain
             size="default"
-            @click="toggleSelectAllFiles"
-            :disabled="availableSelectableFiles.length === 0"
+            @click="toggleSelectAllItems"
+            :disabled="availableSelectableItems.length === 0"
           >
-            {{ allFilesSelected ? '取消全选' : '全选' }}
+            {{ allItemsSelected ? '取消全选' : '全选' }}
           </el-button>
           <el-button type="primary" plain @click="refreshData" size="default">
             <el-icon style="margin-right: 6px;">
@@ -91,11 +91,12 @@
           </el-dropdown>
         </div>
       </div>
-      <div class="selection-toolbar" v-if="selectedFiles.length > 0">
-        <span class="selection-count">已选择{{ selectedFiles.length }}个文件</span>
-        <el-button type="primary" plain size="small" @click="renameSelectedFiles">批量重命名</el-button>
-        <el-button type="danger" plain size="small" @click="deleteSelectedFiles">批量删除</el-button>
-        <el-button text size="small" @click="clearSelectedFiles">取消选择</el-button>
+      <div class="selection-toolbar" v-if="selectedItemCount > 0">
+        <span class="selection-count">已选择{{ selectedItemCount }}个项目（文件夹{{ selectedFolders.length }}，文件{{ selectedFiles.length }}）</span>
+        <el-button type="primary" plain size="small" @click="renameSelectedItems">批量重命名</el-button>
+        <el-button type="primary" plain size="small" @click="moveSelectedItems">批量移动</el-button>
+        <el-button type="danger" plain size="small" @click="deleteSelectedItems">批量删除</el-button>
+        <el-button text size="small" @click="clearSelectedItems">取消选择</el-button>
       </div>
       <div class="sort-controls" v-if="viewMode === 'thumbnail'">
         <span class="sort-label">排序方式：</span>
@@ -148,6 +149,9 @@
                 <span class="subFolder-actions">
                   <el-icon class="action-icon" @click.stop="editFile(material)" title="重命名" v-show="material._hover" style="color: #409eff;">
                     <Edit />
+                  </el-icon>
+                  <el-icon class="action-icon" @click.stop="moveFileinQuery(material)" title="移动" v-show="material._hover" style="color: #67c23a;">
+                    <ArrowRight />
                   </el-icon>
                   <el-icon class="action-icon" @click.stop="deleteFileinQuery(material)" title="删除" v-show="material._hover" style="color: #f56c6c;">
                     <Delete />
@@ -334,11 +338,11 @@
             <el-button
               type="primary"
               plain
-              @click="toggleSelectAllFiles"
+              @click="toggleSelectAllItems"
               size="default"
-              :disabled="availableSelectableFiles.length === 0 || curFolderObj.filePath === SHARED_FOLDER_NAME"
+              :disabled="availableSelectableItems.length === 0 || curFolderObj.filePath === SHARED_FOLDER_NAME"
             >
-              {{ allFilesSelected ? '取消全选' : '全选' }}
+              {{ allItemsSelected ? '取消全选' : '全选' }}
             </el-button>
             <el-button type="primary" plain @click="refreshData" size="default">
               <el-icon style="margin-right: 6px;">
@@ -396,11 +400,12 @@
           </el-dropdown>
         </div>
       </div>
-      <div class="selection-toolbar" v-if="selectedFiles.length > 0">
-        <span class="selection-count">已选择{{ selectedFiles.length }}个文件</span>
-        <el-button type="primary" plain size="small" @click="renameSelectedFiles" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">批量重命名</el-button>
-        <el-button type="danger" plain size="small" @click="deleteSelectedFiles" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">批量删除</el-button>
-        <el-button text size="small" @click="clearSelectedFiles">取消选择</el-button>
+      <div class="selection-toolbar" v-if="selectedItemCount > 0">
+        <span class="selection-count">已选择{{ selectedItemCount }}个项目（文件夹{{ selectedFolders.length }}，文件{{ selectedFiles.length }}）</span>
+        <el-button type="primary" plain size="small" @click="renameSelectedItems" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">批量重命名</el-button>
+        <el-button type="primary" plain size="small" @click="moveSelectedItems" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">批量移动</el-button>
+        <el-button type="danger" plain size="small" @click="deleteSelectedItems" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">批量删除</el-button>
+        <el-button text size="small" @click="clearSelectedItems">取消选择</el-button>
       </div>
       <div class="file-count-info">
         共 {{ fileListData.length }} 个文件，{{ visibleFolderData.length }} 个文件夹
@@ -445,7 +450,15 @@
           <div v-else-if="viewMode === 'thumbnail'" class="material-grid">
             <!-- 文件夹列表 -->
             <div class="subFolder" v-for="(item, index) in visibleFolderData" :key="index"
+              :class="{ 'is-selected': isFolderSelected(item) }"
               @mouseenter="onSubFolderMouseEnter(item)" @mouseleave="onSubFolderMouseLeave(item)">
+              <span class="file-select-box" v-show="item._hover || isFolderSelected(item)" @click.stop>
+                <el-checkbox
+                  :model-value="isFolderSelected(item)"
+                  :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME"
+                  @change="(checked) => toggleFolderSelected(item, checked)"
+                />
+              </span>
               <span class="subFolder-actions">
                 <el-icon
                   class="action-icon"
@@ -459,6 +472,10 @@
                 <el-icon class="action-icon" @click.stop="editFolder(item)" title="重命名" v-show="item._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME"
                   style="color: #409eff;">
                   <Edit />
+                </el-icon>
+                <el-icon class="action-icon" @click.stop="moveFolder(item)" title="移动" v-show="item._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME"
+                  style="color: #67c23a;">
+                  <ArrowRight />
                 </el-icon>
                 <el-icon class="action-icon" @click.stop="deleteFolder(item)" title="删除" v-show="item._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME"
                   style="color: #f56c6c;">
@@ -484,6 +501,9 @@
                 <span class="subFolder-actions">
                   <el-icon class="action-icon" @click.stop="editFile(material)" title="重命名" v-show="material._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME" style="color: #409eff;">
                     <Edit />
+                  </el-icon>
+                  <el-icon class="action-icon" @click.stop="moveFile(material)" title="移动" v-show="material._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME" style="color: #67c23a;">
+                    <ArrowRight />
                   </el-icon>
                   <el-icon class="action-icon" @click.stop="deleteFile(material)" title="删除" v-show="material._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME" style="color: #f56c6c;">
                     <Delete />
@@ -639,11 +659,13 @@
                       {{ getFolderShareStatus(row) ? '取消共享' : '放入共享' }}
                     </el-button>
                     <el-button link type="primary" @click.stop="editFolder(row)" v-hasPermi="['xcsc:FilePathMapping:edit']" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">重命名</el-button>
+                    <el-button link type="primary" @click.stop="moveFolder(row)" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">移动</el-button>
                     <el-button link type="danger" @click.stop="deleteFolder(row)" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">删除</el-button>
                   </div>
                   <div v-else class="table-actions">
                     <el-button link type="primary" @click.stop="showMaterialDetail(row)">标注</el-button>
                     <el-button link type="primary" @click.stop="editFile(row)" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">重命名</el-button>
+                    <el-button link type="primary" @click.stop="moveFile(row)" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">移动</el-button>
                     <el-button link type="danger" @click.stop="deleteFile(row)" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">删除</el-button>
                   </div>
                 </template>
@@ -674,6 +696,18 @@
 
     <!-- 素材标注弹框 -->
     <MarkDialog ref="markDialogRef" @updateFileList="getFolderData(curFolderObj.bizId)"></MarkDialog>
+    
+    <!-- 移动文件/文件夹弹框 -->
+    <MoveDialog
+      ref="moveDialogRef"
+      :show-search-results="showSearchResults"
+      :folder-data="folderData"
+      :file-list-data="fileListData"
+      :breadcrumb-data="breadcrumbData"
+      :cur-folder-obj="curFolderObj"
+      @refresh-folder="getFolderData(curFolderObj.bizId)"
+      @refresh-query="getQueryData"
+    />
   </div>
 </template>
 
@@ -685,11 +719,12 @@ import { ref, reactive, onMounted, computed, nextTick } from 'vue'
 import { api as viewerApi } from "v-viewer";
 import { Search, VideoCamera, Document, Check, Edit, VideoPlay, Back, ArrowRight, ArrowUp, FolderAdd, FolderOpened, Delete, Grid, List, DocumentCopy, Refresh, Share, Loading } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getFolderList, getSharedFolderList, updateShared, getFileList, updateFile, delFile, getFileEditKey } from "@/api/xcsc/uploadFile"
+import { getFolderList, getSharedFolderList, updateShared, getFileList, updateFile, delFile, getFileEditKey, delFolder, updateFolder } from "@/api/xcsc/uploadFile"
 import auth from '@/plugins/auth'
 import MarkDialog from './components/markDialog.vue'
 import UploadFileManager from './components/uploadFileManager.vue'
 import RenameDeleteDialog from './components/renameDeleteDialog.vue'
+import MoveDialog from './components/MoveDialog.vue'
 import EXIF from 'exif-js';
 import {
   getListRowKey,
@@ -899,6 +934,7 @@ const listViewRows = computed(() => {
 const queryTableRef = ref(null)
 const folderTableRef = ref(null)
 const selectedFileIds = ref([])
+const selectedFolderBizIds = ref([])
 const searchCurrentPage = ref(1)
 const searchPageSize = ref(20)
 const paginatedQueryFileListData = computed(() => {
@@ -906,26 +942,60 @@ const paginatedQueryFileListData = computed(() => {
   const end = start + searchPageSize.value
   return queryfileListData.value.slice(start, end)
 })
-const availableSelectableFiles = computed(() => {
-  const source = showSearchResults.value ? queryfileListData.value : fileListData.value
+function normalizeSelectionId(value) {
+  if (value === null || value === undefined || value === '') return ''
+  return String(value)
+}
+
+function getFileSelectionId(file) {
+  return normalizeSelectionId(file?.id)
+}
+
+function getFolderSelectionId(folder) {
+  return normalizeSelectionId(folder?.bizId ?? folder?.id)
+}
+
+const availableSelectableItems = computed(() => {
   if (!showSearchResults.value && curFolderObj.filePath === SHARED_FOLDER_NAME) {
     return []
   }
-  return source.filter(item => item?.id)
+  const files = (showSearchResults.value ? queryfileListData.value : fileListData.value)
+    .filter(item => getFileSelectionId(item))
+    .map(item => ({ ...item, _rowType: 'file' }))
+  if (showSearchResults.value) {
+    return files
+  }
+  const folders = visibleFolderData.value
+    .filter(item => getFolderSelectionId(item))
+    .map(item => ({ ...item, _rowType: 'folder' }))
+  return [...folders, ...files]
 })
-const allFilesSelected = computed(() => {
-  if (availableSelectableFiles.value.length === 0) return false
-  const idSet = new Set(selectedFileIds.value)
-  return availableSelectableFiles.value.every(item => idSet.has(item.id))
+const allItemsSelected = computed(() => {
+  if (availableSelectableItems.value.length === 0) return false
+  const fileSet = new Set(selectedFileIds.value.map(id => normalizeSelectionId(id)))
+  const folderSet = new Set(selectedFolderBizIds.value.map(id => normalizeSelectionId(id)))
+  return availableSelectableItems.value.every((item) => {
+    if (item?._rowType === 'folder') {
+      return folderSet.has(getFolderSelectionId(item))
+    }
+    return fileSet.has(getFileSelectionId(item))
+  })
 })
 const selectedFiles = computed(() => {
-  const idSet = new Set(selectedFileIds.value)
+  const idSet = new Set(selectedFileIds.value.map(id => normalizeSelectionId(id)))
   const source = showSearchResults.value ? queryfileListData.value : fileListData.value
-  return source.filter(item => idSet.has(item.id))
+  return source.filter(item => idSet.has(getFileSelectionId(item)))
 })
+const selectedFolders = computed(() => {
+  if (showSearchResults.value) return []
+  const idSet = new Set(selectedFolderBizIds.value.map(id => normalizeSelectionId(id)))
+  return visibleFolderData.value.filter(item => idSet.has(getFolderSelectionId(item)))
+})
+const selectedItemCount = computed(() => selectedFiles.value.length + selectedFolders.value.length)
 
-function clearSelectedFiles() {
+function clearSelectedItems() {
   selectedFileIds.value = []
+  selectedFolderBizIds.value = []
   nextTick(() => {
     queryTableRef.value?.clearSelection?.()
     folderTableRef.value?.clearSelection?.()
@@ -933,30 +1003,54 @@ function clearSelectedFiles() {
 }
 
 function isFileSelected(file) {
-  return selectedFileIds.value.includes(file?.id)
+  return selectedFileIds.value
+    .map(id => normalizeSelectionId(id))
+    .includes(getFileSelectionId(file))
+}
+
+function isFolderSelected(folder) {
+  return selectedFolderBizIds.value
+    .map(id => normalizeSelectionId(id))
+    .includes(getFolderSelectionId(folder))
 }
 
 function toggleFileSelected(file, checked) {
-  if (!file?.id) return
+  const fileId = getFileSelectionId(file)
+  if (!fileId) return
   if (!showSearchResults.value && curFolderObj.filePath === SHARED_FOLDER_NAME) return
+  const idSet = new Set(selectedFileIds.value.map(id => normalizeSelectionId(id)))
   if (checked) {
-    if (!selectedFileIds.value.includes(file.id)) {
-      selectedFileIds.value = [...selectedFileIds.value, file.id]
+    if (!idSet.has(fileId)) {
+      selectedFileIds.value = [...selectedFileIds.value, fileId]
     }
     return
   }
-  selectedFileIds.value = selectedFileIds.value.filter(id => id !== file.id)
+  selectedFileIds.value = selectedFileIds.value.filter(id => normalizeSelectionId(id) !== fileId)
+}
+
+function toggleFolderSelected(folder, checked) {
+  const folderId = getFolderSelectionId(folder)
+  if (!folderId) return
+  if (showSearchResults.value) return
+  if (curFolderObj.filePath === SHARED_FOLDER_NAME) return
+  const idSet = new Set(selectedFolderBizIds.value.map(id => normalizeSelectionId(id)))
+  if (checked) {
+    if (!idSet.has(folderId)) {
+      selectedFolderBizIds.value = [...selectedFolderBizIds.value, folderId]
+    }
+    return
+  }
+  selectedFolderBizIds.value = selectedFolderBizIds.value.filter(id => normalizeSelectionId(id) !== folderId)
 }
 
 function handleSearchTableSelectionChange(rows) {
-  const currentPageIds = new Set(paginatedQueryFileListData.value.map(item => item.id))
-  const preservedIds = selectedFileIds.value.filter(id => !currentPageIds.has(id))
-  const currentSelectedIds = rows.map(item => item.id)
+  const currentPageIds = new Set(paginatedQueryFileListData.value.map(item => getFileSelectionId(item)))
+  const preservedIds = selectedFileIds.value.filter(id => !currentPageIds.has(normalizeSelectionId(id)))
+  const currentSelectedIds = rows.map(item => getFileSelectionId(item)).filter(Boolean)
   selectedFileIds.value = [...preservedIds, ...currentSelectedIds]
 }
 
 function isFolderFileSelectable(row) {
-  if (row?._rowType === 'folder') return false
   if (curFolderObj.filePath === SHARED_FOLDER_NAME) return false
   return true
 }
@@ -964,17 +1058,23 @@ function isFolderFileSelectable(row) {
 function handleFolderTableSelectionChange(rows) {
   selectedFileIds.value = rows
     .filter(item => item?._rowType === 'file')
-    .map(item => item.id)
+    .map(item => getFileSelectionId(item))
+    .filter(Boolean)
+  selectedFolderBizIds.value = rows
+    .filter(item => item?._rowType === 'folder')
+    .map(item => getFolderSelectionId(item))
+    .filter(Boolean)
 }
 
 function syncTableSelectionByIds() {
   nextTick(() => {
-    const idSet = new Set(selectedFileIds.value)
+    const fileIdSet = new Set(selectedFileIds.value.map(id => normalizeSelectionId(id)))
+    const folderIdSet = new Set(selectedFolderBizIds.value.map(id => normalizeSelectionId(id)))
     if (showSearchResults.value) {
       const table = queryTableRef.value
       table?.clearSelection?.()
       paginatedQueryFileListData.value.forEach((row) => {
-        if (idSet.has(row.id)) {
+        if (fileIdSet.has(getFileSelectionId(row))) {
           table?.toggleRowSelection?.(row, true)
         }
       })
@@ -983,23 +1083,33 @@ function syncTableSelectionByIds() {
     const table = folderTableRef.value
     table?.clearSelection?.()
     listViewRows.value.forEach((row) => {
-      if (row?._rowType === 'file' && idSet.has(row.id)) {
+      if (row?._rowType === 'file' && fileIdSet.has(getFileSelectionId(row))) {
+        table?.toggleRowSelection?.(row, true)
+      }
+      if (row?._rowType === 'folder' && folderIdSet.has(getFolderSelectionId(row))) {
         table?.toggleRowSelection?.(row, true)
       }
     })
   })
 }
 
-function toggleSelectAllFiles() {
-  if (allFilesSelected.value) {
-    clearSelectedFiles()
+function toggleSelectAllItems() {
+  if (allItemsSelected.value) {
+    clearSelectedItems()
     return
   }
-  if (availableSelectableFiles.value.length === 0) {
-    ElMessage.warning('当前没有可选择的文件')
+  if (availableSelectableItems.value.length === 0) {
+    ElMessage.warning('当前没有可选择的项目')
     return
   }
-  selectedFileIds.value = availableSelectableFiles.value.map(item => item.id)
+  selectedFileIds.value = availableSelectableItems.value
+    .filter(item => item?._rowType === 'file')
+    .map(item => getFileSelectionId(item))
+    .filter(Boolean)
+  selectedFolderBizIds.value = availableSelectableItems.value
+    .filter(item => item?._rowType === 'folder')
+    .map(item => getFolderSelectionId(item))
+    .filter(Boolean)
   syncTableSelectionByIds()
 }
 
@@ -1047,7 +1157,7 @@ function switchViewMode(mode) {
 }
 //获取文件夹及文件列表数据
 async function getFolderData(pid, options = {}) {
-  clearSelectedFiles()
+  clearSelectedItems()
   const restoreScrollKey = options.restoreScrollKey
   let params = {
     pid: pid,
@@ -1098,7 +1208,7 @@ getFolderData(0)
 // ==================== 搜索与刷新 ====================
 // 获取搜索结果文件列表
 function getQueryData() {
-  clearSelectedFiles()
+  clearSelectedItems()
   searchCurrentPage.value = 1
   // loading.value = true
   let params = {
@@ -1126,7 +1236,7 @@ function refreshData() {
 
 // 重置搜索态并回到目录视图
 function resetSearch() {
-  clearSelectedFiles()
+  clearSelectedItems()
   searchCurrentPage.value = 1
   showSearchResults.value = false
   if (curFolderObj.bizId == 0) {
@@ -1215,33 +1325,54 @@ function renameFilesByFolderName() {
   }).catch(() => { })
 }
 
-// 勾选文件批量删除
-function deleteSelectedFiles() {
-  if (selectedFiles.value.length === 0) {
-    ElMessage.warning('请先勾选文件')
+// 勾选项目批量删除（文件夹/文件/混合）
+function deleteSelectedItems() {
+  if (selectedItemCount.value === 0) {
+    ElMessage.warning('请先勾选文件夹或文件')
     return
   }
-  proxy.$modal.confirm(`是否确认删除选中的${selectedFiles.value.length}个文件?`).then(() => {
-    const deletePromises = selectedFiles.value.map(file => delFile(file.id))
-    return Promise.allSettled(deletePromises)
+  const folderCount = selectedFolders.value.length
+  const fileCount = selectedFiles.value.length
+  proxy.$modal.confirm(`是否确认删除选中的${selectedItemCount.value}个项目（文件夹${folderCount}，文件${fileCount}）?`).then(() => {
+    const folderDeletePromises = selectedFolders.value.map(folder => delFolder(folder.bizId))
+    const fileDeletePromises = selectedFiles.value.map(file => delFile(file.id))
+    return Promise.allSettled([...folderDeletePromises, ...fileDeletePromises])
   }).then((results) => {
     const failed = results.filter(item => item.status === 'rejected').length
     const success = results.length - failed
     if (success > 0) {
-      ElMessage.success(`已删除${success}个文件`)
+      ElMessage.success(`已删除${success}个项目`)
     }
     if (failed > 0) {
-      ElMessage.warning(`${failed}个文件删除失败，请重试`)
+      ElMessage.warning(`${failed}个项目删除失败，请重试`)
     }
-    clearSelectedFiles()
+    clearSelectedItems()
     refreshData()
   }).catch(() => { })
 }
 
-// 勾选文件批量重命名（前缀 + 序号）
-function renameSelectedFiles() {
-  if (selectedFiles.value.length === 0) {
-    ElMessage.warning('请先勾选文件')
+// 批量移动项目（文件夹/文件/混合）
+function moveSelectedItems() {
+  if (selectedItemCount.value === 0) {
+    ElMessage.warning('请先勾选文件夹或文件')
+    return
+  }
+  const selectedItems = [
+    ...selectedFolders.value.map(item => ({ ...item, _rowType: 'folder' })),
+    ...selectedFiles.value.map(item => ({ ...item, _rowType: 'file' }))
+  ]
+  if (selectedItems.length === 1) {
+    const item = selectedItems[0]
+    moveDialogRef.value.open(item, item._rowType)
+    return
+  }
+  moveDialogRef.value.open(selectedItems, 'mixed')
+}
+
+// 勾选项目批量重命名（文件夹/文件/混合）
+function renameSelectedItems() {
+  if (selectedItemCount.value === 0) {
+    ElMessage.warning('请先勾选文件夹或文件')
     return
   }
   if (!showSearchResults.value && curFolderObj.filePath === SHARED_FOLDER_NAME) {
@@ -1249,8 +1380,8 @@ function renameSelectedFiles() {
     return
   }
 
-  const defaultPrefix = showSearchResults.value ? '文件' : (curFolderObj.filePath || '文件')
-  ElMessageBox.prompt('请输入批量重命名前缀，系统会自动追加序号并保留原后缀', '批量重命名', {
+  const defaultPrefix = showSearchResults.value ? '文件' : (curFolderObj.filePath || '项目')
+  ElMessageBox.prompt('请输入批量重命名前缀，系统会自动追加序号（文件保留原后缀）', '批量重命名', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     inputValue: defaultPrefix,
@@ -1261,17 +1392,25 @@ function renameSelectedFiles() {
     }
   }).then(async ({ value }) => {
     const prefix = value.trim()
-    const updatePromises = selectedFiles.value.map(async (file, idx) => {
+    let serial = 1
+    const folderPromises = selectedFolders.value.map((folder) => {
+      const params = {
+        id: folder.id,
+        bizId: folder.bizId,
+        filePath: `${prefix}${serial++}`
+      }
+      return updateFolder(params)
+    })
+    const filePromises = selectedFiles.value.map(async (file) => {
       try {
-        // 获取文件编辑Key
         const keyRes = await getFileEditKey(file.id)
         const tempFileKey = keyRes.data.fileKey
         const ext = getFileExtension(file.fileName || getFileName(file.minioPath))
-        const newName = `${prefix}${idx + 1}${ext}`
+        const newName = `${prefix}${serial++}${ext}`
         const localPath = buildRenameLocalPath(file, newName)
         const params = {
           id: file.id,
-          fileName: newName,
+          fileName: newName
         }
         if (localPath) {
           params.localPath = localPath
@@ -1282,23 +1421,26 @@ function renameSelectedFiles() {
         throw err
       }
     })
-    return Promise.allSettled(updatePromises)
+    return Promise.allSettled([...folderPromises, ...filePromises])
   }).then((results) => {
     const failed = results.filter(item => item.status === 'rejected').length
     const success = results.length - failed
     if (success > 0) {
-      ElMessage.success(`已重命名${success}个文件`)
+      ElMessage.success(`已重命名${success}个项目`)
     }
     if (failed > 0) {
-      ElMessage.warning(`${failed}个文件重命名失败，请检查命名冲突后重试`)
+      ElMessage.warning(`${failed}个项目重命名失败，请检查命名冲突后重试`)
     }
-    clearSelectedFiles()
+    clearSelectedItems()
     refreshData()
   }).catch(() => { })
 }
 
 // ==================== 重命名 / 删除弹窗 ====================
 const renameDeleteDialogRef = ref(null)
+
+// ==================== 移动弹窗 ====================
+const moveDialogRef = ref(null)
 
 function handleAddFolder() {
   renameDeleteDialogRef.value?.handleAddFolder()
@@ -1317,13 +1459,29 @@ function deleteFolder(item) {
   renameDeleteDialogRef.value?.deleteFolder(item)
 }
 
+// 移动文件夹
+function moveFolder(item) {
+  moveDialogRef.value?.open(item, 'folder')
+}
+
 // 删除文件
 function deleteFile(item) {
   renameDeleteDialogRef.value?.deleteFile(item)
 }
+
+// 移动文件
+function moveFile(item) {
+  moveDialogRef.value?.open(item, 'file')
+}
+
 // 搜索结果中删除文件
 function deleteFileinQuery(item) {
   renameDeleteDialogRef.value?.deleteFileinQuery(item)
+}
+
+// 搜索结果中移动文件
+function moveFileinQuery(item) {
+  moveDialogRef.value?.open(item, 'file')
 }
 
 // 文件夹悬浮控制
@@ -1956,6 +2114,12 @@ function sortFolderList(folderList) {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
 
+  &.is-selected {
+    border-color: #409eff;
+    background-color: #ecf5ff;
+    box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.15);
+  }
+
   .subFolder-actions {
     position: absolute;
     top: 8px;
@@ -1998,32 +2162,8 @@ function sortFolderList(folderList) {
   }
 }
 
+.subFolder,
 .material-item {
-    margin: 0;
-    position: relative;
-    width: 100%;
-    height: 255px;
-    border-radius: 8px;
-    transition: all 0.3s ease;
-    display: flex;
-    flex-direction: column;
-    background: #ffffff;
-    border: 1px solid #ebeef5;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    overflow: hidden;
-
-    &:hover {
-      border-color: #409eff;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-
-    &.is-selected {
-      border-color: #409eff;
-      background-color: #ecf5ff;
-      box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.15);
-    }
-
   .file-select-box {
     position: absolute;
     top: 8px;
@@ -2069,6 +2209,33 @@ function sortFolderList(folderList) {
     width: 4px;
     height: 8px;
   }
+}
+
+.material-item {
+    margin: 0;
+    position: relative;
+    width: 100%;
+    height: 255px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    border: 1px solid #ebeef5;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+
+    &:hover {
+      border-color: #409eff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    &.is-selected {
+      border-color: #409eff;
+      background-color: #ecf5ff;
+      box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.15);
+    }
 
   .material-thumb {
     // flex: 2;

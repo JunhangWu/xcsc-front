@@ -9,7 +9,7 @@ export function getFolderList(query) {
         params: query
     })
 }
-// 文件夹列表
+// 查看文件夹列表（无权限）
 export function getFolderListWithoutPremission(query) {
     return request({
         url: '/folder/listWithoutPremission',
@@ -58,6 +58,22 @@ export function delFolder(id) {
     return request({
         url: '/folder/' + id,
         method: 'delete'
+    })
+}
+
+// 移动文件夹（将源文件夹移动到目标文件夹下）
+export function moveFolder(data) {
+    return request({
+        url: '/folder/move',
+        method: 'put',
+        params: {
+            id: data.id,
+            bizId: data.bizId,
+            targetPid: data.targetPid
+        },
+        headers: {
+            skipRepeatSubmit: true
+        }
     })
 }
 
@@ -175,6 +191,22 @@ export function delFile(id) {
         method: 'delete'
     })
 }
+
+// 移动文件（将文件移动到其他文件夹下）
+export function moveFile(data) {
+    return request({
+        url: '/file/move',
+        method: 'put',
+        params: {
+            fileId: data.fileId,
+            targetFolderId: data.targetFolderId
+        },
+        headers: {
+            skipRepeatSubmit: true
+        }
+    })
+}
+
 // 获取临时fileKey（5分钟有效）
 export function getFileEditKey(fileId) {
     return request({

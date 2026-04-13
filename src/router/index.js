@@ -86,6 +86,30 @@ export const constantRoutes = [
         component: () => import('@/views/material/search/ai/index'),
         name: 'AISearch',
         meta: { title: 'AI搜索', activeMenu: '/index' }
+      },
+      {
+        path: 'material/ai-creation/image',
+        component: () => import('@/views/material/ai-creation/image/index'),
+        name: 'AICreationImage',
+        meta: { title: '图片创作', activeMenu: '/index' }
+      },
+      {
+        path: 'material/ai-creation/video',
+        component: () => import('@/views/material/ai-creation/video/index'),
+        name: 'AICreationVideo',
+        meta: { title: '视频创作', activeMenu: '/index' }
+      },
+      {
+        path: 'material/ai-creation/ppt',
+        component: () => import('@/views/material/ai-creation/ppt/index'),
+        name: 'AICreationPPT',
+        meta: { title: 'PPT创作', activeMenu: '/index' }
+      },
+      {
+        path: 'material/ai-creation/doc',
+        component: () => import('@/views/material/ai-creation/doc/index'),
+        name: 'AICreationDoc',
+        meta: { title: '文稿创作', activeMenu: '/index' }
       }
     ]
   },

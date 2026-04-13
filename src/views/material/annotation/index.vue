@@ -330,9 +330,9 @@ const searchTagKeywords = ref('')
 const currentStatus = ref('0')
 const fileListData = ref([])
 
-const sortField = ref('date')
+const sortField = ref('name')
 const sortOrder = ref('desc')
-const viewMode = ref('thumbnail')
+const viewMode = ref('list')
 const nameCollator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' })
 
 // 分页相关数据
@@ -431,6 +431,7 @@ function handleCurrentChange(page) {
 
 async function getFileListData() {
   loading.value = true
+  fileListData.value = []
   try {
     const params = {
       deptid: userStore.deptId,
@@ -1000,6 +1001,14 @@ onMounted(async () => {
 
 .sort-arrow.is-reverse {
   transform: rotate(180deg);
+}
+
+.el-button .el-icon {
+  transition: transform 0.3s ease;
+  
+  &.is-reverse {
+    transform: rotate(180deg);
+  }
 }
 
 .sortable-header {

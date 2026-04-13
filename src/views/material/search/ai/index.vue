@@ -184,6 +184,19 @@
                     </div>
                   </div>
                 </div>
+                
+                <!-- 分页组件 -->
+                <div v-if="showResults && total > 0" class="pagination-container">
+                  <el-pagination
+                    v-model:current-page="currentPage"
+                    :page-size="pageSize"
+                    :total="total"
+                    layout="total, prev, pager, next, jumper"
+                    :page-sizes="[12, 24, 36, 48]"
+                    @size-change="handleSizeChange"
+                    @current-change="handleCurrentChange"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -367,6 +380,11 @@ const loading = ref(false)
 const idList = ref([])
 const materialList = ref([])
 const total = ref(0)
+const allMaterialsCache = ref([])
+
+// 分页相关
+const currentPage = ref(1)
+const pageSize = ref(12)
 
 // 预览弹窗
 const previewVisible = ref(false)
@@ -422,9 +440,12 @@ function resetSearch() {
   // 重置页面状态
   showResults.value = false;
   showExamples.value = true;
-  // 清空素材列表
+  // 清空素材列表和缓存
   materialList.value = [];
+  allMaterialsCache.value = [];
   total.value = 0;
+  // 重置页码
+  currentPage.value = 1;
   // 清空ID列表
   idList.value = [];
 }
@@ -565,7 +586,14 @@ async function fetchSearchHistory() {
     console.log('userStore.id', userStore.id)
     const response = await getSearchList(params)
     // 假设API返回的数据格式需要转换为组件需要的格式
-    searchHistory.value = response.data || []
+    let historyData = response.data || []
+    // 按创建时间倒序排序
+    historyData.sort((a, b) => {
+      const timeA = new Date(a.createTime || 0).getTime()
+      const timeB = new Date(b.createTime || 0).getTime()
+      return timeB - timeA
+    })
+    searchHistory.value = historyData
   } catch (error) {
     console.log('暂无搜索历史')
     // ElMessage.error('获取搜索历史失败')
@@ -580,38 +608,56 @@ async function fetchMaterialList(keyword) {
   
   if (keyword) {
     currentSearchMessage.value = keyword;
+    // 新搜索时清空缓存
+    allMaterialsCache.value = [];
   }
 
   // 立即使用最新的 keyword 或者 fallback 到当前的搜索词
   const queryKeyword = keyword || searchKeyword.value || currentSearchMessage.value;
 
   try {
-    await getSearchMaterialIds(queryKeyword);
-    
-    console.log('idList.value', idList.value);
-    // 检查idList是否为空
-    if (!idList.value || idList.value.length === 0) {
-      materialList.value = [];
-      total.value = 0;
-      return;
+    // 如果有缓存且不是新搜索，直接使用缓存
+    if (allMaterialsCache.value.length > 0 && !keyword) {
+      const allMaterials = allMaterialsCache.value;
+      total.value = allMaterials.length;
+      const startIndex = (currentPage.value - 1) * pageSize.value;
+      const endIndex = startIndex + pageSize.value;
+      materialList.value = allMaterials.slice(startIndex, endIndex);
+    } else {
+      await getSearchMaterialIds(queryKeyword);
+      
+      console.log('idList.value', idList.value);
+      // 检查idList是否为空
+      if (!idList.value || idList.value.length === 0) {
+        materialList.value = [];
+        total.value = 0;
+        allMaterialsCache.value = [];
+        return;
+      }
+      
+      // 调用批量查询接口，传递idList作为参数
+      const res = await getFileBatch(idList.value); // 传递idList作为请求体参数
+      console.log('res', res.data);
+      
+      // 处理批量查询结果
+      const allMaterials = res.data || [];
+      console.log('批量查询到的素材列表:', allMaterials);
+      
+      // 缓存结果
+      allMaterialsCache.value = allMaterials;
+      
+      // 分页处理
+      total.value = allMaterials.length;
+      const startIndex = (currentPage.value - 1) * pageSize.value;
+      const endIndex = startIndex + pageSize.value;
+      materialList.value = allMaterials.slice(startIndex, endIndex);
     }
-    
-    // 调用批量查询接口，传递idList作为参数
-    const res = await getFileBatch(idList.value); // 传递idList作为请求体参数
-    console.log('res', res.data);
-    
-    // 处理批量查询结果
-    const allMaterials = res.data || [];
-    console.log('批量查询到的素材列表:', allMaterials);
-    
-    // 直接赋值，不进行分页
-    materialList.value = allMaterials;
-    total.value = allMaterials.length;
   } catch (error) {
     console.error('获取素材列表失败:', error);
     ElMessage.error('获取素材列表失败');
     materialList.value = [];
     total.value = 0;
+    allMaterialsCache.value = [];
   } finally {
     loading.value = false;
     console.log('materialList.value', materialList.value)
@@ -620,13 +666,42 @@ async function fetchMaterialList(keyword) {
 
 
 
+// 分页处理
+function handleSizeChange(size) {
+  pageSize.value = size
+  currentPage.value = 1
+  fetchMaterialList()
+}
+
+function handleCurrentChange(page) {
+  currentPage.value = page
+  fetchMaterialList()
+}
+
 // 预览素材
 function previewMaterial(material) {
   const parsed = parseAnnotation(material.annotationContent)
+  // 尝试解析原始的annotationContent以保留分类结构
+  let annotationData = {}
+  try {
+    if (material.annotationContent) {
+      annotationData = JSON.parse(material.annotationContent)
+    }
+  } catch (e) {
+    console.error("annotationContent 解析失败:", e)
+  }
   selectedMaterial.value = {
     ...material,
     annotationTags: parsed.tags,          // 所有标签
-    annotationDescription: parsed.desc    // 描述
+    annotationDescription: parsed.desc,    // 描述
+    // 保留原始分类结构
+    sceneCategory: annotationData.sceneCategory || [],
+    characterBehavior: annotationData.characterBehavior || [],
+    coreObjects: annotationData.coreObjects || [],
+    activityEvent: annotationData.activityEvent || [],
+    textInfo: annotationData.textInfo || [],
+    colorTone: annotationData.colorTone || [],
+    shootingAngle: annotationData.shootingAngle || []
   }
   previewVisible.value = true
 }
@@ -1191,6 +1266,15 @@ onMounted(function() {
     font-size: 16px;
     margin: 0;
   }
+}
+
+/* 分页样式 */
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px 0;
+  margin-top: 16px;
 }
 
 /* 网格布局样式 */

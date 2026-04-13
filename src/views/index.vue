@@ -756,8 +756,8 @@ function scrollIndexToTop() {
 
 //==============================================排序相关方法=========================================================================
 const sortField = ref('name') // 当前排序字段：name, size, date, type, favoriteTime
-const sortOrder = ref('asc') // 当前排序方向：asc, desc
-const viewMode = ref('thumbnail') // 当前展示模式：thumbnail, list
+const sortOrder = ref('desc') // 当前排序方向：asc, desc
+const viewMode = ref('list') // 当前展示模式：thumbnail, list
 const nameCollator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' })
 // 文件夹悬浮控制
 function onSubFolderMouseEnter(item) {
@@ -958,7 +958,7 @@ const handleSpaceClick = (spaceId) => {
   breadcrumbData.value = [];
 
   if (activeSpace.value == 'all') {
-    viewMode.value = 'thumbnail'
+    viewMode.value = 'list'
     fileListData.value = [];
     currentPage.value = 1; // 重置到第一页
     Object.assign(curFolderObj, { filePath: '', bizId: '', id: '' });
@@ -1135,6 +1135,14 @@ const queryfileListData = ref([])//搜索结果文件列表
 
 // 通用文件夹下内容获取（含搜索）
 function getFolderData(folderBizId, mode = 'folder', isSharedFolder = false) {
+  loading.value = true
+  if (mode === 'search') {
+    queryfileListData.value = []
+  } else {
+    folderData.value = []
+    fileListData.value = []
+  }
+  
   let params = {
     pid: folderBizId,
   }
@@ -1144,11 +1152,12 @@ function getFolderData(folderBizId, mode = 'folder', isSharedFolder = false) {
   // 1 获取文件夹列表（无论浏览/搜索，都获取文件夹结构）
   // 共享文件夹使用getSharedFolderList
   const folderListFn = isSharedFolder ? getSharedFolderList : getFolderList
-  folderListFn(params).then(res => {
+  const folderPromise = folderListFn(params).then(res => {
     folderData.value = res.data || []
     console.log('===folderData.value===', folderData.value)
   })
 
+  let filePromise = Promise.resolve()
   // 2 获取文件列表（浏览：folderBizId !== 0 才请求；搜索：强制请求，忽略folderBizId）
   // 判断条件   「搜索模式」OR「文件夹模式且folderBizId非0」
   if (mode === 'search' || (mode === 'folder' && folderBizId !== 0)) {
@@ -1167,20 +1176,20 @@ function getFolderData(folderBizId, mode = 'folder', isSharedFolder = false) {
       fileName: filterForm.fileName
     }
 
-    getFileList(param).then(res => {
+    filePromise = getFileList(param).then(res => {
       // 根据 mode 决定写入哪个列表
       const targetList = mode === 'search' ? queryfileListData : fileListData
       targetList.value = res.data || []
 
       // 获取收藏列表并同步状态
-      getCollectionData().then(() => {
+      return getCollectionData().then(() => {
         const favoriteFileIds = collectionList.value.map(item => item.fileId)
         targetList.value.forEach(file => {
           file.isFavorite = favoriteFileIds.includes(file.id)
         })
         console.log(`===${mode === 'search' ? 'queryfileListData' : 'fileListData'}.value===`, targetList.value)
       })
-
+    }).then(() => {
       // 搜索模式才显示搜索结果区域
       if (mode === 'search') {
         searchCurrentPage.value = 1
@@ -1188,6 +1197,10 @@ function getFolderData(folderBizId, mode = 'folder', isSharedFolder = false) {
       }
     })
   }
+
+  Promise.all([folderPromise, filePromise]).finally(() => {
+    loading.value = false
+  })
 }
 
 //点击子文件展示相关文件夹及文件
@@ -1218,6 +1231,7 @@ function selectFolder(item, type) {
 
 // 获取"所有文件"列表数据（按日期倒排）
 function getAllFileListData() {
+  loading.value = true
   const params = {
     fileTypeList: fileTypeObj[filterForm.fileType] || null,
     createStartTime: filterForm.dateRange?.[0] ? filterForm.dateRange[0] + ' 00:00:00' : null,
@@ -1228,9 +1242,13 @@ function getAllFileListData() {
   }
 
   getFileIndexList(params).then(res => {
-    Object.assign(allFileListData, res.data) // 直接覆盖，不用先删
+    // 先清空旧数据
+    for (const key in allFileListData) {
+      delete allFileListData[key]
+    }
+    Object.assign(allFileListData, res.data)
     // 设置收藏状态
-    getCollectionData().then(() => {
+    return getCollectionData().then(() => {
       const favoriteFileIds = collectionList.value.map(item => item.fileId)
       for (const dateKey in allFileListData) {
         allFileListData[dateKey].forEach(file => {
@@ -1238,8 +1256,11 @@ function getAllFileListData() {
         })
       }
     })
+  }).then(() => {
     // 更新文件总数
     fetchTotalFiles();
+  }).finally(() => {
+    loading.value = false
   })
 }
 //=======================================================================================================================
@@ -2455,6 +2476,14 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: #909399;
 
+  &.is-reverse {
+    transform: rotate(180deg);
+  }
+}
+
+.el-button .el-icon {
+  transition: transform 0.2s ease;
+  
   &.is-reverse {
     transform: rotate(180deg);
   }

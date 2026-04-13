@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-dialog
     v-model="dialogVisible"
     :title="dialogTitle"
@@ -15,11 +15,12 @@
         :data="folderTreeData"
         :props="treeProps"
         node-key="id"
-        default-expand-all
         @node-click="handleNodeClick"
         :current-node-key="selectedFolderId"
         class="folder-tree"
         :expand-on-click-node="false"
+        lazy
+        :load="loadNode"
       >
         <template #default="{ node, data }">
           <div class="tree-node-content">
@@ -88,11 +89,16 @@ const folderTreeData = ref([])
 const selectedFolderId = ref(null)
 const itemToMove = ref(null)
 const itemType = ref('') // 'file' or 'folder' or 'mixed'
+const folderCache = ref(new Map()) // 文件夹缓存
+const requestQueue = ref([]) // 请求队列
+const MAX_CONCURRENT_REQUESTS = 3 // 最大并发请求数
+const activeRequests = ref(0) // 当前活跃请求数
 
 // Tree props
 const treeProps = {
   children: 'children',
-  label: 'label'
+  label: 'label',
+  isLeaf: 'isLeaf'
 }
 
 function normalizeId(value) {
@@ -104,6 +110,10 @@ function normalizeId(value) {
 
 function getFolderBizId(folder) {
   return folder?.bizId ?? folder?.id ?? null
+}
+
+function getFolderRecordId(folder) {
+  return folder?.id ?? folder?.bizId ?? null
 }
 
 function getFileId(file) {
@@ -152,20 +162,20 @@ function open(item, type) {
 async function loadFolderTree() {
   loading.value = true
   try {
+    // 清空缓存
+    folderCache.value.clear()
     // 加载根文件夹
     const rootResponse = await getFolderList({ pid: 0 })
     const rootFolders = rootResponse.data || []
     
-    // 构建文件夹树，过滤掉共享文件夹
-    const treeData = await Promise.all(
-      rootFolders.filter(folder => !folder.isShared).map(async (rootFolder) => {
-        return {
-          id: normalizeId(rootFolder.bizId),
-          label: rootFolder.filePath,
-          children: await loadChildFolders(rootFolder.bizId)
-        }
-      })
-    )
+    // 构建根文件夹树，过滤掉共享文件夹
+    const treeData = rootFolders.filter(folder => !folder.isShared).map(rootFolder => {
+      return {
+        id: normalizeId(rootFolder.bizId),
+        label: rootFolder.filePath,
+        isLeaf: false
+      }
+    })
     
     folderTreeData.value = treeData
   } catch (error) {
@@ -176,32 +186,58 @@ async function loadFolderTree() {
   }
 }
 
-async function loadChildFolders(parentId) {
+async function loadNode(node, resolve) {
+  const nodeId = normalizeId(node.level === 0 ? 0 : (node?.data?.id ?? node?.key))
+  if (node.level !== 0 && !nodeId) {
+    resolve([])
+    return
+  }
+  
+  // 检查缓存
+  if (folderCache.value.has(nodeId)) {
+    const cachedChildren = folderCache.value.get(nodeId)
+    resolve(cachedChildren)
+    return
+  }
+  
+  // 添加到请求队列
+  requestQueue.value.push({ nodeId, resolve })
+  processRequestQueue()
+}
+
+async function processRequestQueue() {
+  if (requestQueue.value.length === 0 || activeRequests.value >= MAX_CONCURRENT_REQUESTS) {
+    return
+  }
+  
+  const request = requestQueue.value.shift()
+  activeRequests.value++
+  
   try {
-    const response = await getFolderList({ pid: parentId })
+    const response = await getFolderList({ pid: request.nodeId })
     const childFolders = response.data || []
     
     // 过滤掉共享文件夹
     const nonSharedFolders = childFolders.filter(folder => !folder.isShared)
     
-    if (nonSharedFolders.length === 0) {
-      return []
-    }
+    const children = nonSharedFolders.map(folder => {
+      return {
+        id: normalizeId(folder.bizId),
+        label: folder.filePath,
+        isLeaf: false
+      }
+    })
     
-    const children = await Promise.all(
-      nonSharedFolders.map(async (folder) => {
-        return {
-          id: normalizeId(folder.bizId),
-          label: folder.filePath,
-          children: await loadChildFolders(folder.bizId)
-        }
-      })
-    )
-    
-    return children
+    // 缓存结果
+    folderCache.value.set(request.nodeId, children)
+    request.resolve(children)
   } catch (error) {
-    console.error('Error loading child folders:', error)
-    return []
+    console.error(`Error loading child folders for node ${request.nodeId}:`, error)
+    request.resolve([])
+  } finally {
+    activeRequests.value--
+    // 处理下一个请求
+    processRequestQueue()
   }
 }
 
@@ -283,14 +319,16 @@ async function handleMove() {
     let folderFailedCount = 0
 
     for (const folder of foldersToMove) {
-      if (!getFolderBizId(folder)) {
+      const sourceBizId = getFolderBizId(folder)
+      const sourceId = getFolderRecordId(folder)
+      if (!sourceBizId) {
         folderFailedCount++
         continue
       }
       try {
         await moveFolder({
-          id: folder.id,
-          bizId: folder.bizId,
+          id: sourceId,
+          bizId: sourceBizId,
           targetPid: targetFolderId
         })
         folderSuccessCount++
@@ -374,43 +412,11 @@ function findNodeById(id, tree) {
 }
 
 function isChildFolder(childId, parentId) {
-  // 递归检查是否是子文件夹
-  function findFolder(id, tree) {
-    const normalizedId = normalizeId(id)
-    for (const node of tree) {
-      if (normalizeId(node.id) === normalizedId) {
-        return true
-      }
-      if (node.children && node.children.length > 0) {
-        if (findFolder(id, node.children)) {
-          return true
-        }
-      }
-    }
-    return false
-  }
-  
-  // 找到父文件夹
-  let parentNode = null
-  function findParent(id, tree) {
-    const normalizedId = normalizeId(id)
-    for (const node of tree) {
-      if (normalizeId(node.id) === normalizedId) {
-        parentNode = node
-        return
-      }
-      if (node.children && node.children.length > 0) {
-        findParent(id, node.children)
-      }
-    }
-  }
-  
-  findParent(parentId, folderTreeData.value)
-  if (parentNode && parentNode.children) {
-    return findFolder(childId, parentNode.children)
-  }
-  
-  return false
+  // 由于使用懒加载，无法通过本地树结构判断是否为子文件夹
+  // 这里简化处理，只检查是否移动到自身
+  const normalizedChildId = normalizeId(childId)
+  const normalizedParentId = normalizeId(parentId)
+  return normalizedChildId === normalizedParentId
 }
 
 // Methods

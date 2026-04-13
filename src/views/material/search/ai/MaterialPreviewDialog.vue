@@ -10,15 +10,24 @@
       <div class="preview-content">
         <!-- 左侧预览区 -->
         <div class="preview-area">
-          <div v-if="getFileType(material.minioPath) === 'image'" class="image-preview">
-            <img :src="getProxyPath(material.minioPath)" :alt="material.fileName" class="preview-image" />
+          <div v-if="!previewReady" class="file-preview">加载中...</div>
+          <div v-else-if="getFileType(previewMaterial.minioPath) === 'image'" class="image-preview">
+            <img
+              :key="previewMaterial.minioPath || previewMaterial.id || previewMaterial.fileName"
+              :src="getProxyPath(previewMaterial.minioPath)"
+              :alt="previewMaterial.fileName"
+              class="preview-image"
+            />
           </div>
-          <div v-else-if="getFileType(material.minioPath) === 'video'" class="video-preview">
-            <video :src="getProxyPath(material.minioPath)" controls autoplay loop muted playsinline
+          <div v-else-if="getFileType(previewMaterial.minioPath) === 'video'" class="video-preview">
+            <video
+              :key="previewMaterial.minioPath || previewMaterial.id || previewMaterial.fileName"
+              :src="getProxyPath(previewMaterial.minioPath)"
+              controls autoplay loop muted playsinline
               style="max-width: 100%; max-height: 500px; width: auto; height: auto; display: block; object-fit: contain;"></video>
           </div>
           <div v-else class="file-preview">
-            <el-link type="primary" :href="getProxyPath(material.minioPath)" target="_blank">{{ material.fileName}}</el-link>
+            <el-link type="primary" :href="getProxyPath(previewMaterial.minioPath)" target="_blank">{{ previewMaterial.fileName}}</el-link>
           </div>
         </div>
 
@@ -203,7 +212,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { Document } from '@element-plus/icons-vue'
 import { parseTime } from '@/utils/common'
 
@@ -224,6 +233,38 @@ const dialogVisible = computed({
   get: () => props.visible,
   set: (val) => emit('update:visible', val)
 })
+const previewReady = ref(false)
+const previewMaterial = ref({})
+
+function syncPreviewMaterial() {
+  previewMaterial.value = { ...(props.material || {}) }
+  previewReady.value = !!previewMaterial.value.minioPath
+}
+
+watch(
+  () => props.visible,
+  (visible) => {
+    if (!visible) {
+      previewReady.value = false
+      previewMaterial.value = {}
+      return
+    }
+    previewReady.value = false
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        syncPreviewMaterial()
+      })
+    })
+  }
+)
+
+watch(
+  () => [props.material?.id, props.material?.minioPath, props.material?.fileName],
+  () => {
+    if (!props.visible) return
+    syncPreviewMaterial()
+  }
+)
 
 const getProxyPath = (url) => {
   if (!url) return ''

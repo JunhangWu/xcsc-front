@@ -80,6 +80,12 @@ export const constantRoutes = [
         component: () => import('@/views/MaterialPreview'),
         name: 'MaterialPreview',
         meta: { title: '素材预览', activeMenu: '/index' }
+      },
+      {
+        path: 'material/search/ai',
+        component: () => import('@/views/material/search/ai/index'),
+        name: 'AISearch',
+        meta: { title: 'AI搜索', activeMenu: '/index' }
       }
     ]
   },

@@ -71,6 +71,19 @@
             <el-button type="primary" @click="handleQuery">查询</el-button>
             <el-button @click="handleReset">重置</el-button>
           </el-form-item>
+
+          <el-form-item>
+            <div class="ai-search-container" @click="goToAISearch">
+              <el-button type="primary" plain class="ai-search-btn">
+                <el-icon><Monitor /></el-icon>
+                AI搜索
+              </el-button>
+              <!-- <div class="robot-tips">
+                <el-icon class="robot-icon"><Service /></el-icon>
+                <div class="bubble-box">搜不出想要的结果？试试AI智能搜索！</div>
+              </div> -->
+            </div>
+          </el-form-item>
         </el-form>
       </div>
       <!-- 搜索结果展示区域 -->
@@ -692,7 +705,9 @@ import {
   ArrowRight,
   ArrowUp,
   Grid,
-  Check
+  Check,
+  Monitor,
+  Service
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getFolderList,getSharedFolderList, getFileList, getCollectFileList, getFileIndexList, getCollectionList, addCollection, delCollection,  getDeptCategoryList, countAllFile } from "@/api/xcsc/uploadFile"
@@ -1633,6 +1648,11 @@ const handleMaterialClick = (material) => {
 
 
 
+// 跳转到AI搜索
+const goToAISearch = () => {
+  router.push('/material/search/ai')
+}
+
 // 定时检查同步（每5秒）
 let syncInterval = null
 
@@ -2565,5 +2585,78 @@ onBeforeUnmount(() => {
     width: 60px;
     height: 60px;
   }
+}
+
+.ai-search-container {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-left: 10px;
+  transition: all 0.3s;
+}
+
+.ai-search-container:hover {
+  opacity: 0.8;
+}
+
+.ai-search-btn {
+  margin-right: 15px;
+  font-weight: bold;
+}
+
+.robot-tips {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.robot-icon {
+  font-size: 32px;
+  color: #409eff;
+  margin-right: 12px;
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.bubble-box {
+  position: relative;
+  background: #ecf5ff;
+  border: 1px solid #b3d8ff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #409eff;
+  font-weight: bold;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.bubble-box::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -6px;
+  transform: translateY(-50%);
+  border-width: 6px 6px 6px 0;
+  border-style: solid;
+  border-color: transparent #b3d8ff transparent transparent;
+}
+
+.bubble-box::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -5px;
+  transform: translateY(-50%);
+  border-width: 5px 5px 5px 0;
+  border-style: solid;
+  border-color: transparent #ecf5ff transparent transparent;
 }
 </style>

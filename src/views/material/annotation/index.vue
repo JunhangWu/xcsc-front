@@ -314,7 +314,7 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { api as viewerApi } from "v-viewer";
 import { parseTime, } from '@/utils/common'
 import { scrollPageTop } from '@/utils/scroll-to'
-import { Search, VideoCamera, Document, Check, Edit, VideoPlay, VideoPause, Back, ArrowRight, ArrowUp, FolderAdd, FolderOpened, Upload, UploadFilled, Delete, Grid, Close, List, Files, DocumentCopy, Refresh, Clock, CircleCheck, CircleCheckFilled } from '@element-plus/icons-vue'
+import { Search, VideoCamera, Document, Check, Edit, VideoPlay, VideoPause, Back, ArrowRight, ArrowUp, FolderAdd, FolderOpened, Upload, UploadFilled, Delete, Grid, Close, List, Files, DocumentCopy, Refresh, Clock, CircleCheck, CircleCheckFilled, Warning } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getFolderList, addFolder, updateFolder, delFolder, uploadFiles, getFileListPage, delFile, updateFile, checkChunks, uploadFileChunk, mergeFileChunks,minioProxyUrl, getFileEditKey} from "@/api/xcsc/uploadFile"
 import auth from '@/plugins/auth'
@@ -343,7 +343,8 @@ const total = ref(0)
 const statusList = ref([
   { label: '待标注', value: '0', icon: Clock, count: 0 },
   { label: '待审核', value: '1', icon: Edit, count: 0 },
-  { label: '已审核', value: '2', icon: CircleCheckFilled, count: 0 }
+  { label: '已审核', value: '2', icon: CircleCheckFilled, count: 0 },
+  { label: '标注失败', value: '3', icon: Warning, count: 0 }
 ])
 
 const filteredFileList = computed(() => {
@@ -519,7 +520,8 @@ function getStatusText(status) {
   const statusMap = {
     '0': '待标注',
     '1': '待审核',
-    '2': '已审核'
+    '2': '已审核',
+    '3': '标注失败'
   }
   return statusMap[status] || '未知'
 }
@@ -527,8 +529,9 @@ function getStatusText(status) {
 function getStatusTagType(status) {
   const typeMap = {
     '0': 'warning',
-    '1': 'info',
-    '2': 'success'
+    '1': 'primary',
+    '2': 'success',
+    '3': 'danger'
   }
   return typeMap[status] || 'info'
 }
@@ -823,8 +826,9 @@ onMounted(async () => {
   }
 }
 
-/* 待标注状态数量显示为红色 */
-.sidebar-item:nth-child(1) .sidebar-count {
+/* 待标注和标注失败状态数量显示为红色 */
+.sidebar-item:nth-child(1) .sidebar-count,
+.sidebar-item:nth-child(4) .sidebar-count {
   color: #f56c6c;
   background-color: #fef0f0;
   

@@ -1,8 +1,12 @@
 <template>
-  <div class="app-container">
-    <div class="main-content">
+  <div class="app-container ai-search-page">
+    <div class="main-content" :class="{ 'has-results': showResults }">
       <!-- 左侧搜索历史 -->
       <div class="sidebar">
+        <el-button class="new-chat-btn" type="primary" @click="resetSearch">
+          <el-icon><Plus /></el-icon>
+          <span>新对话</span>
+        </el-button>
         <div class="history-section">
           <h3>最近搜索</h3>
           <div class="history-list" v-if="searchHistory.length > 0">
@@ -49,10 +53,148 @@
 
       <!-- 右侧主内容 -->
       <div class="search-content">
-        <!-- 页面标题和描述 -->
-        <div class="header-section">
-          <h1 class="page-title">AI智能搜索</h1>
-          <p class="page-description">使用AI技术快速查找素材，支持自然语言查询。</p>
+        <div class="scrollable-area">
+          <!-- 页面标题和描述 -->
+          <div class="header-section" :class="{ 'header-active': showResults }">
+            <h1 class="page-title">AI智能搜索</h1>
+            <p class="page-description">使用AI技术快速查找素材，支持自然语言查询。</p>
+          </div>
+
+          <!-- 搜索示例 -->
+          <div class="examples-section" v-if="showExamples">
+            <h3>搜索示例:</h3>
+            <div class="examples-list">
+              <el-tag 
+                v-for="example in searchExamples" 
+                :key="example.id" 
+                class="example-tag"
+                @click="searchWithExample(example.text)"
+              >
+                {{ example.text }}
+              </el-tag>
+            </div>
+          </div>
+
+          <!-- 搜索结果区域 -->
+          <div v-if="showResults" class="search-results">
+            <!-- 用户提问消息 -->
+            <div class="message-row user-row" v-if="currentSearchMessage">
+              <div class="message-bubble user-bubble">
+                {{ currentSearchMessage }}
+              </div>
+            </div>
+
+            <!-- AI回答消息 -->
+            <div class="message-row ai-row">
+              <div class="ai-avatar">
+                <img src="@/assets/logo/logo.png" alt="AI" onerror="this.style.display='none'" />
+                <el-icon class="fallback-icon"><Monitor /></el-icon>
+              </div>
+              <div class="ai-content">
+                <div class="assistant-reply-wrapper">
+                  <div class="assistant-title">为你找到以下相关素材：</div>
+                  <div class="search-result-stats" v-if="total > 0">
+                    <span>找到 <strong>{{ total }}</strong> 条相关素材</span>
+                  </div>
+                </div>
+                
+                <!-- 空结果提示 -->
+                <div v-if="!loading && materialList.length === 0" class="empty-result">
+                  <div class="empty-icon">
+                    <el-icon><Search /></el-icon>
+                  </div>
+                  <p class="empty-text">未找到相关素材，请尝试其他关键词</p>
+                </div>
+                
+                <!-- 素材网格 -->
+                <div v-else class="material-grid" v-loading="loading">
+                  <div 
+                    v-for="material in materialList" 
+                    :key="material.id" 
+                    class="material-card"
+                  >
+                    <!-- 素材预览 -->
+                    <div class="material-preview-container" @click="previewMaterial(material)" style="cursor: pointer;">
+                      <img 
+                        v-if="isImage(material.minioPath)" 
+                        :src="getProxyPath(material.coverPath) || getProxyPath(material.minioPath)" 
+                        class="material-thumbnail" 
+                      />
+                      <!-- <div v-else-if="isVideo(material.minioPath)" src="material.minioPath" class="video-placeholder">
+                        <el-icon><VideoCamera /></el-icon>
+                      </div> -->
+                      <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="previewVideo(material)">
+                        <el-icon class="file-icon">
+                          <VideoPlay />
+                        </el-icon>
+                        <img :src="getProxyPath(material.coverPath)" :alt="material.fileName"/>
+                        <!-- <video :src="material.minioPath" playsinline muted preload="metadata"
+                          style="max-width: 95%; max-height: 95%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video> -->
+                      </div>
+                      <div v-else class="document-placeholder">
+                        <el-icon><Document /></el-icon>
+                      </div>
+                    </div>
+                    
+                    <!-- 素材信息 -->
+                    <div class="material-info">
+                      <div class="material-name" :title="material.fileName">{{ material.fileName }}</div>
+                      <div class="material-meta">
+                        <span class="material-size">{{ material.fileSize }} MB</span>
+                        <!-- <span class="material-type">{{ material.type.split('/')[1].toUpperCase() }}</span> -->
+                      </div>
+                      <!-- <div class="material-tags">
+                        <el-tag 
+                          v-for="tag in material.tags.slice(0, 3)"
+                          :key="tag"
+                          size="small"
+                          v-if="tag"
+                        >
+                          {{ tag }}
+                        </el-tag>
+                        <el-tag 
+                          v-if="material.tags.length > 3"
+                          size="small"
+                          type="info"
+                        >
+                          +{{ material.tags.length - 3 }}
+                        </el-tag>
+                      </div> -->
+                      <div class="material-upload-time">{{ material.uploadTime }}</div>
+                      
+                      <!-- 操作按钮 -->
+                      <div class="material-actions">
+                        <el-button 
+                          type="primary" 
+                          size="small" 
+                          @click.stop="previewMaterial(material)"
+                          icon="View"
+                        >
+                          预览
+                        </el-button>
+                        <el-button 
+                          type="default" 
+                          size="small" 
+                          @click.stop="downloadMaterial(material)"
+                          icon="Download"
+                        >
+                          下载
+                        </el-button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 初始状态提示 -->
+          <div v-if="!showResults && !showExamples" class="search-suggestion">
+            <div class="suggestion-icon">
+              <el-icon><Search /></el-icon>
+            </div>
+            <p class="suggestion-text">输入关键词开始AI搜索</p>
+          </div>
         </div>
 
         <!-- 搜索框 -->
@@ -60,248 +202,139 @@
           <div class="search-input-wrapper">
             <el-input
               v-model="searchKeyword"
-              placeholder="请输入图片描述或关键词..."
-              style="width: 100%;"
-              @keyup.enter="searchMaterials"
-              clearable
+              type="textarea"
+              :rows="3"
+              resize="none"
+              placeholder="发送消息..."
+              @keydown.enter.prevent="searchMaterials"
             >
-              <template #append>
-                <el-button type="primary" @click="searchMaterials" class="ai-search-button">
-                  <el-icon><Search /></el-icon> AI搜索
-                </el-button>
-              </template>
             </el-input>
-          </div>
-          <div class="search-actions">
-            <el-button @click="resetSearch" class="reset-button" style="margin-left: 10px;">
-              <el-icon><Refresh /></el-icon> 重置
-            </el-button>
-          </div>
-        </div>
-
-        <!-- 搜索示例 -->
-        <div class="examples-section" v-if="showExamples">
-          <h3>搜索示例:</h3>
-          <div class="examples-list">
-            <el-tag 
-              v-for="example in searchExamples" 
-              :key="example.id" 
-              class="example-tag"
-              @click="searchWithExample(example.text)"
-            >
-              {{ example.text }}
-            </el-tag>
-          </div>
-        </div>
-
-        <!-- 搜索结果区域 -->
-        <div v-if="showResults" class="search-results">
-          <div class="search-result-stats">
-            <span>找到 <strong>{{ total }}</strong> 条相关素材</span>
-          </div>
-          
-          <!-- 空结果提示 -->
-          <div v-if="!loading && materialList.length === 0" class="empty-result">
-            <div class="empty-icon">
-              <el-icon><Search /></el-icon>
-            </div>
-            <p class="empty-text">未找到相关素材，请尝试其他关键词</p>
-          </div>
-          
-          <!-- 素材网格 -->
-          <div v-else class="material-grid" v-loading="loading">
-            <div 
-              v-for="material in materialList" 
-              :key="material.id" 
-              class="material-card"
-            >
-              <!-- 素材预览 -->
-              <div class="material-preview-container" @click="previewMaterial(material)" style="cursor: pointer;">
-                <img 
-                  v-if="isImage(material.minioPath)" 
-                  :src="getProxyPath(material.coverPath) || getProxyPath(material.minioPath)" 
-                  class="material-thumbnail" 
-                />
-                <!-- <div v-else-if="isVideo(material.minioPath)" src="material.minioPath" class="video-placeholder">
-                  <el-icon><VideoCamera /></el-icon>
-                </div> -->
-                <div class="videoBox" v-else-if="isVideo(material.minioPath)" @click="previewVideo(material)">
-                  <el-icon class="file-icon">
-                    <VideoPlay />
-                  </el-icon>
-                  <img :src="getProxyPath(material.coverPath)" :alt="material.fileName"/>
-                  <!-- <video :src="material.minioPath" playsinline muted preload="metadata"
-                    style="max-width: 95%; max-height: 95%; width: auto; height: auto; display: block; object-fit: contain; margin: 0 auto; overflow: hidden;"></video> -->
-                </div>
-                <div v-else class="document-placeholder">
-                  <el-icon><Document /></el-icon>
-                </div>
-              </div>
-              
-              <!-- 素材信息 -->
-              <div class="material-info">
-                <div class="material-name" :title="material.fileName">{{ material.fileName }}</div>
-                <div class="material-meta">
-                  <span class="material-size">{{ material.fileSize }} MB</span>
-                  <!-- <span class="material-type">{{ material.type.split('/')[1].toUpperCase() }}</span> -->
-                </div>
-                <!-- <div class="material-tags">
-                  <el-tag 
-                    v-for="tag in material.tags.slice(0, 3)"
-                    :key="tag"
-                    size="small"
-                    v-if="tag"
-                  >
-                    {{ tag }}
-                  </el-tag>
-                  <el-tag 
-                    v-if="material.tags.length > 3"
-                    size="small"
-                    type="info"
-                  >
-                    +{{ material.tags.length - 3 }}
-                  </el-tag>
-                </div> -->
-                <div class="material-upload-time">{{ material.uploadTime }}</div>
-                
-                <!-- 操作按钮 -->
-                <div class="material-actions">
-                  <el-button 
-                    type="primary" 
-                    size="small" 
-                    @click.stop="previewMaterial(material)"
-                    icon="View"
-                  >
-                    预览
-                  </el-button>
-                  <el-button 
-                    type="default" 
-                    size="small" 
-                    @click.stop="downloadMaterial(material)"
-                    icon="Download"
-                  >
-                    下载
-                  </el-button>
-                </div>
-              </div>
+            <div class="input-bottom-actions">
+              <el-button 
+                type="info" 
+                circle 
+                plain
+                @click="toggleRecording" 
+                class="voice-btn" 
+                :class="{ 'is-recording': isRecording }"
+                title="语音输入"
+              >
+                <el-icon><Microphone /></el-icon>
+              </el-button>
+              <el-button 
+                type="primary" 
+                circle 
+                @click="searchMaterials" 
+                class="send-btn" 
+                :disabled="!searchKeyword.trim()"
+              >
+                <el-icon><Top /></el-icon>
+              </el-button>
             </div>
           </div>
-          
-          <!-- 分页 -->
-          <div class="pagination-container">
-            <el-pagination
-              v-model:current-page="currentPage"
-              v-model:page-size="pageSize"
-              :page-sizes="[10, 20, 50, 100]"
-              layout="total, sizes, prev, pager, next, jumper"
-              :total="total"
-              @size-change="handleSizeChange"
-              @current-change="handleCurrentChange"
-            />
-          </div>
-        </div>
-
-        <!-- 初始状态提示 -->
-        <div v-if="!showResults && !showExamples" class="search-suggestion">
-          <div class="suggestion-icon">
-            <el-icon><Search /></el-icon>
-          </div>
-          <p class="suggestion-text">输入关键词开始AI搜索</p>
         </div>
       </div>
     </div>
     
     <!-- 素材预览弹窗 -->
-    <el-dialog
-      v-model="previewVisible"
-      title="素材预览"
-      width="80%"
-      :before-close="handleClose"
-    >
-      <div class="preview-dialog">
-        <div class="preview-content">
-          <div
-              v-if="['jpg','jpeg','png','gif','webp','bmp','svg'].includes(
-                  selectedMaterial.fileType?.toLowerCase()
-              )"
-              class="image-preview"
-          >
-            <img :src="getProxyPath(selectedMaterial.minioPath)" class="full-image" />
-          </div>
-          <div
-              v-else-if="['mp4','mov','avi','mkv','flv','wmv','webm'].includes(
-               selectedMaterial.fileType?.toLowerCase().replace('.', '')
-             )"
-              class="video-preview"
-          >
-            <div class="video-placeholder">
-                  <video :src="getProxyPath(selectedMaterial.minioPath)" controls autoplay loop muted playsinline
-                      style="max-width: 100%; max-height: 400px; width: auto; height: auto; display: block; object-fit: contain;"></video>
-              <!-- <span>视频预览区域</span> -->
-            </div>
-          </div>
-          <div v-else class="document-preview">
-            <div class="document-placeholder">
-              <el-icon><Document /></el-icon>
-              <span>文档预览区域</span>
-            </div>
-          </div>
-          <div class="material-info">
-            <h3>{{ selectedMaterial.fileName }}</h3>
-            <div class="info-row">
-              <!-- <span class="info-label">素材ID:</span>
-              <span class="info-value">{{ selectedMaterial.id }}</span> -->
-            </div>
-            <div class="info-row">
-              <span class="info-label">大小:</span>
-              <span class="info-value">{{ selectedMaterial.fileSize }} M</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">类型:</span>
-              <span class="info-value">{{ selectedMaterial.fileType }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">上传时间:</span>
-              <span class="info-value">{{ parseTime(selectedMaterial.createTime) }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">标签:</span>
-              <div class="tag-list">
-                <el-tag
-                    v-for="tag in selectedMaterial.annotationTags"
-                    :key="tag"
-                    size="small"
-                >
-                  {{ tag }}
-                </el-tag>
-              </div>
-            </div>
-            <div class="info-row">
-              <span class="info-label">描述:</span>
-              <span class="info-value">{{ selectedMaterial.annotationDescription || '无' }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="handleClose">关闭</el-button>
-          <el-button type="primary" @click="downloadMaterial(selectedMaterial)">下载素材</el-button>
-        </div>
-      </template>
-    </el-dialog>
+    <MaterialPreviewDialog
+      v-model:visible="previewVisible"
+      :material="selectedMaterial"
+      @download="downloadMaterial"
+    />
   </div>
 </template>
 
 <script setup name="Search">
 import { ref, reactive, onMounted } from 'vue'
-import { Search, VideoCamera, Document, View, Download, RefreshRight, Delete, Refresh,VideoPlay } from '@element-plus/icons-vue'
+import { Search, VideoCamera, Document, View, Download, RefreshRight, Delete, Refresh,VideoPlay, Top, Monitor, Plus, Microphone } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {getSearchList, addSearch, delSearch, delAllSearchHistory} from "@/api/xcsc/search"
 import {getFileList,getFileBatch} from "@/api/xcsc/uploadFile"
 import useUserStore from '@/store/modules/user'
 import { scrollPageTop } from '@/utils/scroll-to'
+import MaterialPreviewDialog from './MaterialPreviewDialog.vue'
+
+// 语音识别相关变量
+const isRecording = ref(false)
+let recognition = null
+
+// 初始化语音识别
+const initSpeechRecognition = () => {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+  if (!SpeechRecognition) {
+    ElMessage.warning('当前浏览器不支持语音输入功能，请使用 Chrome 等现代浏览器')
+    return null
+  }
+  
+  const instance = new SpeechRecognition()
+  instance.lang = 'zh-CN'
+  instance.continuous = false
+  instance.interimResults = true
+  
+  instance.onstart = () => {
+    isRecording.value = true
+  }
+  
+  instance.onresult = (event) => {
+    let interimTranscript = ''
+    let finalTranscript = ''
+    
+    for (let i = event.resultIndex; i < event.results.length; ++i) {
+      if (event.results[i].isFinal) {
+        finalTranscript += event.results[i][0].transcript
+      } else {
+        interimTranscript += event.results[i][0].transcript
+      }
+    }
+    
+    if (finalTranscript) {
+      // 避免重复追加，可以在实际应用中做更细致的拼接处理
+      searchKeyword.value += finalTranscript
+    }
+  }
+  
+  instance.onerror = (event) => {
+    console.error('语音识别错误:', event.error)
+    isRecording.value = false
+    if (event.error === 'not-allowed') {
+      ElMessage.error('请允许浏览器使用麦克风')
+    } else if (event.error === 'network') {
+      ElMessage.error('网络连接失败，部分浏览器可能因网络限制无法使用语音识别功能')
+    } else if (event.error === 'no-speech') {
+      ElMessage.warning('未识别到说话！')
+    } else {
+      ElMessage.error('语音识别出错: ' + event.error)
+    }
+  }
+  
+  instance.onend = () => {
+    isRecording.value = false
+  }
+  
+  return instance
+}
+
+// 切换录音状态
+const toggleRecording = () => {
+  if (isRecording.value) {
+    if (recognition) {
+      recognition.stop()
+    }
+    isRecording.value = false
+  } else {
+    if (!recognition) {
+      recognition = initSpeechRecognition()
+    }
+    if (recognition) {
+      try {
+        recognition.start()
+      } catch (error) {
+        console.error('启动语音识别失败:', error)
+      }
+    }
+  }
+}
 
 // 视频预览相关变量
 const videoDialogVisible = ref(false)
@@ -327,13 +360,12 @@ const getProxyPath = (url) => {
 const userStore = useUserStore()
 // 搜索关键词
 const searchKeyword = ref('')
+const currentSearchMessage = ref('')
 
 // 素材列表
 const loading = ref(false)
 const idList = ref([])
 const materialList = ref([])
-const currentPage = ref(1)
-const pageSize = ref(10)
 const total = ref(0)
 
 // 预览弹窗
@@ -384,16 +416,15 @@ function previewVideo(material) {
 }
 // 重置搜索
 function resetSearch() {
-  // 清空搜索关键词
+  // 清空搜索关键词和当前显示消息
   searchKeyword.value = '';
+  currentSearchMessage.value = '';
   // 重置页面状态
   showResults.value = false;
   showExamples.value = true;
   // 清空素材列表
   materialList.value = [];
   total.value = 0;
-  // 重置分页
-  currentPage.value = 1;
   // 清空ID列表
   idList.value = [];
 }
@@ -404,10 +435,19 @@ async function searchMaterials() {
     return
   }
   console.log('searchKeyword.value', searchKeyword.value)
-  // 先获取搜索结果
-  await fetchMaterialList()
+  
+  // 更新当前显示的消息并重置搜索状态
+  currentSearchMessage.value = searchKeyword.value
+  const currentKeyword = searchKeyword.value
+  loading.value = true;
+  showExamples.value = false;
+  showResults.value = true;
   // 保存到搜索历史
-  await saveToSearchHistory(searchKeyword.value)
+  await saveToSearchHistory(currentKeyword)
+  await getSearchMaterialIds(currentKeyword)
+  await fetchMaterialList(currentKeyword)
+  // 清空输入框
+  searchKeyword.value = ''
 }
 
 // 保存搜索历史
@@ -431,7 +471,7 @@ async function saveToSearchHistory(keyword) {
 async function getSearchMaterialIds(keyword){
   try {
     let params = {
-      query: keyword || searchKeyword.value, // 确保 keyword 已定义（如从响应式变量中获取）
+      query: keyword, // 使用传入的明确的 keyword，避免依赖外部响应式变量产生时序问题
     };
     const res = await getSearchList(params);
     // 边界处理：确保 response 存在再访问 data
@@ -468,15 +508,25 @@ async function getSearchMaterialIds(keyword){
 
 // 从历史记录搜索
 function searchWithHistory(keyword) {
-  searchKeyword.value = keyword
-  fetchMaterialList()
+  currentSearchMessage.value = keyword
+  searchKeyword.value = ''
+  showExamples.value = false;
+  showResults.value = true;
+  fetchMaterialList(keyword)
 }
 
 // 使用搜索示例
 async function searchWithExample(text) {
-  searchKeyword.value = text
-  await fetchMaterialList()
+  currentSearchMessage.value = text
+  loading.value = true;
+  showExamples.value = false;
+  showResults.value = true;
+  // 保存到搜索历史
   await saveToSearchHistory(text)
+  await getSearchMaterialIds(text)
+  await fetchMaterialList(text)
+  // 清空输入框
+  searchKeyword.value = ''
 }
 
 // 删除单条搜索历史
@@ -527,9 +577,16 @@ async function fetchMaterialList(keyword) {
   loading.value = true;
   showExamples.value = false;
   showResults.value = true;
+  
+  if (keyword) {
+    currentSearchMessage.value = keyword;
+  }
+
+  // 立即使用最新的 keyword 或者 fallback 到当前的搜索词
+  const queryKeyword = keyword || searchKeyword.value || currentSearchMessage.value;
 
   try {
-    await getSearchMaterialIds(keyword || searchKeyword.value);
+    await getSearchMaterialIds(queryKeyword);
     
     console.log('idList.value', idList.value);
     // 检查idList是否为空
@@ -547,10 +604,8 @@ async function fetchMaterialList(keyword) {
     const allMaterials = res.data || [];
     console.log('批量查询到的素材列表:', allMaterials);
     
-    // 处理分页
-    const start = (currentPage.value - 1) * pageSize.value;
-    const end = start + pageSize.value;
-    materialList.value = allMaterials.slice(start, end);
+    // 直接赋值，不进行分页
+    materialList.value = allMaterials;
     total.value = allMaterials.length;
   } catch (error) {
     console.error('获取素材列表失败:', error);
@@ -563,18 +618,7 @@ async function fetchMaterialList(keyword) {
   }
 }
 
-// 分页处理
-function handleSizeChange(size) {
-  pageSize.value = size
-  scrollPageTop()
-  fetchMaterialList()
-}
 
-function handleCurrentChange(current) {
-  currentPage.value = current
-  scrollPageTop()
-  fetchMaterialList()
-}
 
 // 预览素材
 function previewMaterial(material) {
@@ -631,10 +675,7 @@ const downloadMaterial = async (material) => {
   }
 }
 
-// 关闭弹窗
-function handleClose() {
-  previewVisible.value = false
-}
+
 
 // 解析标签字段（打平所有数组，除了materialDescription字段
 // todo 后续前后端应优化一下接口 不然后续修改容易出bug
@@ -676,41 +717,77 @@ onMounted(function() {
 </script>
 
 <style scoped lang="scss">
+.ai-search-page {
+  background: #ffffff;
+  min-height: calc(100vh - 84px);
+}
+
 .main-content {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   width: 100%;
+  min-height: calc(100vh - 116px);
 }
 
 /* 左侧搜索历史样式 */
 .sidebar {
-  width: 300px;
+  width: 280px;
   flex-shrink: 0;
-  .history-section {
-    background: white;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    h3 {
-      margin: 0 0 16px 0;
+  border-right: 1px solid #dcdfe6;
+  padding-right: 8px;
+  display: flex;
+  flex-direction: column;
+
+  .new-chat-btn {
+    width: 100%;
+    margin-bottom: 16px;
+    border-radius: 12px;
+    height: 40px;
+    font-size: 15px;
+    
+    .el-icon {
+      margin-right: 6px;
       font-size: 16px;
-      font-weight: 500;
-      color: #303133;
     }
+  }
+
+  .history-section {
+    background: rgba(255, 255, 255, 0.56);
+    border-radius: 12px;
+    padding: 16px 12px;
+    box-shadow: inset 0 0 0 1px rgba(215, 220, 230, 0.8);
+    height: calc(100vh - 196px); /* Adjusted for new button height + margin */
+    display: flex;
+    flex-direction: column;
+
+    h3 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      font-weight: 500;
+      color: #909399;
+    }
+
     .history-list {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 4px;
+
       .history-item {
-          padding: 12px;
-          border: 1px solid #e4e7ed;
-          border-radius: 6px;
-          margin-bottom: 8px;
+          padding: 8px 10px;
+          border: 1px solid transparent;
+          border-radius: 10px;
+          margin-bottom: 6px;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          transition: all 0.3s;
+          transition: all 0.2s ease;
+          background: transparent;
+
           &:hover {
-            border-color: #409eff;
-            box-shadow: 0 2px 8px rgba(64, 158, 255, 0.15);
+            border-color: #d7dbe3;
+            background: #fff;
           }
+
           .history-content {
             flex: 1;
             cursor: pointer;
@@ -724,15 +801,17 @@ onMounted(function() {
             margin-left: 8px;
             cursor: pointer;
             opacity: 0;
-            transition: all 0.3s;
+            transition: all 0.2s;
             .delete-icon {
               color: #909399;
-              font-size: 16px;
+              font-size: 14px;
             }
           }
+
           &:hover .history-delete {
             opacity: 1;
           }
+
           .history-delete:hover {
             background-color: #f56c6c;
             .delete-icon {
@@ -743,36 +822,44 @@ onMounted(function() {
           .history-keyword {
             font-size: 14px;
             color: #303133;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
           }
+
           .history-time {
             font-size: 12px;
             color: #909399;
           }
         }
+
         .history-result {
           font-size: 12px;
-          color: #606266;
-          margin-top: 8px;
+          color: #a0a5ae;
+          margin-top: 4px;
         }
       }
     }
+
     .no-history {
       text-align: center;
-      padding: 40px 20px;
+      padding: 40px 20px 20px;
       color: #909399;
       .no-history-icon {
-        font-size: 48px;
-        margin-bottom: 16px;
+        font-size: 40px;
+        margin-bottom: 12px;
         color: #c0c4cc;
       }
+
       p {
         margin: 0;
         font-size: 14px;
       }
     }
+
     .history-actions {
-      margin-top: 16px;
+      margin-top: 12px;
       text-align: center;
     }
   }
@@ -781,85 +868,310 @@ onMounted(function() {
 /* 右侧主内容样式 */
 .search-content {
   flex: 1;
+  position: relative;
+  min-height: calc(100vh - 124px);
+  height: calc(100vh - 124px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  .scrollable-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 24px 126px;
+  }
+
   .header-section {
-    margin-bottom: 24px;
+    margin: 48px auto 20px;
+    text-align: center;
+    transition: all 0.2s ease;
+
+    &.header-active {
+      margin: 0 0 18px;
+      text-align: left;
+      .page-title,
+      .page-description {
+        display: none;
+      }
+    }
+
     .page-title {
-      font-size: 24px;
-      font-weight: 600;
-      color: #303133;
+      font-size: 46px;
+      font-weight: 700;
+      color: #111827;
       margin: 0 0 8px 0;
     }
+
     .page-description {
-      font-size: 14px;
-      color: #606266;
+      font-size: 16px;
+      color: #6b7280;
       margin: 0;
     }
   }
+
   .search-box-container {
-    margin-bottom: 24px;
+    position: absolute;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    z-index: 20;
     display: flex;
+    align-items: center;
     justify-content: center;
+    gap: 10px;
+    width: calc(100% - 48px);
+    max-width: 920px;
+    background: transparent;
+
     .search-input-wrapper {
       width: 100%;
-      max-width: 800px;
-      .ai-search-button {
-        background-color: #409eff;
+      position: relative;
+      background: #fff;
+      border-radius: 24px;
+      border: 1px solid #b6d0ff;
+      padding: 12px 16px 12px 16px;
+      box-shadow: 0 0 16px rgba(0, 0, 0, 0.15); /* 边缘加一圈阴影，居中且加深 */
+      transition: all 0.3s;
+
+      &:focus-within {
         border-color: #409eff;
-        color: white;
-        &:hover {
-          background-color: #66b1ff;
-          border-color: #66b1ff;
+        box-shadow: 0 0 20px rgba(64, 158, 255, 0.25); /* 聚焦时阴影加强 */
+      }
+
+      :deep(.el-textarea__inner) {
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        padding-right: 40px;
+        font-size: 15px;
+        line-height: 1.5;
+        background: transparent;
+        resize: none;
+        min-height: 48px !important;
+        
+        &::-webkit-scrollbar {
+          width: 6px;
+        }
+        &::-webkit-scrollbar-thumb {
+          border-radius: 3px;
+          background: #dcdfe6;
+        }
+      }
+
+      .input-bottom-actions {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        display: flex;
+        align-items: center;
+
+        .voice-btn {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          margin-right: 8px;
+          padding: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.3s;
+          border: none;
+          background: transparent;
+
+          &:hover {
+            background: #f2f3f5;
+            color: #0066ff;
+          }
+
+          &.is-recording {
+            color: #f56c6c;
+            animation: pulse 1.5s infinite;
+          }
+
+          .el-icon {
+            font-size: 18px;
+          }
+        }
+
+        .send-btn {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: #0066ff;
+          border-color: #0066ff;
           color: white;
+          padding: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+          
+          &:hover {
+            background: #3385ff;
+            border-color: #3385ff;
+            transform: scale(1.05);
+          }
+
+          &.is-disabled {
+            background: #e4e4e4;
+            border-color: #e4e4e4;
+            color: #fff;
+          }
+          
+          .el-icon {
+            font-size: 18px;
+            font-weight: bold;
+          }
         }
       }
     }
   }
+
   .examples-section {
-    margin-bottom: 24px;
+    max-width: 980px;
+    margin: 0 auto;
+
     h3 {
-      font-size: 16px;
+      font-size: 0;
       font-weight: 500;
-      color: #303133;
-      margin: 0 0 12px 0;
+      margin: 0;
     }
+
     .examples-list {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      justify-content: center;
+      gap: 10px;
     }
+
     .example-tag {
       cursor: pointer;
-      font-size: 14px;
-      transition: all 0.3s;
+      font-size: 16px;
+      line-height: 22px;
+      padding: 8px 14px;
+      border-radius: 12px;
+      border: 0;
+      color: #111827;
+      background: #eceff3;
+      transition: all 0.2s ease;
+
       &:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 2px 8px rgba(64, 158, 255, 0.15);
+        transform: translateY(-1px) scale(1.01);
+        background: #e3e8f1;
+        color: #0f172a;
       }
     }
   }
+
   .search-results {
-    background: white;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 4px 4px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
   }
+
+  .message-row {
+    display: flex;
+    width: 100%;
+  }
+
+  .user-row {
+    justify-content: flex-end;
+  }
+
+  .message-bubble {
+    border-radius: 16px;
+    padding: 12px 18px;
+    font-size: 16px;
+    line-height: 1.6;
+    max-width: min(80%, 720px);
+    word-break: break-word;
+  }
+
+  .user-bubble {
+    background: #f2f3f5;
+    color: #1d2129;
+    border-bottom-right-radius: 4px;
+  }
+
+  .ai-row {
+    justify-content: flex-start;
+    gap: 16px;
+  }
+
+  .ai-avatar {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #e8eaf0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+      background: #fff;
+    }
+    
+    .fallback-icon {
+      font-size: 20px;
+      color: #0066ff;
+      z-index: 0;
+    }
+  }
+
+  .ai-content {
+    flex: 1;
+    max-width: 100%;
+  }
+
+  .assistant-reply-wrapper {
+    margin-bottom: 16px;
+  }
+
+  .assistant-title {
+    color: #1d2129;
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .search-result-stats {
+    font-size: 14px;
+    color: #86909c;
+  }
+
   .search-suggestion {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 60px 20px;
+    padding: 70px 20px 20px;
     color: #909399;
   }
+
   .suggestion-icon {
     font-size: 48px;
     margin-bottom: 16px;
     color: #c0c4cc;
   }
+
   .suggestion-text {
     font-size: 16px;
     margin: 0;
   }
+
   .empty-result {
     display: flex;
     flex-direction: column;
@@ -874,50 +1186,48 @@ onMounted(function() {
     margin-bottom: 16px;
     color: #c0c4cc;
   }
+
   .empty-text {
     font-size: 16px;
     margin: 0;
   }
 }
 
-.search-result-stats {
-  margin-bottom: 20px;
-  font-size: 14px;
-  color: #606266;
-}
-
 /* 网格布局样式 */
 .material-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 12px;
+  width: 100%;
 }
 
 .material-card {
-  border: 1px solid #e4e7ed;
+  border: 1px solid #ebeef5;
   border-radius: 8px;
   overflow: hidden;
-  transition: all 0.3s;
-  background: white;
+  transition: all 0.3s ease;
+  background: #fff;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+
   &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     transform: translateY(-2px);
+    box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1);
   }
 }
 
 .material-preview-container {
-  height: 180px;
-  background-color: #f5f7fa;
+  height: 160px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
+  background-color: #f5f7fa;
+  overflow: hidden;
   img {
-    width: 95%;
-    height: 95%;
-    // object-fit: cover;
-    contain: content;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
     transition: transform 0.3s;
     cursor: pointer;
   }
@@ -971,13 +1281,14 @@ onMounted(function() {
 }
 
 .material-info {
-  padding: 16px;
+  padding: 12px;
+  background: #fff;
 }
 
 .material-name {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
-  color: #303133;
+  color: #111827;
   margin-bottom: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -987,9 +1298,9 @@ onMounted(function() {
 .material-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
-  color: #909399;
-  margin-bottom: 12px;
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 8px;
 }
 
 .material-tags {
@@ -998,13 +1309,17 @@ onMounted(function() {
 
 .material-upload-time {
   font-size: 12px;
-  color: #909399;
-  margin-bottom: 16px;
+  color: #9ca3af;
+  margin-bottom: 10px;
 }
 
 .material-actions {
   display: flex;
   gap: 8px;
+
+  :deep(.el-button) {
+    border-radius: 999px;
+  }
 }
 
 .thumbnail {
@@ -1020,81 +1335,95 @@ onMounted(function() {
   gap: 4px;
 }
 
-.preview-dialog {
-  .preview-content {
-    display: flex;
-    gap: 20px;
-    max-height: 600px;
-    overflow-y: auto;
-    .image-preview,
-    .video-preview,
-    .document-preview {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background-color: #f5f7fa;
-      border-radius: 4px;
-      min-height: 400px;
-      .full-image {
-        max-width: 100%;
-        max-height: 500px;
-        object-fit: contain;
-      }
-      .video-placeholder,
-      .document-placeholder {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        color: #909399;
-        & > span {
-          font-size: 16px;
-        }
-      }
-    }
-    .material-info {
-      flex: 1;
-      min-width: 300px;
-      h3 {
-        margin: 0 0 20px 0;
-        font-size: 18px;
-        font-weight: 500;
-        color: #303133;
-      }
-      .info-row {
-        margin-bottom: 15px;
-        display: flex;
-        align-items: flex-start;
-        .info-label {
-          width: 80px;
-          font-weight: 500;
-          color: #606266;
-        }
-        .info-value {
-          flex: 1;
-          color: #303133;
-        }
-      }
-    }
+
+
+@media (max-width: 1280px) {
+  .sidebar {
+    width: 236px;
+  }
+
+  .search-content .search-box-container {
+    width: calc(100% - 320px);
   }
 }
 
-.pagination-container {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 20px;
+@media (max-width: 992px) {
+  .main-content {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .sidebar {
+    width: 100%;
+    border-right: 0;
+    padding-right: 0;
+
+    .history-section {
+      height: auto;
+      max-height: 240px;
+    }
+  }
+
+  .search-content {
+    padding: 16px 0 120px;
+    min-height: auto;
+
+    .header-section {
+      margin-top: 30px;
+      .page-title {
+        font-size: 34px;
+      }
+    }
+
+    .search-box-container {
+      width: calc(100% - 30px);
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+      
+      .search-input-wrapper {
+        width: 100%;
+      }
+    }
+
+    .chat-bubble {
+      max-width: 92%;
+      font-size: 16px;
+    }
+
+    .assistant-title {
+      font-size: 22px;
+    }
+  }
+
+  .material-grid {
+    max-width: 100%;
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .material-name {
+    font-size: 18px;
+  }
 }
 
-.operation-buttons {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+@media (max-width: 768px) {
+  .material-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(245, 108, 108, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(245, 108, 108, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(245, 108, 108, 0);
+  }
 }
 </style>

@@ -14,6 +14,7 @@
         <el-option label="待标注" value="0" />
         <el-option label="待审核" value="1" />
         <el-option label="已审核" value="2" />
+        <el-option label="标注失败" value="3" />
       </el-select>
       <el-button type="primary" @click="getQueryData" icon="Search">搜索</el-button>
     </div>
@@ -340,7 +341,7 @@
               plain
               @click="toggleSelectAllItems"
               size="default"
-              :disabled="availableSelectableItems.length === 0 || curFolderObj.filePath === SHARED_FOLDER_NAME"
+              :disabled="availableSelectableItems.length === 0 || isInSharedFolderContext"
             >
               {{ allItemsSelected ? '取消全选' : '全选' }}
             </el-button>
@@ -349,18 +350,18 @@
                 <Refresh />
               </el-icon>刷新
             </el-button>
-            <el-button type="primary" plain @click="renameFilesByFolderName" size="default" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">
+            <el-button type="primary" plain @click="renameFilesByFolderName" size="default" :disabled="isInSharedFolderContext">
               <el-icon style="margin-right: 6px;">
                 <DocumentCopy />
               </el-icon>按文件夹名重命名文件
             </el-button>
-            <el-button type="primary" plain @click="handleAddFolder" size="default" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">
+            <el-button type="primary" plain @click="handleAddFolder" size="default" :disabled="isInSharedFolderContext">
               <el-icon style="margin-right: 6px;">
                 <FolderAdd />
               </el-icon>新建文件夹
             </el-button>
             <UploadFileManager
-              :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME"
+              :disabled="isInSharedFolderContext"
               :cur-folder-obj="curFolderObj"
               :breadcrumb-data="breadcrumbData"
               :file-list-data="fileListData"
@@ -402,9 +403,9 @@
       </div>
       <div class="selection-toolbar" v-if="selectedItemCount > 0">
         <span class="selection-count">已选择{{ selectedItemCount }}个项目（文件夹{{ selectedFolders.length }}，文件{{ selectedFiles.length }}）</span>
-        <el-button type="primary" plain size="small" @click="renameSelectedItems" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">批量重命名</el-button>
-        <el-button type="primary" plain size="small" @click="moveSelectedItems" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">批量移动</el-button>
-        <el-button type="danger" plain size="small" @click="deleteSelectedItems" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">批量删除</el-button>
+        <el-button type="primary" plain size="small" @click="renameSelectedItems" :disabled="isInSharedFolderContext">批量重命名</el-button>
+        <el-button type="primary" plain size="small" @click="moveSelectedItems" :disabled="isInSharedFolderContext">批量移动</el-button>
+        <el-button type="danger" plain size="small" @click="deleteSelectedItems" :disabled="isInSharedFolderContext">批量删除</el-button>
         <el-button text size="small" @click="clearSelectedItems">取消选择</el-button>
       </div>
       <div class="file-count-info">
@@ -455,7 +456,7 @@
               <span class="file-select-box" v-show="item._hover || isFolderSelected(item)" @click.stop>
                 <el-checkbox
                   :model-value="isFolderSelected(item)"
-                  :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME"
+                  :disabled="isInSharedFolderContext"
                   @change="(checked) => toggleFolderSelected(item, checked)"
                 />
               </span>
@@ -469,15 +470,15 @@
                 >
                   <Share />
                 </el-icon>
-                <el-icon class="action-icon" @click.stop="editFolder(item)" title="重命名" v-show="item._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME"
+                <el-icon class="action-icon" @click.stop="editFolder(item)" title="重命名" v-show="item._hover && !isInSharedFolderContext"
                   style="color: #409eff;">
                   <Edit />
                 </el-icon>
-                <el-icon class="action-icon" @click.stop="moveFolder(item)" title="移动" v-show="item._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME"
+                <el-icon class="action-icon" @click.stop="moveFolder(item)" title="移动" v-show="item._hover && !isInSharedFolderContext"
                   style="color: #67c23a;">
                   <ArrowRight />
                 </el-icon>
-                <el-icon class="action-icon" @click.stop="deleteFolder(item)" title="删除" v-show="item._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME"
+                <el-icon class="action-icon" @click.stop="deleteFolder(item)" title="删除" v-show="item._hover && !isInSharedFolderContext"
                   style="color: #f56c6c;">
                   <Delete />
                 </el-icon>
@@ -494,18 +495,18 @@
                 <span class="file-select-box" v-show="material._hover || isFileSelected(material)" @click.stop>
                   <el-checkbox
                     :model-value="isFileSelected(material)"
-                    :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME"
+                    :disabled="isInSharedFolderContext"
                     @change="(checked) => toggleFileSelected(material, checked)"
                   />
                 </span>
                 <span class="subFolder-actions">
-                  <el-icon class="action-icon" @click.stop="editFile(material)" title="重命名" v-show="material._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME" style="color: #409eff;">
+                  <el-icon class="action-icon" @click.stop="editFile(material)" title="重命名" v-show="material._hover && !isInSharedFolderContext" style="color: #409eff;">
                     <Edit />
                   </el-icon>
-                  <el-icon class="action-icon" @click.stop="moveFile(material)" title="移动" v-show="material._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME" style="color: #67c23a;">
+                  <el-icon class="action-icon" @click.stop="moveFile(material)" title="移动" v-show="material._hover && !isInSharedFolderContext" style="color: #67c23a;">
                     <ArrowRight />
                   </el-icon>
-                  <el-icon class="action-icon" @click.stop="deleteFile(material)" title="删除" v-show="material._hover && curFolderObj.filePath !== SHARED_FOLDER_NAME" style="color: #f56c6c;">
+                  <el-icon class="action-icon" @click.stop="deleteFile(material)" title="删除" v-show="material._hover && !isInSharedFolderContext" style="color: #f56c6c;">
                     <Delete />
                   </el-icon>
                 </span>
@@ -530,7 +531,7 @@
                 <div class="file-id">ID: {{ material.id }}</div>
                 <div class="file-id">大小: {{ formatFileSize(material.fileSize) }}</div>
                 <div class="file-status">
-                  <!-- 待标注:0  AI标注:1  人工修改:2-->
+                  <!-- 待标注:0  待审核:1  已审核:2  标注失败:3 -->
                   <el-tag :type="getStatusTagType(material.annotationStatus)" size="medium">
                     {{ getStatusText(material.annotationStatus) }}
                   </el-tag>
@@ -658,15 +659,15 @@
                     <el-button v-if="auth.hasRoleOr(['admin', 'studio'])" :type="getFolderShareStatus(row) ? 'success' : 'default'" link @click.stop="toggleFolderShare(row) ">
                       {{ getFolderShareStatus(row) ? '取消共享' : '放入共享' }}
                     </el-button>
-                    <el-button link type="primary" @click.stop="editFolder(row)" v-hasPermi="['xcsc:FilePathMapping:edit']" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">重命名</el-button>
-                    <el-button link type="primary" @click.stop="moveFolder(row)" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">移动</el-button>
-                    <el-button link type="danger" @click.stop="deleteFolder(row)" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">删除</el-button>
+                    <el-button link type="primary" @click.stop="editFolder(row)" v-hasPermi="['xcsc:FilePathMapping:edit']" :disabled="isInSharedFolderContext">重命名</el-button>
+                    <el-button link type="primary" @click.stop="moveFolder(row)" :disabled="isInSharedFolderContext">移动</el-button>
+                    <el-button link type="danger" @click.stop="deleteFolder(row)" :disabled="isInSharedFolderContext">删除</el-button>
                   </div>
                   <div v-else class="table-actions">
                     <el-button link type="primary" @click.stop="showMaterialDetail(row)">标注</el-button>
-                    <el-button link type="primary" @click.stop="editFile(row)" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">重命名</el-button>
-                    <el-button link type="primary" @click.stop="moveFile(row)" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">移动</el-button>
-                    <el-button link type="danger" @click.stop="deleteFile(row)" :disabled="curFolderObj.filePath === SHARED_FOLDER_NAME">删除</el-button>
+                    <el-button link type="primary" @click.stop="editFile(row)" :disabled="isInSharedFolderContext">重命名</el-button>
+                    <el-button link type="primary" @click.stop="moveFile(row)" :disabled="isInSharedFolderContext">移动</el-button>
+                    <el-button link type="danger" @click.stop="deleteFile(row)" :disabled="isInSharedFolderContext">删除</el-button>
                   </div>
                 </template>
               </el-table-column>
@@ -750,8 +751,8 @@ const showSearchResults = ref(false) // 是否显示搜索结果
 // 排序相关
 const SORT_PREFERENCE_KEY = 'material_upload_sort_preference'
 const sortField = ref('name') // 当前排序字段：name, size, date
-const sortOrder = ref('asc') // 当前排序方向：asc, desc
-const viewMode = ref('thumbnail') // 当前展示模式：thumbnail, list
+const sortOrder = ref('desc') // 当前排序方向：asc, desc
+const viewMode = ref('list') // 当前展示模式：thumbnail, list
 const nameCollator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' }) // 用于文件名排序的比较器
 
 function loadSortPreference() {
@@ -924,6 +925,9 @@ const visibleFolderData = computed(() => {
   return folderData.value.filter(item => item.filePath !== SHARED_FOLDER_NAME)
 })
 const isTopSectionLevel = computed(() => !showFolder.value && breadcrumbData.value.length === 1)
+const isInSharedFolderContext = computed(() => {
+  return breadcrumbData.value.length > 0 && breadcrumbData.value[0].filePath === SHARED_FOLDER_NAME;
+})
 
 const listViewRows = computed(() => {
   const folders = visibleFolderData.value.map(item => ({ ...item, _rowType: 'folder' }))
@@ -956,7 +960,7 @@ function getFolderSelectionId(folder) {
 }
 
 const availableSelectableItems = computed(() => {
-  if (!showSearchResults.value && curFolderObj.filePath === SHARED_FOLDER_NAME) {
+  if (!showSearchResults.value && isInSharedFolderContext.value) {
     return []
   }
   const files = (showSearchResults.value ? queryfileListData.value : fileListData.value)
@@ -1017,7 +1021,7 @@ function isFolderSelected(folder) {
 function toggleFileSelected(file, checked) {
   const fileId = getFileSelectionId(file)
   if (!fileId) return
-  if (!showSearchResults.value && curFolderObj.filePath === SHARED_FOLDER_NAME) return
+  if (!showSearchResults.value && isInSharedFolderContext.value) return
   const idSet = new Set(selectedFileIds.value.map(id => normalizeSelectionId(id)))
   if (checked) {
     if (!idSet.has(fileId)) {
@@ -1032,7 +1036,7 @@ function toggleFolderSelected(folder, checked) {
   const folderId = getFolderSelectionId(folder)
   if (!folderId) return
   if (showSearchResults.value) return
-  if (curFolderObj.filePath === SHARED_FOLDER_NAME) return
+  if (isInSharedFolderContext.value) return
   const idSet = new Set(selectedFolderBizIds.value.map(id => normalizeSelectionId(id)))
   if (checked) {
     if (!idSet.has(folderId)) {
@@ -1051,7 +1055,7 @@ function handleSearchTableSelectionChange(rows) {
 }
 
 function isFolderFileSelectable(row) {
-  if (curFolderObj.filePath === SHARED_FOLDER_NAME) return false
+  if (isInSharedFolderContext.value) return false
   return true
 }
 
@@ -1157,6 +1161,9 @@ function switchViewMode(mode) {
 }
 //获取文件夹及文件列表数据
 async function getFolderData(pid, options = {}) {
+  loading.value = true
+  folderData.value = []
+  fileListData.value = []
   clearSelectedItems()
   const restoreScrollKey = options.restoreScrollKey
   let params = {
@@ -1165,39 +1172,43 @@ async function getFolderData(pid, options = {}) {
   console.log('===pid===', pid);
   console.log('===params===', params);
   console.log('===curFolderObj===', curFolderObj);
-  //如果当前文件夹是共享文件夹
-  if (curFolderObj.filePath === SHARED_FOLDER_NAME) {
-    await getSharedFolderList().then(res => {
-      const sharedFolders = res.data || []
-      console.log('===sharedFolders===', sharedFolders);
-      folderData.value = sharedFolders
-      console.log('===folderData.value===', folderData.value);
-      fileListData.value = []
-      applyCurrentSort()
-    })
-  }
-  //其他文件夹
-  else{
-    const folderPromise = getFolderList(params).then(res => {
-      folderData.value = res.data || []
-    })
-    let filePromise = Promise.resolve()
-    if (pid !== 0) {
-      let param = {
-        folderId: pid,
-      }
-      console.log('===params===', params);
-      filePromise = getFileList(param).then(res => {
-        fileListData.value = res.data || []
-        console.log('===fileListData.value===', fileListData.value);
+  try {
+    //如果当前文件夹是共享文件夹
+    if (curFolderObj.filePath === SHARED_FOLDER_NAME) {
+      await getSharedFolderList().then(res => {
+        const sharedFolders = res.data || []
+        console.log('===sharedFolders===', sharedFolders);
+        folderData.value = sharedFolders
+        console.log('===folderData.value===', folderData.value);
+        fileListData.value = []
       })
-    } else {
-      fileListData.value = []
-      filePromise = Promise.resolve()
     }
-    await Promise.all([folderPromise, filePromise])
+    //其他文件夹
+    else {
+      const folderPromise = getFolderList(params).then(res => {
+        folderData.value = res.data || []
+      })
+      let filePromise = Promise.resolve()
+      if (pid !== 0) {
+        let param = {
+          folderId: pid,
+        }
+        console.log('===params===', params);
+        filePromise = getFileList(param).then(res => {
+          fileListData.value = res.data || []
+          console.log('===fileListData.value===', fileListData.value);
+        })
+      } else {
+        fileListData.value = []
+        filePromise = Promise.resolve()
+      }
+      await Promise.all([folderPromise, filePromise])
+    }
     applyCurrentSort()
+  } finally {
+    loading.value = false
   }
+
   if (restoreScrollKey) {
     restoreScrollPositionByKey(restoreScrollKey)
   }
@@ -1210,7 +1221,8 @@ getFolderData(0)
 function getQueryData() {
   clearSelectedItems()
   searchCurrentPage.value = 1
-  // loading.value = true
+  loading.value = true
+  queryfileListData.value = []
   let params = {
     fileName: searchKeyword.value,
     annotationStatus: statusFilter.value,
@@ -1375,7 +1387,7 @@ function renameSelectedItems() {
     ElMessage.warning('请先勾选文件夹或文件')
     return
   }
-  if (!showSearchResults.value && curFolderObj.filePath === SHARED_FOLDER_NAME) {
+  if (!showSearchResults.value && isInSharedFolderContext.value) {
     ElMessage.warning('共享文件夹下不支持重命名')
     return
   }
@@ -1528,7 +1540,8 @@ const getStatusTagType = (status) => {
   const typeMap = {
     '0': 'warning',
     '1': 'primary',
-    '2': 'success'
+    '2': 'success',
+    '3': 'danger'
   }
   return typeMap[status] || ''
 }
@@ -1538,7 +1551,8 @@ const getStatusText = (status) => {
   const textMap = {
     '0': '待标注',
     '1': '待审核',
-    '2': '已审核'
+    '2': '已审核',
+    '3': '标注失败'
   }
   return textMap[status] || status
 }
@@ -1992,6 +2006,14 @@ function sortFolderList(folderList) {
 
 .sort-arrow.is-reverse {
   transform: rotate(180deg);
+}
+
+.el-button .el-icon {
+  transition: transform 0.3s ease;
+  
+  &.is-reverse {
+    transform: rotate(180deg);
+  }
 }
 
 .sortable-header {

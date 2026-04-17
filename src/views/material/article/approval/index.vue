@@ -551,10 +551,6 @@ const confirmApprove = async () => {
       id: approveForm.id,
       approvalStatus: approveForm.approvalStatus,
       approvalComments: approveForm.approvalComments,
-      approvalTime: parseTime(new Date()),
-      approver: userStore.name,
-      reviewer: currentArticle.value?.reviewer || userStore.name,
-      finalReviewer: currentArticle.value?.reviewer ? userStore.name : (currentArticle.value?.finalReviewer || '')
     }
     await approvalArticle(updateData)
     ElMessage.success(approveForm.approvalStatus === 1 ? '采用' : '不采用')

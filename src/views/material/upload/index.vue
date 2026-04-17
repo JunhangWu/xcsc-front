@@ -918,11 +918,26 @@ const fileListData = ref([])//文件列表
 const queryfileListData = ref([])//搜索结果文件列表
 const SHARED_FOLDER_NAME = '共享文件夹'
 const canViewSharedFolder = computed(() => auth.hasPermi('xcsc:FilePathMapping:share'))
+
+function prioritizeSharedFolderFirst(folders = []) {
+  const sharedFolders = []
+  const otherFolders = []
+  folders.forEach((item) => {
+    if (item?.filePath === SHARED_FOLDER_NAME) {
+      sharedFolders.push(item)
+    } else {
+      otherFolders.push(item)
+    }
+  })
+  return [...sharedFolders, ...otherFolders]
+}
+
 const visibleFolderData = computed(() => {
-  if (canViewSharedFolder.value) {
-    return folderData.value
-  }
-  return folderData.value.filter(item => item.filePath !== SHARED_FOLDER_NAME)
+  const folders = canViewSharedFolder.value
+    ? folderData.value
+    : folderData.value.filter(item => item.filePath !== SHARED_FOLDER_NAME)
+
+  return prioritizeSharedFolderFirst(folders)
 })
 const isTopSectionLevel = computed(() => !showFolder.value && breadcrumbData.value.length === 1)
 const isInSharedFolderContext = computed(() => {

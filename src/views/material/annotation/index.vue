@@ -419,13 +419,21 @@ async function refreshData() {
 function handleSizeChange(size) {
   pageSize.value = size
   currentPage.value = 1
-  scrollPageTop()
+  // 滚动.card-body到顶部
+  const cardBody = document.querySelector('.card-body')
+  if (cardBody) {
+    cardBody.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }
   getFileListData()
 }
 
 function handleCurrentChange(page) {
   currentPage.value = page
-  scrollPageTop()
+  // 滚动.card-body到顶部
+  const cardBody = document.querySelector('.card-body')
+  if (cardBody) {
+    cardBody.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }
   getFileListData()
 }
 

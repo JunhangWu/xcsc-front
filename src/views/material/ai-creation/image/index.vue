@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="app-container ai-creation-page">
     <div class="workspace">
       <div class="left-pane">
@@ -8,22 +8,37 @@
             v-model="form.prompt"
             type="textarea"
             :rows="5"
-            placeholder="描述画面主体、场景、光线和风格，例如：赛博城市夜景，电影感，广角，4K"
+            placeholder="请描述你想生成的图片"
           />
           <div class="prompt-ref-wrap">
             <div class="ref-upload-item">
-              <div class="ref-title">参考图</div>
-              <el-upload
-                :auto-upload="false"
-                :show-file-list="false"
-                accept="image/*"
-                :on-change="onRefImageChange"
-              >
-                <div class="upload-box">
-                  <img v-if="referenceImage.url" :src="referenceImage.url" alt="参考图" />
-                  <span v-else>点击上传</span>
+              <div class="ref-title">参考图（最多10张）</div>
+              <div class="ref-picker-row">
+                <div v-for="(img, index) in referenceImages" :key="img.uid || img.url" class="ref-tile">
+                  <img :src="img.url" alt="参考图" />
+                  <button class="ref-remove-btn" type="button" @click="removeReferenceImage(index)">×</button>
                 </div>
-              </el-upload>
+                <el-upload
+                  v-if="referenceImages.length < maxReferenceCount"
+                  ref="referenceUploadRef"
+                  :auto-upload="false"
+                  :show-file-list="false"
+                  accept="image/*"
+                  multiple
+                  :limit="maxReferenceCount"
+                  :on-change="onRefImageChange"
+                  :on-exceed="onRefImageExceed"
+                  :file-list="referenceUploadList"
+                  class="ref-upload-trigger"
+                >
+                  <div class="upload-box">
+                    <span class="upload-plus">+</span>
+                  </div>
+                </el-upload>
+              </div>
+              <div class="ref-count">
+                {{ referenceImages.length }}/{{ maxReferenceCount }}
+              </div>
             </div>
           </div>
         </div>
@@ -32,9 +47,7 @@
           <el-form label-position="top">
             <el-form-item label="模型">
               <el-select v-model="form.model">
-                <el-option label="Flux Pro" value="flux-pro" />
-                <el-option label="SDXL" value="sdxl" />
-                <el-option label="Midjourney 风格" value="mj-style" />
+                <el-option label="Seedream4.5" value="seedream-4.5" />
               </el-select>
             </el-form-item>
             <div class="inline-fields">
@@ -82,8 +95,34 @@
           <div class="image-grid">
             <div v-for="(img, index) in imageResults" :key="img + index" class="image-item">
               <img :src="img" alt="生成结果" />
+              <button class="image-download-btn" type="button" @click="downloadImage(img, index)">下载</button>
             </div>
           </div>
+        </div>
+        <div class="pane-card history-card">
+          <div class="result-header">
+            <h3>历史记录</h3>
+            <el-button link type="primary" @click="clearHistory">清空</el-button>
+          </div>
+          <div v-if="historyTasks.length" class="history-list">
+            <div v-for="task in historyTasks" :key="task.id" class="history-item">
+              <div class="history-head">
+                <span class="history-time">{{ task.time }}</span>
+                <el-button link type="primary" @click="previewHistoryTask(task)">查看</el-button>
+              </div>
+              <div class="history-meta">
+                <span>比例：{{ task.aspectRatio }}</span>
+                <span>数量：{{ task.count }}</span>
+              </div>
+              <div class="history-grid">
+                <div v-for="(img, idx) in task.images" :key="img + idx" class="history-thumb">
+                  <img :src="img" alt="历史生图" />
+                  <button class="image-download-btn" type="button" @click="downloadImage(img, idx)">下载</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <el-empty v-else description="暂无历史生图" :image-size="88" />
         </div>
       </div>
     </div>
@@ -91,40 +130,102 @@
 </template>
 
 <script setup name="AICreationImage">
-import { reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import axios from 'axios'
-import { getToken } from '@/utils/auth'
+import { generateImage as generateImageApi, uploadImage as uploadImageApi } from '@/api/xcsc/imageGenerate'
 
 const creating = ref(false)
 const latestTask = ref('暂无')
 
 const form = reactive({
   prompt: '',
-  model: 'flux-pro',
-  aspectRatio: '1:1',
-  count: 4
+  model: 'seedream-4.5',
+  aspectRatio: '16:9',
+  count: 1
 })
 
 const imageTemplates = [
-  '极简产品海报，纯色背景，柔和光影，商业摄影风格',
-  '国潮插画，节日促销主题，高饱和配色',
-  '写实人像，城市夜景，电影级布光，浅景深',
-  '3D 等距场景，科技办公空间，未来感 UI 元素'
+  '把参考图变成卡通/3D/剪纸风格',
+  '柔光，使用柔和的光线对图片重新照明',
+  '中秋节日祝福海报，中国传统风格，金色桂花+圆月元素，红金渐变主色调，简约大气，无文字',
 ]
 
 const imageResults = ref([])
+const historyTasks = ref([])
+const historyStorageKey = 'xcsc_ai_image_history'
+const maxHistoryCount = 20
+const maxReferenceCount = 10
+const maxReferenceSizeMB = 10
+const maxReferenceSizeBytes = maxReferenceSizeMB * 1024 * 1024
+const referenceUploadRef = ref()
+const referenceUploadList = ref([])
 
-const referenceImage = reactive({
-  name: '',
-  url: ''
-})
+const referenceImages = ref([])
 
-const onRefImageChange = (file) => {
-  const rawFile = file?.raw
-  if (!rawFile) return
-  referenceImage.name = file.name || rawFile.name
-  referenceImage.url = URL.createObjectURL(rawFile)
+const revokeBlobUrl = (url) => {
+  if (typeof url === 'string' && url.startsWith('blob:')) {
+    URL.revokeObjectURL(url)
+  }
+}
+
+const syncReferenceImages = (uploadFiles = []) => {
+  const prevMap = new Map(referenceImages.value.map((item) => [item.uid, item]))
+  const nextImages = uploadFiles.slice(0, maxReferenceCount).map((file) => {
+    const prev = prevMap.get(file.uid)
+    if (prev && prev.rawFile === file.raw) {
+      return prev
+    }
+    return {
+      uid: file.uid,
+      name: file.name || file.raw?.name || '',
+      url: URL.createObjectURL(file.raw),
+      rawFile: file.raw,
+      uploadedUrl: ''
+    }
+  })
+
+  const nextUidSet = new Set(nextImages.map((item) => item.uid))
+  referenceImages.value.forEach((item) => {
+    if (!nextUidSet.has(item.uid)) {
+      revokeBlobUrl(item.url)
+    }
+  })
+
+  referenceImages.value = nextImages
+}
+
+const onRefImageChange = (_file, fileList) => {
+  const validFiles = (fileList || []).filter((file) => {
+    const isImage = !!file?.raw?.type && file.raw.type.startsWith('image/')
+    if (!isImage) {
+      ElMessage.warning('参考图仅支持图片格式')
+      return false
+    }
+
+    const size = file?.raw?.size || 0
+    const withinLimit = size <= maxReferenceSizeBytes
+    if (!withinLimit) {
+      ElMessage.warning(`参考图大小不能超过 ${maxReferenceSizeMB}MB`)
+      return false
+    }
+    return true
+  })
+
+  referenceUploadList.value = validFiles.slice(0, maxReferenceCount)
+  syncReferenceImages(referenceUploadList.value)
+}
+
+const onRefImageExceed = () => {
+  ElMessage.warning(`最多上传 ${maxReferenceCount} 张参考图`)
+}
+
+const removeReferenceImage = (index) => {
+  const removed = referenceImages.value[index]
+  if (removed) {
+    revokeBlobUrl(removed.url)
+  }
+  referenceUploadList.value.splice(index, 1)
+  syncReferenceImages(referenceUploadList.value)
 }
 
 const aspectRatioSizeMap = {
@@ -148,13 +249,41 @@ const normalizeResult = (raw) => {
   return imageUrl
 }
 
-const requestGenerateOne = async (prompt, size) => {
-  const token = getToken()
-  const res = await axios.get(`${import.meta.env.VITE_APP_BASE_API}/api/generate-image`, {
-    params: { prompt, size },
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
-  })
-  return normalizeResult(res?.data)
+const uploadSingleReferenceImage = async (refImage) => {
+  if (!refImage?.rawFile) return ''
+  if (refImage.uploadedUrl) return refImage.uploadedUrl
+  const formData = new FormData()
+  formData.append('file', refImage.rawFile)
+
+  const res = await uploadImageApi(formData, 'reference')
+
+  const raw = res || {}
+  const ok = raw.code === 200 || raw.code === 0
+  if (!ok) {
+    throw new Error(raw?.msg || raw?.message || '参考图上传失败')
+  }
+
+  const uploadedUrl = raw?.data?.url || raw?.url || ''
+  if (!uploadedUrl) {
+    throw new Error('参考图上传成功，但未返回可用地址')
+  }
+  refImage.uploadedUrl = uploadedUrl
+  return uploadedUrl
+}
+
+const uploadReferenceImagesIfNeeded = async () => {
+  if (!referenceImages.value.length) return ''
+  const urls = await Promise.all(referenceImages.value.map((item) => uploadSingleReferenceImage(item)))
+  return urls.filter(Boolean).join(',')
+}
+
+const requestGenerateOne = async (prompt, size, image) => {
+  const params = { prompt, size }
+  if (image) {
+    params.image = image
+  }
+  const res = await generateImageApi(params)
+  return normalizeResult(res)
 }
 
 const generateImage = async () => {
@@ -167,8 +296,9 @@ const generateImage = async () => {
   try {
     const size = aspectRatioSizeMap[form.aspectRatio] || '2048x2048'
     const requestCount = Number(form.count) || 1
+    const refImageUrl = await uploadReferenceImagesIfNeeded()
     const tasks = Array.from({ length: requestCount }).map(() =>
-      requestGenerateOne(form.prompt.trim(), size)
+      requestGenerateOne(form.prompt.trim(), size, refImageUrl)
     )
     const urls = (await Promise.all(tasks)).filter(Boolean)
 
@@ -179,6 +309,11 @@ const generateImage = async () => {
 
     imageResults.value = urls
     latestTask.value = `${new Date().toLocaleString()} 生成`
+    pushHistoryTask({
+      images: urls,
+      count: urls.length,
+      aspectRatio: form.aspectRatio
+    })
     ElMessage.success(`生成完成，共 ${urls.length} 张`)
   } catch (error) {
     ElMessage.error(error?.response?.data?.msg || error?.response?.data?.message || '图片生成失败')
@@ -186,13 +321,78 @@ const generateImage = async () => {
     creating.value = false
   }
 }
+
+const downloadImage = async (url, index) => {
+  if (!url) return
+  const fileName = `ai-image-${Date.now()}-${index + 1}.png`
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+const saveHistory = () => {
+  localStorage.setItem(historyStorageKey, JSON.stringify(historyTasks.value))
+}
+
+const loadHistory = () => {
+  try {
+    const raw = localStorage.getItem(historyStorageKey)
+    if (!raw) return
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return
+    historyTasks.value = parsed
+  } catch {
+    historyTasks.value = []
+  }
+}
+
+const pushHistoryTask = ({ images, count, aspectRatio }) => {
+  const task = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    time: new Date().toLocaleString(),
+    images: images || [],
+    count: count || 0,
+    aspectRatio: aspectRatio || '1:1'
+  }
+  historyTasks.value = [task, ...historyTasks.value].slice(0, maxHistoryCount)
+  saveHistory()
+}
+
+const previewHistoryTask = (task) => {
+  imageResults.value = task.images || []
+  latestTask.value = `${task.time} 历史记录`
+}
+
+const clearHistory = () => {
+  historyTasks.value = []
+  localStorage.removeItem(historyStorageKey)
+}
+
+onMounted(() => {
+  loadHistory()
+})
+
+onBeforeUnmount(() => {
+  referenceImages.value.forEach((item) => revokeBlobUrl(item.url))
+})
 </script>
 
 <style scoped lang="scss">
+.ai-creation-page {
+  height: calc(100vh - 110px);
+  display: flex;
+  flex-direction: column;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(340px, 1fr) minmax(380px, 1fr);
   gap: 16px;
+  flex: 1;
+  min-height: 0;
 }
 
 .left-pane,
@@ -234,24 +434,83 @@ const generateImage = async () => {
 }
 
 .upload-box {
-  border: 1px dashed #cbd5e1;
-  background: #f8fafc;
-  border-radius: 10px;
-  width: 88px;
-  height: 88px;
+  border: 1px dashed #d6d9df;
+  background: #fafbfc;
+  border-radius: 12px;
+  width: 92px;
+  height: 92px;
   display: flex;
   justify-content: center;
   align-items: center;
-  color: #64748b;
+  color: #8a94a6;
   cursor: pointer;
   overflow: hidden;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.upload-box:hover {
+  border-color: #b8c0ce;
+  background: #f4f6fa;
+}
+
+.upload-plus {
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 400;
+  color: #495264;
+}
+
+.ref-picker-row {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ref-tile {
+  position: relative;
+  border: 1px solid #e6e9ef;
+  border-radius: 12px;
+  overflow: hidden;
+  width: 92px;
+  height: 92px;
+  background: #f5f7fb;
 
   img {
+    display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
-    display: block;
   }
+}
+
+.ref-remove-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.ref-count {
+  margin-top: 10px;
+  color: #7b8596;
+  font-size: 12px;
+}
+
+.ref-tip {
+  margin-top: 2px;
+  color: #9aa3b2;
+  font-size: 12px;
 }
 
 .templates .template-list {
@@ -277,7 +536,11 @@ const generateImage = async () => {
 }
 
 .result-card {
-  min-height: 420px;
+  min-height: 340px;
+}
+
+.history-card {
+  min-height: 360px;
 }
 
 .result-header {
@@ -294,6 +557,7 @@ const generateImage = async () => {
 }
 
 .image-item {
+  position: relative;
   border-radius: 10px;
   overflow: hidden;
   background: #f3f4f6;
@@ -301,8 +565,75 @@ const generateImage = async () => {
 
   img {
     width: 100%;
-    height: 176px;
-    object-fit: cover;
+    height: auto;
+    object-fit: contain;
+    display: block;
+  }
+}
+
+.image-download-btn {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.58);
+  color: #fff;
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 480px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.history-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
+}
+
+.history-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.history-time {
+  font-size: 13px;
+  color: #334155;
+}
+
+.history-meta {
+  margin-top: 6px;
+  display: flex;
+  gap: 12px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.history-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.history-thumb {
+  position: relative;
+
+  img {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
     display: block;
   }
 }
@@ -312,8 +643,13 @@ const generateImage = async () => {
 }
 
 @media (max-width: 1280px) {
+  .ai-creation-page {
+    height: auto;
+  }
+
   .workspace {
     grid-template-columns: 1fr;
+    min-height: auto;
   }
 }
 
@@ -322,8 +658,16 @@ const generateImage = async () => {
     grid-template-columns: 1fr;
   }
 
+  .ref-picker-row {
+    gap: 10px;
+  }
+
   .image-grid {
     grid-template-columns: 1fr;
+  }
+
+  .history-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

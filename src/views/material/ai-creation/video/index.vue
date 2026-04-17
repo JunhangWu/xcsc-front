@@ -3,12 +3,23 @@
     <div class="workspace">
       <div class="left-pane">
         <div class="pane-card">
-          <h3>视频脚本</h3>
-          <el-input v-model="form.prompt" type="textarea" :rows="6" placeholder="请输入视频脚本" />
+          <h3><span class="step-badge">步骤1</span>第一步：匹配素材</h3>
+          <el-form label-position="top">
+            <el-form-item label="视频脚本">
+              <el-input v-model="form.prompt" type="textarea" :rows="6" placeholder="请输入视频脚本" />
+            </el-form-item>
+          </el-form>
+          <el-text type="info">先写脚本并匹配素材；不满意可在右侧逐项替换。</el-text>
+          <div class="step-action">
+            <el-button type="primary" size="large" :loading="videoMatching" @click="matchVideoAssets">
+              立即匹配素材
+            </el-button>
+          </div>
         </div>
         <div class="pane-card">
-          <h3>生成配置</h3>
+          <h3><span class="step-badge">步骤2</span>第二步：生成视频</h3>
           <el-form label-position="top">
+            <h3>生成配置</h3>
             <div class="inline-fields">
               <el-form-item label="时长">
                 <el-select v-model="form.duration">
@@ -25,20 +36,6 @@
                 </el-select>
               </el-form-item>
             </div>
-          </el-form>
-        </div>
-        <div class="pane-card">
-          <h3><span class="step-badge">步骤1</span>第一步：匹配素材</h3>
-          <el-text type="info">先写脚本并配置参数，再匹配素材；不满意可在右侧逐项替换。</el-text>
-          <div class="step-action">
-            <el-button type="primary" size="large" :loading="videoMatching" @click="matchVideoAssets">
-              立即匹配素材
-            </el-button>
-          </div>
-        </div>
-        <div class="pane-card">
-          <h3><span class="step-badge">步骤2</span>第二步：生成视频</h3>
-          <el-form label-position="top">
             <el-form-item label="旁白音色">
               <el-select v-model="form.voice" placeholder="请选择旁白音色" :disabled="!videoMatched">
                 <el-option v-for="voice in videoVoices" :key="voice" :label="voice" :value="voice" />
@@ -130,6 +127,8 @@
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { VideoCamera } from '@element-plus/icons-vue'
+import { getSearchList } from '@/api/xcsc/search'
+import { getFileBatch } from '@/api/xcsc/uploadFile'
 
 const videoMatching = ref(false)
 const videoGenerating = ref(false)
@@ -161,28 +160,100 @@ const videoPreview = reactive({
   jianyingLink: ''
 })
 
-const matchVideoAssets = () => {
+const isVideoFile = (path = '') => {
+  const ext = path.split('.').pop()?.toLowerCase()
+  return ['mp4', 'mov', 'avi', 'mkv', 'flv', 'm4v', 'wmv', 'webm'].includes(ext || '')
+}
+
+const isImageFile = (path = '') => {
+  const ext = path.split('.').pop()?.toLowerCase()
+  return ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'svg'].includes(ext || '')
+}
+
+const getProxyPath = (url = '') => {
+  if (!url) return ''
+  try {
+    const parsed = new URL(url)
+    const parts = parsed.pathname.replace(/^\/+/, '').split('/')
+    const bucket = parts.shift()
+    const objectKey = parts.join('/')
+    const baseApi = import.meta.env.VITE_APP_BASE_API || ''
+    const params = new URLSearchParams({
+      bucketName: bucket,
+      filePath: objectKey
+    })
+    return `${baseApi}/minio/proxy?${params.toString()}`
+  } catch (error) {
+    return url
+  }
+}
+
+const parseSearchIdList = (searchResult = '') => {
+  return searchResult
+    .split(',')
+    .map(id => Number(id.trim()))
+    .filter(id => Number.isFinite(id) && id > 0)
+}
+
+const matchVideoAssets = async () => {
   if (!form.prompt.trim()) {
     ElMessage.warning('请先填写视频脚本，再匹配素材')
     return
   }
 
   videoMatching.value = true
-  setTimeout(() => {
-    matchedAssets.value = [
-      { id: 'm1', type: 'video', name: '开场全景', thumb: 'https://picsum.photos/id/520/640/360' },
-      { id: 'm2', type: 'image', name: '产品展示', thumb: 'https://picsum.photos/id/521/640/360' },
-      { id: 'm3', type: 'video', name: '功能特写', thumb: 'https://picsum.photos/id/522/640/360' },
-      { id: 'm4', type: 'video', name: '结尾品牌镜头', thumb: 'https://picsum.photos/id/523/640/360' }
-    ]
+  try {
+    const keyword = form.prompt.trim()
+    const searchRes = await getSearchList({ query: keyword })
+    const searchResult = searchRes?.data?.[0]?.searchResult || ''
+    const idList = parseSearchIdList(searchResult)
+
+    if (idList.length === 0) {
+      matchedAssets.value = []
+      videoMatched.value = false
+      ElMessage.warning('AI搜索未找到相关素材，请调整脚本后重试')
+      return
+    }
+
+    const fileRes = await getFileBatch(idList.slice(0, 20))
+    const files = Array.isArray(fileRes?.data) ? fileRes.data : []
+    const availableAssets = files
+      .filter(item => isImageFile(item.minioPath || '') || isVideoFile(item.minioPath || ''))
+      .slice(0, 4)
+      .map((item, index) => {
+        const sourcePath = item.minioPath || item.coverPath || ''
+        const coverPath = item.coverPath || sourcePath
+        const type = isVideoFile(sourcePath) ? 'video' : 'image'
+        return {
+          id: item.id || `m${Date.now()}-${index}`,
+          type,
+          name: item.fileName || `素材${index + 1}`,
+          thumb: getProxyPath(coverPath)
+        }
+      })
+
+    if (availableAssets.length === 0) {
+      matchedAssets.value = []
+      videoMatched.value = false
+      ElMessage.warning('AI搜索结果中暂无可用图片/视频素材')
+      return
+    }
+
+    matchedAssets.value = availableAssets
     videoMatched.value = true
     videoPreview.ready = false
     activeReplaceIndex.value = -1
     candidateAssets.value = []
     latestTask.value = `${new Date().toLocaleTimeString()} 素材匹配`
-    videoMatching.value = false
     ElMessage.success('素材匹配完成，可在右侧替换不满意素材')
-  }, 900)
+  } catch (error) {
+    console.error('素材匹配失败:', error)
+    videoMatched.value = false
+    matchedAssets.value = []
+    ElMessage.error('调用AI搜索失败，请稍后重试')
+  } finally {
+    videoMatching.value = false
+  }
 }
 
 const openReplacePanel = (index) => {

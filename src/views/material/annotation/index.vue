@@ -372,7 +372,7 @@ function sortData(data) {
         comparison = (a.fileSize || 0) - (b.fileSize || 0)
         break
       case 'date':
-        comparison = new Date(a.createTime || 0) - new Date(b.createTime || 0)
+        comparison = new Date(a.updateTime || 0) - new Date(b.updateTime  || 0)
         break
       case 'type':
         comparison = getFileType(a.minioPath || '').localeCompare(getFileType(b.minioPath || ''))

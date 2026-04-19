@@ -1,4 +1,4 @@
-﻿<template>
+﻿﻿<template>
   <div class="app-container ai-creation-page">
     <div class="workspace">
       <div class="left-pane">
@@ -94,7 +94,18 @@
           </div>
           <div class="image-grid">
             <div v-for="(img, index) in imageResults" :key="img + index" class="image-item">
-              <img :src="img" alt="生成结果" />
+              <el-image
+                :src="img"
+                :preview-src-list="imageResults"
+                fit="cover"
+                preview-teleported
+              >
+                <template #error>
+                    <div class="image-slot">
+                      <el-icon><PictureFilled /></el-icon>
+                    </div>
+                  </template>
+              </el-image>
               <button class="image-download-btn" type="button" @click="downloadImage(img, index)">下载</button>
             </div>
           </div>
@@ -111,12 +122,27 @@
                 <el-button link type="primary" @click="previewHistoryTask(task)">查看</el-button>
               </div>
               <div class="history-meta">
-                <span>比例：{{ task.aspectRatio }}</span>
-                <span>数量：{{ task.count }}</span>
-              </div>
+            <span>比例：{{ task.aspectRatio }}</span>
+            <span>数量：{{ task.count }}</span>
+          </div>
+          <div class="history-prompt" v-if="task.prompt">
+            <span class="prompt-label">提示词：</span>
+            <span class="prompt-text">{{ task.prompt }}</span>
+          </div>
               <div class="history-grid">
                 <div v-for="(img, idx) in task.images" :key="img + idx" class="history-thumb">
-                  <img :src="img" alt="历史生图" />
+                  <el-image
+                    :src="img"
+                    :preview-src-list="task.images"
+                    fit="cover"
+                    preview-teleported
+                  >
+                    <template #error>
+                      <div class="image-slot">
+                        <el-icon><picture-filled /></el-icon>
+                      </div>
+                    </template>
+                  </el-image>
                   <button class="image-download-btn" type="button" @click="downloadImage(img, idx)">下载</button>
                 </div>
               </div>
@@ -132,6 +158,7 @@
 <script setup name="AICreationImage">
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { PictureFilled } from '@element-plus/icons-vue'
 import { generateImage as generateImageApi, uploadImage as uploadImageApi } from '@/api/xcsc/imageGenerate'
 
 const creating = ref(false)
@@ -148,6 +175,7 @@ const imageTemplates = [
   '把参考图变成卡通/3D/剪纸风格',
   '柔光，使用柔和的光线对图片重新照明',
   '中秋节日祝福海报，中国传统风格，金色桂花+圆月元素，红金渐变主色调，简约大气，无文字',
+  '李白乘舟将欲行，忽闻岸上踏歌声。桃花潭水深千尺，不及汪伦送我情。',
 ]
 
 const imageResults = ref([])
@@ -312,7 +340,8 @@ const generateImage = async () => {
     pushHistoryTask({
       images: urls,
       count: urls.length,
-      aspectRatio: form.aspectRatio
+      aspectRatio: form.aspectRatio,
+      prompt: form.prompt.trim()
     })
     ElMessage.success(`生成完成，共 ${urls.length} 张`)
   } catch (error) {
@@ -349,13 +378,14 @@ const loadHistory = () => {
   }
 }
 
-const pushHistoryTask = ({ images, count, aspectRatio }) => {
+const pushHistoryTask = ({ images, count, aspectRatio, prompt }) => {
   const task = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     time: new Date().toLocaleString(),
     images: images || [],
     count: count || 0,
-    aspectRatio: aspectRatio || '1:1'
+    aspectRatio: aspectRatio || '1:1',
+    prompt: prompt || ''
   }
   historyTasks.value = [task, ...historyTasks.value].slice(0, maxHistoryCount)
   saveHistory()
@@ -617,6 +647,25 @@ onBeforeUnmount(() => {
   gap: 12px;
   color: #64748b;
   font-size: 12px;
+}
+
+.history-prompt {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e5e7eb;
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.prompt-label {
+  font-weight: 500;
+  color: #64748b;
+}
+
+.prompt-text {
+  word-break: break-all;
+  color: #374151;
 }
 
 .history-grid {

@@ -92,11 +92,25 @@
             </div>
             <el-progress :percentage="composeProgress" :status="composeProgressStatus" />
             <p>{{ composeTask.errorMessage || composeTask.message || '等待任务更新' }}</p>
+            <div class="task-meta">
+              <span>任务 ID</span>
+              <strong>{{ composeTask.taskId }}</strong>
+            </div>
           </div>
 
           <div v-if="composeResultUrl" class="result-card">
             <video :src="composePreviewUrl" controls preload="metadata" />
-            <el-link :href="composePreviewUrl" target="_blank" type="primary">打开成片</el-link>
+            <div class="result-meta">
+              <span>成片素材 ID</span>
+              <strong>{{ composeTask.outputMaterialId || '入库中' }}</strong>
+            </div>
+            <div class="result-actions">
+              <el-button size="small" type="primary" :disabled="!composeTask.outputMaterialId" @click="goMaterialPreview">
+                查看素材
+              </el-button>
+              <el-button size="small" @click="copyResultUrl">复制链接</el-button>
+              <el-link :href="composePreviewUrl" target="_blank" type="primary">打开成片</el-link>
+            </div>
           </div>
         </section>
       </aside>
@@ -175,7 +189,8 @@
 </template>
 
 <script setup name="AICreationVideo">
-import { computed, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Check, Film, RefreshRight, Search, Tickets, VideoCamera, VideoPlay, Warning } from '@element-plus/icons-vue'
 import {
@@ -185,6 +200,9 @@ import {
   searchShotAssets
 } from '@/api/xcsc/videoCreation'
 
+const LAST_TASK_KEY = 'xcsc_video_creation_last_task_id'
+
+const router = useRouter()
 const storyboardLoading = ref(false)
 const assetLoading = ref(false)
 const composeSubmitting = ref(false)
@@ -254,8 +272,7 @@ const handleGenerateStoryboard = async () => {
     return
   }
 
-  clearComposeTimer()
-  composeTask.value = null
+  clearComposeState()
   storyboardLoading.value = true
   assetSearched.value = false
   try {
@@ -286,8 +303,7 @@ const handleSearchAssets = async () => {
     return
   }
 
-  clearComposeTimer()
-  composeTask.value = null
+  clearComposeState()
   assetLoading.value = true
   try {
     const res = await searchShotAssets({
@@ -318,8 +334,7 @@ const handleComposeVideo = async () => {
     return
   }
 
-  clearComposeTimer()
-  composeTask.value = null
+  clearComposeState()
   composeSubmitting.value = true
   try {
     const res = await composeVideo({
@@ -338,6 +353,7 @@ const handleComposeVideo = async () => {
       return
     }
     composeTask.value = task
+    saveLastTask(task.taskId)
     startComposePolling(task.taskId)
     ElMessage.success('视频合成任务已提交')
   } catch (error) {
@@ -353,24 +369,34 @@ const startComposePolling = (taskId) => {
   composeTimer.value = window.setInterval(() => {
     refreshComposeTask(taskId)
   }, 2000)
-  refreshComposeTask(taskId)
+  refreshComposeTask(taskId, false)
 }
 
-const refreshComposeTask = async (taskId) => {
+const refreshComposeTask = async (taskId, showToast = true) => {
   try {
     const res = await getVideoComposeTask(taskId)
     const task = res?.data?.task
     if (!task) return
     composeTask.value = task
+    saveLastTask(task.taskId)
     if (task.status === 'SUCCESS') {
       clearComposeTimer()
-      ElMessage.success('视频合成完成')
+      if (showToast) ElMessage.success('视频合成完成')
     } else if (task.status === 'FAILED') {
       clearComposeTimer()
-      ElMessage.error(task.errorMessage || '视频合成失败')
+      if (showToast) ElMessage.error(task.errorMessage || '视频合成失败')
     }
   } catch (error) {
     console.error('查询合成任务失败:', error)
+  }
+}
+
+const restoreLastTask = async () => {
+  const taskId = window.localStorage.getItem(LAST_TASK_KEY)
+  if (!taskId) return
+  await refreshComposeTask(taskId, false)
+  if (composeRunning.value) {
+    startComposePolling(taskId)
   }
 }
 
@@ -378,6 +404,18 @@ const clearComposeTimer = () => {
   if (composeTimer.value) {
     window.clearInterval(composeTimer.value)
     composeTimer.value = null
+  }
+}
+
+const clearComposeState = () => {
+  clearComposeTimer()
+  composeTask.value = null
+  window.localStorage.removeItem(LAST_TASK_KEY)
+}
+
+const saveLastTask = (taskId) => {
+  if (taskId) {
+    window.localStorage.setItem(LAST_TASK_KEY, taskId)
   }
 }
 
@@ -396,8 +434,7 @@ const normalizeShots = (nextShots = []) => {
 const selectCandidate = (shot, candidate) => {
   if (composeRunning.value) return
   shot.selectedMaterialId = candidate.id
-  composeTask.value = null
-  clearComposeTimer()
+  clearComposeState()
 }
 
 const selectedMaterialName = (shot) => {
@@ -405,8 +442,24 @@ const selectedMaterialName = (shot) => {
   return material?.fileName || `素材 ${shot.selectedMaterialId}`
 }
 
+const goMaterialPreview = () => {
+  if (!composeTask.value?.outputMaterialId) return
+  router.push(`/preview/${composeTask.value.outputMaterialId}`)
+}
+
+const copyResultUrl = async () => {
+  const url = composeResultUrl.value
+  if (!url) return
+  try {
+    await navigator.clipboard.writeText(url)
+    ElMessage.success('成片链接已复制')
+  } catch (error) {
+    ElMessage.warning('复制失败，请手动复制打开成片链接')
+  }
+}
+
 const resetWorkspace = () => {
-  clearComposeTimer()
+  clearComposeState()
   form.script = ''
   form.targetShotCount = 0
   form.defaultDuration = 5
@@ -414,7 +467,6 @@ const resetWorkspace = () => {
   form.resolution = '720p'
   shots.value = []
   assetSearched.value = false
-  composeTask.value = null
 }
 
 const getProxyPath = (url = '') => {
@@ -435,6 +487,10 @@ const getProxyPath = (url = '') => {
     return url
   }
 }
+
+onMounted(() => {
+  restoreLastTask()
+})
 
 onUnmounted(() => {
   clearComposeTimer()
@@ -595,6 +651,25 @@ onUnmounted(() => {
   line-height: 1.5;
 }
 
+.task-meta,
+.result-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 12px;
+
+  strong {
+    min-width: 0;
+    color: #111827;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 .result-card {
   video {
     width: 100%;
@@ -603,9 +678,17 @@ onUnmounted(() => {
     border-radius: 6px;
     background: #0f172a;
   }
+}
 
-  .el-link {
-    margin-top: 8px;
+.result-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+
+  .el-button {
+    margin-left: 0;
   }
 }
 

@@ -21,3 +21,21 @@ export function searchShotAssets(data) {
     }
   })
 }
+
+export function composeVideo(data) {
+  return request({
+    url: '/ai/video/compose',
+    method: 'post',
+    data,
+    headers: {
+      skipRepeatSubmit: true
+    }
+  })
+}
+
+export function getVideoComposeTask(taskId) {
+  return request({
+    url: `/ai/video/task/${taskId}`,
+    method: 'get'
+  })
+}

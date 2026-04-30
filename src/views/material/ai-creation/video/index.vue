@@ -31,6 +31,14 @@
                 <el-input-number v-model="form.topK" :min="1" :max="20" controls-position="right" />
               </el-form-item>
             </div>
+
+            <el-form-item label="输出清晰度">
+              <el-select v-model="form.resolution" class="full-width">
+                <el-option label="720P" value="720p" />
+                <el-option label="1080P" value="1080p" />
+                <el-option label="2K" value="2k" />
+              </el-select>
+            </el-form-item>
           </el-form>
 
           <div class="action-stack">
@@ -38,7 +46,7 @@
               <el-icon><Tickets /></el-icon>
               生成分镜
             </el-button>
-            <el-button :loading="assetLoading" :disabled="shots.length === 0" @click="handleSearchAssets">
+            <el-button :loading="assetLoading" :disabled="shots.length === 0 || composeRunning" @click="handleSearchAssets">
               <el-icon><Search /></el-icon>
               匹配素材
             </el-button>
@@ -66,10 +74,30 @@
             </div>
           </div>
 
-          <el-button type="success" disabled class="compose-btn">
+          <el-button
+            type="success"
+            class="compose-btn"
+            :loading="composeSubmitting"
+            :disabled="!allShotsSelected || composeRunning"
+            @click="handleComposeVideo"
+          >
             <el-icon><VideoPlay /></el-icon>
             生成视频
           </el-button>
+
+          <div v-if="composeTask" class="task-card">
+            <div class="task-title">
+              <span>{{ composeTaskTitle }}</span>
+              <el-tag size="small" :type="composeTaskTagType" effect="plain">{{ composeTask.status }}</el-tag>
+            </div>
+            <el-progress :percentage="composeProgress" :status="composeProgressStatus" />
+            <p>{{ composeTask.errorMessage || composeTask.message || '等待任务更新' }}</p>
+          </div>
+
+          <div v-if="composeResultUrl" class="result-card">
+            <video :src="composePreviewUrl" controls preload="metadata" />
+            <el-link :href="composePreviewUrl" target="_blank" type="primary">打开成片</el-link>
+          </div>
         </section>
       </aside>
 
@@ -79,7 +107,9 @@
             <h2>分镜工作台</h2>
             <p>{{ shots.length }} 个分镜，{{ selectedShots.length }} 个已选素材</p>
           </div>
-          <el-tag v-if="shots.length > 0" type="success" effect="plain">{{ allShotsSelected ? '素材已就绪' : '待选择素材' }}</el-tag>
+          <el-tag v-if="shots.length > 0" type="success" effect="plain">
+            {{ allShotsSelected ? '素材已就绪' : '待选择素材' }}
+          </el-tag>
         </div>
 
         <el-empty v-if="shots.length === 0" :image-size="120" description="先生成分镜" />
@@ -104,6 +134,7 @@
                 :key="candidate.id"
                 class="candidate-card"
                 :class="{ selected: candidate.id === shot.selectedMaterialId }"
+                :disabled="composeRunning"
                 @click="selectCandidate(shot, candidate)"
               >
                 <div class="candidate-preview">
@@ -144,24 +175,39 @@
 </template>
 
 <script setup name="AICreationVideo">
-import { computed, reactive, ref } from 'vue'
+import { computed, onUnmounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check, Film, RefreshRight, Search, Tickets, VideoCamera, VideoPlay, Warning } from '@element-plus/icons-vue'
-import { generateStoryboard, searchShotAssets } from '@/api/xcsc/videoCreation'
+import {
+  composeVideo,
+  generateStoryboard,
+  getVideoComposeTask,
+  searchShotAssets
+} from '@/api/xcsc/videoCreation'
 
 const storyboardLoading = ref(false)
 const assetLoading = ref(false)
+const composeSubmitting = ref(false)
 const assetSearched = ref(false)
 const shots = ref([])
+const composeTask = ref(null)
+const composeTimer = ref(null)
 
 const form = reactive({
   script: '',
   targetShotCount: 0,
   defaultDuration: 5,
-  topK: 5
+  topK: 5,
+  resolution: '720p'
 })
 
-const busy = computed(() => storyboardLoading.value || assetLoading.value)
+const composeRunning = computed(() => {
+  return ['PENDING', 'RUNNING'].includes(composeTask.value?.status)
+})
+
+const busy = computed(() => {
+  return storyboardLoading.value || assetLoading.value || composeSubmitting.value || composeRunning.value
+})
 
 const selectedShots = computed(() => {
   return shots.value.filter(shot => shot.selectedMaterialId)
@@ -171,12 +217,45 @@ const allShotsSelected = computed(() => {
   return shots.value.length > 0 && selectedShots.value.length === shots.value.length
 })
 
+const composeResultUrl = computed(() => {
+  return composeTask.value?.status === 'SUCCESS' ? composeTask.value.outputUrl : ''
+})
+
+const composePreviewUrl = computed(() => {
+  return composeResultUrl.value ? getProxyPath(composeResultUrl.value) : ''
+})
+
+const composeProgress = computed(() => {
+  const progress = Number(composeTask.value?.progress || 0)
+  return Math.max(0, Math.min(100, progress))
+})
+
+const composeProgressStatus = computed(() => {
+  if (composeTask.value?.status === 'SUCCESS') return 'success'
+  if (composeTask.value?.status === 'FAILED') return 'exception'
+  return undefined
+})
+
+const composeTaskTagType = computed(() => {
+  if (composeTask.value?.status === 'SUCCESS') return 'success'
+  if (composeTask.value?.status === 'FAILED') return 'danger'
+  return 'warning'
+})
+
+const composeTaskTitle = computed(() => {
+  if (composeTask.value?.status === 'SUCCESS') return '成片已生成'
+  if (composeTask.value?.status === 'FAILED') return '合成失败'
+  return '视频合成中'
+})
+
 const handleGenerateStoryboard = async () => {
   if (!form.script.trim()) {
     ElMessage.warning('请输入文案内容')
     return
   }
 
+  clearComposeTimer()
+  composeTask.value = null
   storyboardLoading.value = true
   assetSearched.value = false
   try {
@@ -186,15 +265,7 @@ const handleGenerateStoryboard = async () => {
       defaultDuration: form.defaultDuration
     })
     const nextShots = Array.isArray(res?.data?.shots) ? res.data.shots : []
-    shots.value = nextShots.map((shot, index) => ({
-      shotNo: shot.shotNo || index + 1,
-      text: shot.text || '',
-      visualDescription: shot.visualDescription || '',
-      searchQuery: shot.searchQuery || shot.visualDescription || shot.text || '',
-      duration: shot.duration || form.defaultDuration,
-      selectedMaterialId: shot.selectedMaterialId || null,
-      candidates: Array.isArray(shot.candidates) ? shot.candidates : []
-    }))
+    shots.value = normalizeShots(nextShots)
 
     if (shots.value.length === 0) {
       ElMessage.warning('未生成有效分镜')
@@ -215,6 +286,8 @@ const handleSearchAssets = async () => {
     return
   }
 
+  clearComposeTimer()
+  composeTask.value = null
   assetLoading.value = true
   try {
     const res = await searchShotAssets({
@@ -228,15 +301,7 @@ const handleSearchAssets = async () => {
       }))
     })
     const nextShots = Array.isArray(res?.data?.shots) ? res.data.shots : []
-    shots.value = nextShots.map((shot, index) => ({
-      shotNo: shot.shotNo || index + 1,
-      text: shot.text || '',
-      visualDescription: shot.visualDescription || '',
-      searchQuery: shot.searchQuery || '',
-      duration: shot.duration || form.defaultDuration,
-      selectedMaterialId: shot.selectedMaterialId || null,
-      candidates: Array.isArray(shot.candidates) ? shot.candidates : []
-    }))
+    shots.value = normalizeShots(nextShots)
     assetSearched.value = true
     ElMessage.success('素材匹配完成')
   } catch (error) {
@@ -247,8 +312,92 @@ const handleSearchAssets = async () => {
   }
 }
 
+const handleComposeVideo = async () => {
+  if (!allShotsSelected.value) {
+    ElMessage.warning('请为每个分镜选择视频素材')
+    return
+  }
+
+  clearComposeTimer()
+  composeTask.value = null
+  composeSubmitting.value = true
+  try {
+    const res = await composeVideo({
+      title: form.script.trim().slice(0, 40) || '视频创作',
+      resolution: form.resolution,
+      shots: shots.value.map(shot => ({
+        shotNo: shot.shotNo,
+        text: shot.text,
+        materialId: shot.selectedMaterialId,
+        duration: shot.duration || form.defaultDuration
+      }))
+    })
+    const task = res?.data?.task
+    if (!task?.taskId) {
+      ElMessage.error('合成任务提交失败')
+      return
+    }
+    composeTask.value = task
+    startComposePolling(task.taskId)
+    ElMessage.success('视频合成任务已提交')
+  } catch (error) {
+    console.error('提交合成任务失败:', error)
+    ElMessage.error(error?.msg || '提交合成任务失败')
+  } finally {
+    composeSubmitting.value = false
+  }
+}
+
+const startComposePolling = (taskId) => {
+  clearComposeTimer()
+  composeTimer.value = window.setInterval(() => {
+    refreshComposeTask(taskId)
+  }, 2000)
+  refreshComposeTask(taskId)
+}
+
+const refreshComposeTask = async (taskId) => {
+  try {
+    const res = await getVideoComposeTask(taskId)
+    const task = res?.data?.task
+    if (!task) return
+    composeTask.value = task
+    if (task.status === 'SUCCESS') {
+      clearComposeTimer()
+      ElMessage.success('视频合成完成')
+    } else if (task.status === 'FAILED') {
+      clearComposeTimer()
+      ElMessage.error(task.errorMessage || '视频合成失败')
+    }
+  } catch (error) {
+    console.error('查询合成任务失败:', error)
+  }
+}
+
+const clearComposeTimer = () => {
+  if (composeTimer.value) {
+    window.clearInterval(composeTimer.value)
+    composeTimer.value = null
+  }
+}
+
+const normalizeShots = (nextShots = []) => {
+  return nextShots.map((shot, index) => ({
+    shotNo: shot.shotNo || index + 1,
+    text: shot.text || '',
+    visualDescription: shot.visualDescription || '',
+    searchQuery: shot.searchQuery || shot.visualDescription || shot.text || '',
+    duration: shot.duration || form.defaultDuration,
+    selectedMaterialId: shot.selectedMaterialId || null,
+    candidates: Array.isArray(shot.candidates) ? shot.candidates : []
+  }))
+}
+
 const selectCandidate = (shot, candidate) => {
+  if (composeRunning.value) return
   shot.selectedMaterialId = candidate.id
+  composeTask.value = null
+  clearComposeTimer()
 }
 
 const selectedMaterialName = (shot) => {
@@ -257,12 +406,15 @@ const selectedMaterialName = (shot) => {
 }
 
 const resetWorkspace = () => {
+  clearComposeTimer()
   form.script = ''
   form.targetShotCount = 0
   form.defaultDuration = 5
   form.topK = 5
+  form.resolution = '720p'
   shots.value = []
   assetSearched.value = false
+  composeTask.value = null
 }
 
 const getProxyPath = (url = '') => {
@@ -272,6 +424,7 @@ const getProxyPath = (url = '') => {
     const parts = parsed.pathname.replace(/^\/+/, '').split('/')
     const bucket = parts.shift()
     const objectKey = parts.join('/')
+    if (!bucket || !objectKey) return url
     const baseApi = import.meta.env.VITE_APP_BASE_API || ''
     const params = new URLSearchParams({
       bucketName: bucket,
@@ -282,6 +435,10 @@ const getProxyPath = (url = '') => {
     return url
   }
 }
+
+onUnmounted(() => {
+  clearComposeTimer()
+})
 </script>
 
 <style scoped lang="scss">
@@ -325,6 +482,10 @@ const getProxyPath = (url = '') => {
   color: #1f2937;
 }
 
+.full-width {
+  width: 100%;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -355,7 +516,7 @@ const getProxyPath = (url = '') => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 320px;
+  max-height: 260px;
   overflow: auto;
 }
 
@@ -405,6 +566,47 @@ const getProxyPath = (url = '') => {
 .compose-btn {
   width: 100%;
   margin-top: 12px;
+}
+
+.task-card,
+.result-card {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.task-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.task-card p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.result-card {
+  video {
+    width: 100%;
+    display: block;
+    aspect-ratio: 16 / 9;
+    border-radius: 6px;
+    background: #0f172a;
+  }
+
+  .el-link {
+    margin-top: 8px;
+  }
 }
 
 .storyboard-pane {
@@ -506,6 +708,11 @@ const getProxyPath = (url = '') => {
   &.selected {
     border-color: #409eff;
     box-shadow: 0 8px 20px rgba(64, 158, 255, 0.12);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.72;
   }
 }
 

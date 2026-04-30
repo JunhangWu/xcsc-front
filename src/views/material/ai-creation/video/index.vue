@@ -1,173 +1,268 @@
 <template>
   <div class="app-container">
-    <div class="workspace">
-      <div class="left-pane">
-        <div class="pane-card">
-          <h3><span class="step-badge">步骤1</span>第一步：匹配素材</h3>
-          <el-form label-position="top">
-            <el-form-item label="视频脚本">
-              <el-input v-model="form.prompt" type="textarea" :rows="6" placeholder="请输入视频脚本" />
-            </el-form-item>
-          </el-form>
-          <el-text type="info">先写脚本并匹配素材；不满意可在右侧逐项替换。</el-text>
-          <div class="step-action">
-            <el-button type="primary" size="large" :loading="videoMatching" @click="matchVideoAssets">
-              立即匹配素材
-            </el-button>
+    <div class="video-creation">
+      <aside class="control-pane">
+        <section class="panel">
+          <div class="panel-title">
+            <el-icon><Film /></el-icon>
+            <span>视频创作</span>
           </div>
-        </div>
-        <div class="pane-card">
-          <h3><span class="step-badge">步骤2</span>第二步：生成视频</h3>
+
           <el-form label-position="top">
-            <h3>生成配置</h3>
-            <div class="inline-fields">
-              <el-form-item label="时长">
-                <el-select v-model="form.duration">
-                  <el-option label="15s" value="15" />
-                  <el-option label="30s" value="30" />
-                  <el-option label="60s" value="60" />
-                </el-select>
+            <el-form-item label="文案内容">
+              <el-input
+                v-model="form.script"
+                type="textarea"
+                :rows="10"
+                maxlength="5000"
+                show-word-limit
+                placeholder="请输入需要生成视频的长文案"
+              />
+            </el-form-item>
+
+            <div class="form-grid">
+              <el-form-item label="目标分镜">
+                <el-input-number v-model="form.targetShotCount" :min="0" :max="20" controls-position="right" />
               </el-form-item>
-              <el-form-item label="分辨率">
-                <el-select v-model="form.resolution">
-                  <el-option label="720P" value="720p" />
-                  <el-option label="1080P" value="1080p" />
-                  <el-option label="2K" value="2k" />
-                </el-select>
+              <el-form-item label="镜头秒数">
+                <el-input-number v-model="form.defaultDuration" :min="1" :max="30" controls-position="right" />
+              </el-form-item>
+              <el-form-item label="候选数量">
+                <el-input-number v-model="form.topK" :min="1" :max="20" controls-position="right" />
               </el-form-item>
             </div>
-            <el-form-item label="旁白音色">
-              <el-select v-model="form.voice" placeholder="请选择旁白音色" :disabled="!videoMatched">
-                <el-option v-for="voice in videoVoices" :key="voice" :label="voice" :value="voice" />
-              </el-select>
-            </el-form-item>
           </el-form>
-          <el-text v-if="!videoMatched" type="info">请先完成第一步素材匹配，再选择音色并生成。</el-text>
-          <div class="step-action">
-            <el-button
-              type="primary"
-              size="large"
-              :loading="videoGenerating"
-              :disabled="!videoMatched || !form.voice"
-              @click="generateVideoWithSelectedAssets"
-            >
-              立即生成视频
+
+          <div class="action-stack">
+            <el-button type="primary" :loading="storyboardLoading" @click="handleGenerateStoryboard">
+              <el-icon><Tickets /></el-icon>
+              生成分镜
+            </el-button>
+            <el-button :loading="assetLoading" :disabled="shots.length === 0" @click="handleSearchAssets">
+              <el-icon><Search /></el-icon>
+              匹配素材
+            </el-button>
+            <el-button plain :disabled="busy" @click="resetWorkspace">
+              <el-icon><RefreshRight /></el-icon>
+              清空
             </el-button>
           </div>
-        </div>
-      </div>
-      <div class="right-pane">
-        <div class="pane-card result-card">
-          <div class="result-header">
-            <h3>素材匹配结果</h3>
-            <el-text type="info">最近一次任务：{{ latestTask || '暂无' }}</el-text>
-          </div>
-          <div v-if="!videoMatched" class="video-preview">
+        </section>
+
+        <section class="panel summary-panel">
+          <div class="panel-title">
             <el-icon><VideoCamera /></el-icon>
-            <p>点击“立即匹配素材”后，在这里查看匹配结果。</p>
+            <span>已选素材</span>
           </div>
-          <div v-else class="asset-grid">
-            <div v-for="(asset, index) in matchedAssets" :key="asset.id" class="asset-item">
-              <div class="asset-thumb-wrap clickable" @click="openReplacePanel(index)">
-                <img :src="asset.thumb" :alt="asset.name" class="asset-thumb" />
-                <el-tag size="small" class="asset-type" :type="asset.type === 'video' ? 'success' : 'info'">
-                  {{ asset.type === 'video' ? '视频' : '图片' }}
-                </el-tag>
-                <div class="asset-replace-tip">点击图片替换</div>
-              </div>
-              <div class="asset-meta">
-                <span>{{ asset.name }}</span>
-                <el-button type="primary" link @click="openReplacePanel(index)">展开备选</el-button>
+
+          <el-empty v-if="selectedShots.length === 0" :image-size="80" description="暂无已选素材" />
+          <div v-else class="selected-list">
+            <div v-for="shot in selectedShots" :key="shot.shotNo" class="selected-row">
+              <span class="selected-index">{{ shot.shotNo }}</span>
+              <div>
+                <strong>{{ selectedMaterialName(shot) }}</strong>
+                <p>{{ shot.text }}</p>
               </div>
             </div>
           </div>
-          <div v-if="activeReplaceIndex > -1" class="candidate-panel">
-            <div class="candidate-header">
-              <h4>备选素材（镜头{{ activeReplaceIndex + 1 }}）</h4>
-              <el-button type="primary" link @click="activeReplaceIndex = -1">收起</el-button>
+
+          <el-button type="success" disabled class="compose-btn">
+            <el-icon><VideoPlay /></el-icon>
+            生成视频
+          </el-button>
+        </section>
+      </aside>
+
+      <main class="storyboard-pane">
+        <div class="storyboard-header">
+          <div>
+            <h2>分镜工作台</h2>
+            <p>{{ shots.length }} 个分镜，{{ selectedShots.length }} 个已选素材</p>
+          </div>
+          <el-tag v-if="shots.length > 0" type="success" effect="plain">{{ allShotsSelected ? '素材已就绪' : '待选择素材' }}</el-tag>
+        </div>
+
+        <el-empty v-if="shots.length === 0" :image-size="120" description="先生成分镜" />
+
+        <div v-else class="shot-list">
+          <article v-for="shot in shots" :key="shot.shotNo" class="shot-card">
+            <div class="shot-main">
+              <div class="shot-index">{{ shot.shotNo }}</div>
+              <div class="shot-copy">
+                <div class="shot-title">
+                  <h3>{{ shot.text || `分镜 ${shot.shotNo}` }}</h3>
+                  <el-tag size="small" effect="plain">{{ shot.duration || form.defaultDuration }}s</el-tag>
+                </div>
+                <p v-if="shot.visualDescription">{{ shot.visualDescription }}</p>
+                <el-input v-model="shot.searchQuery" size="small" placeholder="检索词" />
+              </div>
             </div>
-            <div class="candidate-grid">
+
+            <div v-if="shot.candidates && shot.candidates.length > 0" class="candidate-grid">
               <button
-                v-for="item in candidateAssets"
-                :key="item.id"
-                class="candidate-item"
-                @click="replaceWithCandidate(item)"
+                v-for="candidate in shot.candidates"
+                :key="candidate.id"
+                class="candidate-card"
+                :class="{ selected: candidate.id === shot.selectedMaterialId }"
+                @click="selectCandidate(shot, candidate)"
               >
-                <img :src="item.thumb" :alt="item.name" />
-                <span>{{ item.name }}</span>
+                <div class="candidate-preview">
+                  <img
+                    v-if="candidate.coverPath"
+                    :src="getProxyPath(candidate.coverPath)"
+                    :alt="candidate.fileName"
+                  />
+                  <video
+                    v-else-if="candidate.minioPath"
+                    :src="getProxyPath(candidate.minioPath)"
+                    muted
+                    preload="metadata"
+                  />
+                  <div v-else class="empty-thumb">
+                    <el-icon><VideoCamera /></el-icon>
+                  </div>
+                  <span v-if="candidate.id === shot.selectedMaterialId" class="selected-mark">
+                    <el-icon><Check /></el-icon>
+                  </span>
+                </div>
+                <div class="candidate-info">
+                  <strong>{{ candidate.fileName || `素材 ${candidate.id}` }}</strong>
+                  <span>{{ candidate.fileResolution || '未知分辨率' }}</span>
+                </div>
               </button>
             </div>
-          </div>
-        </div>
-        <div class="pane-card">
-          <div class="result-header">
-            <h3>视频预览</h3>
-            <el-text type="info"></el-text>
-          </div>
-          <div v-if="!videoPreview.ready" class="video-preview">
-            <el-icon><VideoCamera /></el-icon>
-            <p>完成第二步后，这里展示生成视频预览。</p>
-          </div>
-          <div v-else class="video-result-block">
-            <video class="video-player" controls :src="videoPreview.url"></video>
-            <div class="jianying-link">
-              <span>剪映编辑链接：</span>
-              <el-link :href="videoPreview.jianyingLink" type="primary" target="_blank">
-                打开剪映继续编辑
-              </el-link>
+
+            <div v-else class="candidate-empty">
+              <el-icon><Warning /></el-icon>
+              <span>{{ assetSearched ? '当前分镜暂无视频候选' : '尚未匹配素材' }}</span>
             </div>
-          </div>
+          </article>
         </div>
-      </div>
+      </main>
     </div>
   </div>
 </template>
 
 <script setup name="AICreationVideo">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { VideoCamera } from '@element-plus/icons-vue'
-import { getSearchList } from '@/api/xcsc/search'
-import { getFileBatch } from '@/api/xcsc/uploadFile'
+import { Check, Film, RefreshRight, Search, Tickets, VideoCamera, VideoPlay, Warning } from '@element-plus/icons-vue'
+import { generateStoryboard, searchShotAssets } from '@/api/xcsc/videoCreation'
 
-const videoMatching = ref(false)
-const videoGenerating = ref(false)
-const videoMatched = ref(false)
-const activeReplaceIndex = ref(-1)
-const latestTask = ref('素材匹配任务（10分钟前）')
+const storyboardLoading = ref(false)
+const assetLoading = ref(false)
+const assetSearched = ref(false)
+const shots = ref([])
 
 const form = reactive({
-  prompt: '',
-  duration: '30',
-  resolution: '1080p',
-  voice: ''
+  script: '',
+  targetShotCount: 0,
+  defaultDuration: 5,
+  topK: 5
 })
 
-const videoVoices = ['知性女声', '青年男声', '活力女声', '沉稳男声']
-const matchedAssets = ref([])
-const candidateAssetPool = [
-  { id: 'c1', type: 'video', name: '城市街景镜头', thumb: 'https://picsum.photos/id/501/640/360' },
-  { id: 'c2', type: 'image', name: '产品特写图', thumb: 'https://picsum.photos/id/502/640/360' },
-  { id: 'c3', type: 'video', name: '办公场景素材', thumb: 'https://picsum.photos/id/503/640/360' },
-  { id: 'c4', type: 'image', name: '品牌KV海报', thumb: 'https://picsum.photos/id/504/640/360' },
-  { id: 'c5', type: 'video', name: '人物口播镜头', thumb: 'https://picsum.photos/id/505/640/360' },
-  { id: 'c6', type: 'image', name: '氛围背景图', thumb: 'https://picsum.photos/id/506/640/360' }
-]
-const candidateAssets = ref([])
-const videoPreview = reactive({
-  ready: false,
-  url: '',
-  jianyingLink: ''
+const busy = computed(() => storyboardLoading.value || assetLoading.value)
+
+const selectedShots = computed(() => {
+  return shots.value.filter(shot => shot.selectedMaterialId)
 })
 
-const isVideoFile = (path = '') => {
-  const ext = path.split('.').pop()?.toLowerCase()
-  return ['mp4', 'mov', 'avi', 'mkv', 'flv', 'm4v', 'wmv', 'webm'].includes(ext || '')
+const allShotsSelected = computed(() => {
+  return shots.value.length > 0 && selectedShots.value.length === shots.value.length
+})
+
+const handleGenerateStoryboard = async () => {
+  if (!form.script.trim()) {
+    ElMessage.warning('请输入文案内容')
+    return
+  }
+
+  storyboardLoading.value = true
+  assetSearched.value = false
+  try {
+    const res = await generateStoryboard({
+      script: form.script.trim(),
+      targetShotCount: form.targetShotCount || null,
+      defaultDuration: form.defaultDuration
+    })
+    const nextShots = Array.isArray(res?.data?.shots) ? res.data.shots : []
+    shots.value = nextShots.map((shot, index) => ({
+      shotNo: shot.shotNo || index + 1,
+      text: shot.text || '',
+      visualDescription: shot.visualDescription || '',
+      searchQuery: shot.searchQuery || shot.visualDescription || shot.text || '',
+      duration: shot.duration || form.defaultDuration,
+      selectedMaterialId: shot.selectedMaterialId || null,
+      candidates: Array.isArray(shot.candidates) ? shot.candidates : []
+    }))
+
+    if (shots.value.length === 0) {
+      ElMessage.warning('未生成有效分镜')
+      return
+    }
+    ElMessage.success('分镜生成完成')
+  } catch (error) {
+    console.error('生成分镜失败:', error)
+    ElMessage.error('生成分镜失败')
+  } finally {
+    storyboardLoading.value = false
+  }
 }
 
-const isImageFile = (path = '') => {
-  const ext = path.split('.').pop()?.toLowerCase()
-  return ['jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'svg'].includes(ext || '')
+const handleSearchAssets = async () => {
+  if (shots.value.length === 0) {
+    ElMessage.warning('请先生成分镜')
+    return
+  }
+
+  assetLoading.value = true
+  try {
+    const res = await searchShotAssets({
+      topK: form.topK,
+      shots: shots.value.map(shot => ({
+        shotNo: shot.shotNo,
+        text: shot.text,
+        visualDescription: shot.visualDescription,
+        searchQuery: shot.searchQuery,
+        duration: shot.duration
+      }))
+    })
+    const nextShots = Array.isArray(res?.data?.shots) ? res.data.shots : []
+    shots.value = nextShots.map((shot, index) => ({
+      shotNo: shot.shotNo || index + 1,
+      text: shot.text || '',
+      visualDescription: shot.visualDescription || '',
+      searchQuery: shot.searchQuery || '',
+      duration: shot.duration || form.defaultDuration,
+      selectedMaterialId: shot.selectedMaterialId || null,
+      candidates: Array.isArray(shot.candidates) ? shot.candidates : []
+    }))
+    assetSearched.value = true
+    ElMessage.success('素材匹配完成')
+  } catch (error) {
+    console.error('匹配素材失败:', error)
+    ElMessage.error('匹配素材失败')
+  } finally {
+    assetLoading.value = false
+  }
+}
+
+const selectCandidate = (shot, candidate) => {
+  shot.selectedMaterialId = candidate.id
+}
+
+const selectedMaterialName = (shot) => {
+  const material = (shot.candidates || []).find(item => item.id === shot.selectedMaterialId)
+  return material?.fileName || `素材 ${shot.selectedMaterialId}`
+}
+
+const resetWorkspace = () => {
+  form.script = ''
+  form.targetShotCount = 0
+  form.defaultDuration = 5
+  form.topK = 5
+  shots.value = []
+  assetSearched.value = false
 }
 
 const getProxyPath = (url = '') => {
@@ -187,344 +282,331 @@ const getProxyPath = (url = '') => {
     return url
   }
 }
-
-const parseSearchIdList = (searchResult = '') => {
-  return searchResult
-    .split(',')
-    .map(id => Number(id.trim()))
-    .filter(id => Number.isFinite(id) && id > 0)
-}
-
-const matchVideoAssets = async () => {
-  if (!form.prompt.trim()) {
-    ElMessage.warning('请先填写视频脚本，再匹配素材')
-    return
-  }
-
-  videoMatching.value = true
-  try {
-    const keyword = form.prompt.trim()
-    const searchRes = await getSearchList({ query: keyword })
-    const searchResult = searchRes?.data?.[0]?.searchResult || ''
-    const idList = parseSearchIdList(searchResult)
-
-    if (idList.length === 0) {
-      matchedAssets.value = []
-      videoMatched.value = false
-      ElMessage.warning('AI搜索未找到相关素材，请调整脚本后重试')
-      return
-    }
-
-    const fileRes = await getFileBatch(idList.slice(0, 20))
-    const files = Array.isArray(fileRes?.data) ? fileRes.data : []
-    const availableAssets = files
-      .filter(item => isImageFile(item.minioPath || '') || isVideoFile(item.minioPath || ''))
-      .slice(0, 4)
-      .map((item, index) => {
-        const sourcePath = item.minioPath || item.coverPath || ''
-        const coverPath = item.coverPath || sourcePath
-        const type = isVideoFile(sourcePath) ? 'video' : 'image'
-        return {
-          id: item.id || `m${Date.now()}-${index}`,
-          type,
-          name: item.fileName || `素材${index + 1}`,
-          thumb: getProxyPath(coverPath)
-        }
-      })
-
-    if (availableAssets.length === 0) {
-      matchedAssets.value = []
-      videoMatched.value = false
-      ElMessage.warning('AI搜索结果中暂无可用图片/视频素材')
-      return
-    }
-
-    matchedAssets.value = availableAssets
-    videoMatched.value = true
-    videoPreview.ready = false
-    activeReplaceIndex.value = -1
-    candidateAssets.value = []
-    latestTask.value = `${new Date().toLocaleTimeString()} 素材匹配`
-    ElMessage.success('素材匹配完成，可在右侧替换不满意素材')
-  } catch (error) {
-    console.error('素材匹配失败:', error)
-    videoMatched.value = false
-    matchedAssets.value = []
-    ElMessage.error('调用AI搜索失败，请稍后重试')
-  } finally {
-    videoMatching.value = false
-  }
-}
-
-const openReplacePanel = (index) => {
-  activeReplaceIndex.value = index
-  const current = matchedAssets.value[index]
-  candidateAssets.value = candidateAssetPool.filter(item => item.type === current.type)
-}
-
-const replaceWithCandidate = (candidate) => {
-  if (activeReplaceIndex.value < 0) return
-  matchedAssets.value[activeReplaceIndex.value] = {
-    ...candidate,
-    id: `m${Date.now()}`
-  }
-  activeReplaceIndex.value = -1
-  ElMessage.success('已替换为选中素材')
-}
-
-const generateVideoWithSelectedAssets = () => {
-  if (!videoMatched.value || matchedAssets.value.length === 0) {
-    ElMessage.warning('请先完成第一步素材匹配')
-    return
-  }
-  if (!form.voice) {
-    ElMessage.warning('请选择旁白音色')
-    return
-  }
-
-  videoGenerating.value = true
-  setTimeout(() => {
-    videoPreview.ready = true
-    videoPreview.url = 'https://www.w3schools.com/html/mov_bbb.mp4'
-    videoPreview.jianyingLink = `https://www.capcut.cn/template/${Date.now()}`
-    latestTask.value = `${new Date().toLocaleTimeString()} 视频生成`
-    videoGenerating.value = false
-    ElMessage.success('视频已生成，可点击剪映链接继续编辑')
-  }, 1200)
-}
 </script>
 
 <style scoped lang="scss">
-.workspace {
+.video-creation {
   display: grid;
-  grid-template-columns: minmax(340px, 1fr) minmax(380px, 1fr);
+  grid-template-columns: 360px minmax(0, 1fr);
   gap: 16px;
+  align-items: start;
 }
 
-.left-pane,
-.right-pane {
+.control-pane,
+.storyboard-pane {
+  min-width: 0;
+}
+
+.control-pane {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.pane-card {
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 14px;
+.panel,
+.storyboard-pane,
+.shot-card {
   background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
 
-  h3 {
-    margin: 0 0 12px;
-    font-size: 15px;
-    font-weight: 600;
+.panel {
+  padding: 14px;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+
+  :deep(.el-input-number) {
+    width: 100%;
   }
 }
 
-.inline-fields {
+.action-stack {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: 1fr;
+  gap: 8px;
+
+  .el-button {
+    width: 100%;
+    margin-left: 0;
+  }
 }
 
-.step-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 56px;
-  height: 22px;
-  margin-right: 8px;
-  border-radius: 999px;
-  background: #e0f2fe;
-  color: #0c4a6e;
-  font-size: 12px;
-  font-weight: 600;
+.summary-panel {
+  position: sticky;
+  top: 12px;
 }
 
-.result-card {
-  min-height: 420px;
-}
-
-.result-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.video-preview {
-  height: 220px;
-  border-radius: 10px;
-  border: 1px dashed #cbd5e1;
-  background: linear-gradient(160deg, #f8fafc 0%, #eef2ff 100%);
+.selected-list {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+}
 
-  .el-icon {
-    font-size: 44px;
-    color: #64748b;
-    margin-bottom: 10px;
+.selected-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #eef2f7;
+  border-radius: 6px;
+  background: #f8fafc;
+
+  strong,
+  p {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    font-size: 13px;
+    color: #111827;
   }
 
   p {
-    margin: 0;
-    color: #475569;
+    margin: 3px 0 0;
+    font-size: 12px;
+    color: #64748b;
   }
 }
 
-.step-action {
-  margin-top: 12px;
-}
-
-.asset-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.asset-item {
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  overflow: hidden;
-  background: #f8fafc;
-}
-
-.asset-thumb-wrap {
-  position: relative;
-}
-
-.asset-thumb-wrap.clickable {
-  cursor: pointer;
-}
-
-.asset-thumb {
-  width: 100%;
-  height: 120px;
-  object-fit: cover;
-  display: block;
-}
-
-.asset-type {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-}
-
-.asset-replace-tip {
-  position: absolute;
-  left: 8px;
-  bottom: 8px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.72);
-  color: #f8fafc;
+.selected-index {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #ecfdf5;
+  color: #047857;
   font-size: 12px;
+  font-weight: 700;
 }
 
-.asset-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  font-size: 13px;
-  color: #334155;
-}
-
-.candidate-panel {
+.compose-btn {
+  width: 100%;
   margin-top: 12px;
-  border-top: 1px solid #e2e8f0;
-  padding-top: 12px;
 }
 
-.candidate-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
+.storyboard-pane {
+  padding: 16px;
+}
 
-  h4 {
+.storyboard-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+
+  h2 {
     margin: 0;
-    font-size: 14px;
-    color: #334155;
+    font-size: 18px;
+    color: #111827;
+  }
+
+  p {
+    margin: 4px 0 0;
+    color: #64748b;
+    font-size: 13px;
+  }
+}
+
+.shot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.shot-card {
+  padding: 14px;
+}
+
+.shot-main {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.shot-index {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.shot-copy {
+  min-width: 0;
+
+  p {
+    margin: 6px 0 10px;
+    color: #475569;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+}
+
+.shot-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+
+  h3 {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.5;
+    color: #1f2937;
   }
 }
 
 .candidate-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 10px;
 }
 
-.candidate-item {
-  border: 1px solid #dbeafe;
+.candidate-card {
+  padding: 0;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-  background: #eff6ff;
-  padding: 4px;
+  overflow: hidden;
+  background: #fff;
   cursor: pointer;
   text-align: left;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
 
-  img {
+  &:hover,
+  &.selected {
+    border-color: #409eff;
+    box-shadow: 0 8px 20px rgba(64, 158, 255, 0.12);
+  }
+}
+
+.candidate-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #0f172a;
+
+  img,
+  video {
     width: 100%;
-    height: 72px;
-    border-radius: 6px;
-    object-fit: cover;
+    height: 100%;
     display: block;
-    margin-bottom: 6px;
+    object-fit: cover;
+  }
+}
+
+.empty-thumb {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #cbd5e1;
+  font-size: 34px;
+}
+
+.selected-mark {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #409eff;
+  color: #fff;
+}
+
+.candidate-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+
+  strong,
+  span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    font-size: 13px;
+    color: #1f2937;
   }
 
   span {
-    display: block;
     font-size: 12px;
-    color: #1e3a8a;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    color: #64748b;
   }
 }
 
-.video-result-block {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.video-player {
-  width: 100%;
-  border-radius: 10px;
-  background: #111827;
-}
-
-.jianying-link {
-  font-size: 13px;
-  color: #475569;
+.candidate-empty {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #64748b;
+  background: #f8fafc;
 }
 
 :deep(.el-form-item) {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
-@media (max-width: 1280px) {
-  .workspace {
+@media (max-width: 1180px) {
+  .video-creation {
     grid-template-columns: 1fr;
+  }
+
+  .summary-panel {
+    position: static;
   }
 }
 
-@media (max-width: 768px) {
-  .inline-fields {
-    grid-template-columns: 1fr;
-  }
-
-  .asset-grid {
-    grid-template-columns: 1fr;
-  }
-
+@media (max-width: 640px) {
+  .form-grid,
   .candidate-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
+  }
+
+  .storyboard-header,
+  .shot-title {
+    flex-direction: column;
   }
 }
 </style>

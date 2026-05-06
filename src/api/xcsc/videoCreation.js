@@ -39,3 +39,10 @@ export function getVideoComposeTask(taskId) {
     method: 'get'
   })
 }
+
+export function getVideoCreationResult(id) {
+  return request({
+    url: `/ai/video/result/${id}`,
+    method: 'get'
+  })
+}

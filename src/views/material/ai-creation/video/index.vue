@@ -32,13 +32,6 @@
               </el-form-item>
             </div>
 
-            <el-form-item label="输出清晰度">
-              <el-select v-model="form.resolution" class="full-width">
-                <el-option label="720P" value="720p" />
-                <el-option label="1080P" value="1080p" />
-                <el-option label="2K" value="2k" />
-              </el-select>
-            </el-form-item>
           </el-form>
 
           <div class="action-stack">
@@ -101,15 +94,14 @@
           <div v-if="composeResultUrl" class="result-card">
             <video :src="composePreviewUrl" controls preload="metadata" />
             <div class="result-meta">
-              <span>成片素材 ID</span>
-              <strong>{{ composeTask.outputMaterialId || '入库中' }}</strong>
+              <span>成片结果 ID</span>
+              <strong>{{ composeTask.outputMaterialId || '保存中' }}</strong>
             </div>
             <div class="result-actions">
-              <el-button size="small" type="primary" :disabled="!composeTask.outputMaterialId" @click="goMaterialPreview">
-                查看素材
+              <el-link :href="composePreviewUrl" target="_blank" type="primary">预览成片</el-link>
+              <el-button size="small" :disabled="!composePreviewUrl" @click="handleDownloadResult">
+                下载成片
               </el-button>
-              <el-button size="small" @click="copyResultUrl">复制链接</el-button>
-              <el-link :href="composePreviewUrl" target="_blank" type="primary">打开成片</el-link>
             </div>
           </div>
         </section>
@@ -190,7 +182,6 @@
 
 <script setup name="AICreationVideo">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Check, Film, RefreshRight, Search, Tickets, VideoCamera, VideoPlay, Warning } from '@element-plus/icons-vue'
 import {
@@ -202,7 +193,6 @@ import {
 
 const LAST_TASK_KEY = 'xcsc_video_creation_last_task_id'
 
-const router = useRouter()
 const storyboardLoading = ref(false)
 const assetLoading = ref(false)
 const composeSubmitting = ref(false)
@@ -216,7 +206,7 @@ const form = reactive({
   targetShotCount: 0,
   defaultDuration: 5,
   topK: 5,
-  resolution: '720p'
+  resolution: 'original'
 })
 
 const composeRunning = computed(() => {
@@ -264,6 +254,11 @@ const composeTaskTitle = computed(() => {
   if (composeTask.value?.status === 'SUCCESS') return '成片已生成'
   if (composeTask.value?.status === 'FAILED') return '合成失败'
   return '视频合成中'
+})
+
+const composeDownloadName = computed(() => {
+  const taskId = composeTask.value?.taskId || Date.now()
+  return `video-creation-${taskId}.mp4`
 })
 
 const handleGenerateStoryboard = async () => {
@@ -442,19 +437,31 @@ const selectedMaterialName = (shot) => {
   return material?.fileName || `素材 ${shot.selectedMaterialId}`
 }
 
-const goMaterialPreview = () => {
-  if (!composeTask.value?.outputMaterialId) return
-  router.push(`/preview/${composeTask.value.outputMaterialId}`)
-}
-
-const copyResultUrl = async () => {
-  const url = composeResultUrl.value
+const handleDownloadResult = async () => {
+  const url = composePreviewUrl.value
   if (!url) return
   try {
-    await navigator.clipboard.writeText(url)
-    ElMessage.success('成片链接已复制')
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include'
+    })
+    if (!response.ok) {
+      throw new Error(`server responded ${response.status}`)
+    }
+    const blob = await response.blob()
+    const objectUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = composeDownloadName.value
+    link.style.display = 'none'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(objectUrl)
+    ElMessage.success('成片下载已开始')
   } catch (error) {
-    ElMessage.warning('复制失败，请手动复制打开成片链接')
+    console.error('下载成片失败:', error)
+    ElMessage.error('下载成片失败，请稍后重试')
   }
 }
 
@@ -464,7 +471,7 @@ const resetWorkspace = () => {
   form.targetShotCount = 0
   form.defaultDuration = 5
   form.topK = 5
-  form.resolution = '720p'
+  form.resolution = 'original'
   shots.value = []
   assetSearched.value = false
 }
@@ -474,7 +481,10 @@ const getProxyPath = (url = '') => {
   try {
     const parsed = new URL(url)
     const parts = parsed.pathname.replace(/^\/+/, '').split('/')
-    const bucket = parts.shift()
+    let bucket = parts.shift()
+    if (bucket && bucket.toLowerCase().includes('minio') && parts.length > 1) {
+      bucket = parts.shift()
+    }
     const objectKey = parts.join('/')
     if (!bucket || !objectKey) return url
     const baseApi = import.meta.env.VITE_APP_BASE_API || ''

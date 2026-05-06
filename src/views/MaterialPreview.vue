@@ -216,9 +216,11 @@ import { useRouter, useRoute } from 'vue-router'
 import { Document, Collection, ArrowLeft, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getFileList } from "@/api/xcsc/uploadFile"
+import { getVideoCreationResult } from "@/api/xcsc/videoCreation"
 
 const router = useRouter()
 const route = useRoute()
+const isVideoCreationResultPreview = route.query.source === 'video-creation-result'
 const material = reactive({
   minioPath: '',
   fileSize: '',
@@ -255,19 +257,27 @@ const manualTagForm = reactive({
 // 标注信息 - 补充标签
 const supplementTags = ref('')
 
-const getProxyPath = (url) => {
+const getProxyPath = (url = '') => {
   if (!url) return ''
-  const u = new URL(url)
-  const parts = u.pathname.replace(/^\/+/, '').split('/')
-  const bucket = parts.shift()
-  const objectKey = parts.join('/')
-// 自动获取当前环境的 API 前缀（例如 /dev-api）
-  const baseApi = import.meta.env.VITE_APP_BASE_API || ''
-  const params = new URLSearchParams({
-    bucketName: bucket,
-    filePath: objectKey
-  })
-  return `${baseApi}/minio/proxy?${params.toString()}`
+  try {
+    const u = new URL(url)
+    const parts = u.pathname.replace(/^\/+/, '').split('/')
+    let bucket = parts.shift()
+    if (bucket && bucket.toLowerCase().includes('minio') && parts.length > 1) {
+      bucket = parts.shift()
+    }
+    const objectKey = parts.join('/')
+    if (!bucket || !objectKey) return url
+    // 自动获取当前环境的 API 前缀（例如 /dev-api）
+    const baseApi = import.meta.env.VITE_APP_BASE_API || ''
+    const params = new URLSearchParams({
+      bucketName: bucket,
+      filePath: objectKey
+    })
+    return `${baseApi}/minio/proxy?${params.toString()}`
+  } catch (error) {
+    return url
+  }
 }
 
 const handleShare = () => {
@@ -284,12 +294,16 @@ const handleShare = () => {
 
 //获取自动标注信息
 function getAutoTags() {
+  if (isVideoCreationResultPreview) return
   let params = {
     id: route.params.id,
   }
   getFileList(params).then(res => {
-    console.log('自动标注:', JSON.parse(res.data[0].annotationContent))
-    let resJson = JSON.parse(res.data[0].annotationContent)
+    const row = Array.isArray(res.data) ? res.data[0] : null
+    if (!row) return
+    const annotationContent = row.annotationContent || '{}'
+    console.log('自动标注:', JSON.parse(annotationContent))
+    let resJson = JSON.parse(annotationContent)
     autoTagForm.sceneCategory = resJson==null?['']:resJson.sceneCategory
     autoTagForm.characterBehavior = resJson==null?['']:resJson.characterBehavior
     autoTagForm.coreObjects = resJson==null?['']:resJson.coreObjects
@@ -304,53 +318,125 @@ getAutoTags()
 
 //获取人工标注信息
 function getManualTags() {
+  if (isVideoCreationResultPreview) return
   let params = {
     id: route.params.id,
   }
   getFileList(params).then(res => {
-    console.log('人工标注:', res.data[0])
-    manualTagForm.timeInfo = res.data[0].timeInfo || ''
-    manualTagForm.locationInfo = res.data[0].locationInfo || ''
-    manualTagForm.personNames = res.data[0].personNames || ''
-    manualTagForm.buildingNames = res.data[0].buildingNames || ''
-    manualTagForm.relatedThemes = res.data[0].relatedThemes || ''
-    manualTagForm.eventInfo = res.data[0].eventInfo || ''
+    const row = Array.isArray(res.data) ? res.data[0] : null
+    if (!row) return
+    console.log('人工标注:', row)
+    manualTagForm.timeInfo = row.timeInfo || ''
+    manualTagForm.locationInfo = row.locationInfo || ''
+    manualTagForm.personNames = row.personNames || ''
+    manualTagForm.buildingNames = row.buildingNames || ''
+    manualTagForm.relatedThemes = row.relatedThemes || ''
+    manualTagForm.eventInfo = row.eventInfo || ''
   })
 }
 getManualTags()
 
 //获取补充标注信息
 function getSupplementTags() {
+  if (isVideoCreationResultPreview) return
   let params = {
     id: route.params.id,
   }
   getFileList(params).then(res => {
-    console.log('补充标注:', res.data[0].supplementAnnotation)
-    supplementTags.value = res.data[0].supplementAnnotation || ''
+    const row = Array.isArray(res.data) ? res.data[0] : null
+    if (!row) return
+    console.log('补充标注:', row.supplementAnnotation)
+    supplementTags.value = row.supplementAnnotation || ''
     console.log('补充标注:', supplementTags)
   })
 }
 getSupplementTags()
 
+const assignMaterial = (data = {}) => {
+  material.minioPath = data.minioPath || data.url || ''
+  material.fileSize = data.fileSize || ''
+  material.fileName = data.fileName || ''
+  material.resolution = data.resolution || data.fileResolution || ''
+  material.createTime = data.createTime || ''
+  material.createBy = data.createBy || ''
+  material.fileType = data.fileType || getFileType(material.minioPath)
+  material.tag = data.tag || data.annotationContent || ''
+  material.localPath = data.localPath || data.objectName || ''
+}
+
+const formatSizeMb = (bytes) => {
+  const value = Number(bytes)
+  if (!Number.isFinite(value) || value <= 0) return ''
+  return (value / 1024 / 1024).toFixed(2)
+}
+
+const applyVideoCreationResult = (result) => {
+  assignMaterial({
+    minioPath: result.url,
+    fileSize: formatSizeMb(result.fileSize),
+    fileName: result.fileName || `${result.title || 'AI视频创作成片'}.mp4`,
+    resolution: result.resolution || '',
+    createTime: result.createTime || '',
+    createBy: result.createBy || '',
+    fileType: 'video',
+    localPath: result.objectName || ''
+  })
+  autoTagForm.sceneCategory = ['AI视频创作']
+  autoTagForm.characterBehavior = []
+  autoTagForm.coreObjects = []
+  autoTagForm.activityEvent = []
+  autoTagForm.textInfo = []
+  autoTagForm.colorTone = []
+  autoTagForm.shootingAngle = []
+  autoTagForm.materialDescription = result.title || 'AI视频创作合成结果'
+  supplementTags.value = result.sourceMaterialIds ? `源素材：${result.sourceMaterialIds}` : 'AI视频创作合成结果'
+}
+
+async function getVideoCreationResultMaterial() {
+  try {
+    const res = await getVideoCreationResult(route.params.id)
+    const result = res?.data?.result
+    if (!result) {
+      ElMessage.error('成片结果不存在')
+      return
+    }
+    applyVideoCreationResult(result)
+  } catch (error) {
+    console.error('获取成片结果失败:', error)
+    ElMessage.error('获取成片结果失败')
+  }
+}
+
 //获取素材
 function getMaterial() {
-  // debugger
+  if (isVideoCreationResultPreview) {
+    getVideoCreationResultMaterial()
+    return
+  }
+
   let params = {
     id: route.params.id,
   }
 
   getFileList(params).then(res => {
     console.log('getFileList 响应:', res)
-    console.log('getFileList 响应:', res.data[0].minioPath)
-    material.minioPath = res.data[0].minioPath || ''
-    material.fileSize = res.data[0].fileSize || ''
-    material.fileName = res.data[0].fileName || ''
-    material.resolution = res.data[0].fileResolution || ''
-    material.createTime = res.data[0].createTime || ''
-    material.createBy = res.data[0].createBy || ''
-    material.fileType = getFileType(res.data[0].minioPath)
-    material.tag = res.data.annotationContent || ''
-    material.localPath = res.data[0].localPath || ''
+    const row = Array.isArray(res.data) ? res.data[0] : null
+    if (!row) {
+      ElMessage.error('素材不存在')
+      return
+    }
+    console.log('getFileList 响应:', row.minioPath)
+    assignMaterial({
+      minioPath: row.minioPath || '',
+      fileSize: row.fileSize || '',
+      fileName: row.fileName || '',
+      resolution: row.fileResolution || '',
+      createTime: row.createTime || '',
+      createBy: row.createBy || '',
+      fileType: getFileType(row.minioPath),
+      tag: row.annotationContent || '',
+      localPath: row.localPath || ''
+    })
   })
   console.log('素材数据加载成功:', material);
 }
@@ -580,7 +666,7 @@ const getRealFileSize = async (fileUrl) => {
   } catch (error) {
     console.error('获取文件大小失败:', error);
   }
-  return material.value.fileSize; // 失败时使用默认值
+  return material.fileSize; // 失败时使用默认值
 }
 
 // 获取图片真实分辨率
@@ -593,7 +679,7 @@ const getRealResolution = (imageUrl) => {
     };
     img.onerror = () => {
       console.log('无法获取图片真实分辨率，使用默认值');
-      resolve(material.value.resolution || '不适用');
+      resolve(material.resolution || '不适用');
     };
     img.src = imageUrl;
   });
@@ -606,6 +692,9 @@ function downloadFile(material) {
 }
 // 组件挂载时获取素材数据
 onMounted(async () => {
+  if (isVideoCreationResultPreview) {
+    return
+  }
   // 从路由参数中获取素材ID
   const materialId = route.params.id
   console.log('获取素材ID:', materialId)
@@ -616,24 +705,33 @@ onMounted(async () => {
     const selectedMaterial = globalMaterials.find(m => m.id === materialId)
 
     if (selectedMaterial) {
-      material.value = selectedMaterial
+      assignMaterial({
+        minioPath: selectedMaterial.minioPath || selectedMaterial.thumbnail || '',
+        fileSize: selectedMaterial.fileSize || '',
+        fileName: selectedMaterial.fileName || selectedMaterial.name || '',
+        resolution: selectedMaterial.resolution || '',
+        createTime: selectedMaterial.createTime || '',
+        createBy: selectedMaterial.createBy || '',
+        fileType: selectedMaterial.type || '',
+        localPath: selectedMaterial.localPath || ''
+      })
 
       // 尝试获取文件真实大小和分辨率
-      if (material.value.type === 'image') {
+      if (selectedMaterial.type === 'image') {
         // 对于图片，获取真实分辨率和大小
         const [realResolution, realFileSize] = await Promise.all([
-          getRealResolution(material.value.thumbnail),
-          getRealFileSize(material.value.thumbnail)
+          getRealResolution(selectedMaterial.thumbnail),
+          getRealFileSize(selectedMaterial.thumbnail)
         ]);
-        material.value.resolution = realResolution;
-        material.value.fileSize = realFileSize;
-      } else if (material.value.type === 'video') {
+        material.resolution = realResolution;
+        material.fileSize = realFileSize;
+      } else if (selectedMaterial.type === 'video') {
         // 对于视频，仅获取真实大小
-        const realFileSize = await getRealFileSize(material.value.thumbnail);
-        material.value.fileSize = realFileSize;
+        const realFileSize = await getRealFileSize(selectedMaterial.thumbnail);
+        material.fileSize = realFileSize;
       }
 
-      console.log('已获取文件真实信息:', material.value.name);
+      console.log('已获取文件真实信息:', selectedMaterial.name);
     } else {
       // 如果localStorage中没有，使用模拟数据（实际项目中应该从API获取）
       // 这里使用默认的模拟数据

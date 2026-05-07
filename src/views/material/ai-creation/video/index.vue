@@ -24,9 +24,6 @@
               <el-form-item label="目标分镜">
                 <el-input-number v-model="form.targetShotCount" :min="0" :max="20" controls-position="right" />
               </el-form-item>
-              <el-form-item label="镜头秒数">
-                <el-input-number v-model="form.defaultDuration" :min="1" :max="30" controls-position="right" />
-              </el-form-item>
               <el-form-item label="候选数量">
                 <el-input-number v-model="form.topK" :min="1" :max="20" controls-position="right" />
               </el-form-item>
@@ -127,7 +124,6 @@
               <div class="shot-copy">
                 <div class="shot-title">
                   <h3>{{ shot.text || `分镜 ${shot.shotNo}` }}</h3>
-                  <el-tag size="small" effect="plain">{{ shot.duration || form.defaultDuration }}s</el-tag>
                 </div>
                 <p v-if="shot.visualDescription">{{ shot.visualDescription }}</p>
                 <el-input v-model="shot.searchQuery" size="small" placeholder="检索词" />
@@ -204,7 +200,6 @@ const composeTimer = ref(null)
 const form = reactive({
   script: '',
   targetShotCount: 0,
-  defaultDuration: 5,
   topK: 5,
   resolution: 'original'
 })
@@ -273,8 +268,7 @@ const handleGenerateStoryboard = async () => {
   try {
     const res = await generateStoryboard({
       script: form.script.trim(),
-      targetShotCount: form.targetShotCount || null,
-      defaultDuration: form.defaultDuration
+      targetShotCount: form.targetShotCount || null
     })
     const nextShots = Array.isArray(res?.data?.shots) ? res.data.shots : []
     shots.value = normalizeShots(nextShots)
@@ -307,8 +301,7 @@ const handleSearchAssets = async () => {
         shotNo: shot.shotNo,
         text: shot.text,
         visualDescription: shot.visualDescription,
-        searchQuery: shot.searchQuery,
-        duration: shot.duration
+        searchQuery: shot.searchQuery
       }))
     })
     const nextShots = Array.isArray(res?.data?.shots) ? res.data.shots : []
@@ -338,8 +331,7 @@ const handleComposeVideo = async () => {
       shots: shots.value.map(shot => ({
         shotNo: shot.shotNo,
         text: shot.text,
-        materialId: shot.selectedMaterialId,
-        duration: shot.duration || form.defaultDuration
+        materialId: shot.selectedMaterialId
       }))
     })
     const task = res?.data?.task
@@ -420,7 +412,6 @@ const normalizeShots = (nextShots = []) => {
     text: shot.text || '',
     visualDescription: shot.visualDescription || '',
     searchQuery: shot.searchQuery || shot.visualDescription || shot.text || '',
-    duration: shot.duration || form.defaultDuration,
     selectedMaterialId: shot.selectedMaterialId || null,
     candidates: Array.isArray(shot.candidates) ? shot.candidates : []
   }))
@@ -469,7 +460,6 @@ const resetWorkspace = () => {
   clearComposeState()
   form.script = ''
   form.targetShotCount = 0
-  form.defaultDuration = 5
   form.topK = 5
   form.resolution = 'original'
   shots.value = []
@@ -554,7 +544,7 @@ onUnmounted(() => {
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 
   :deep(.el-input-number) {

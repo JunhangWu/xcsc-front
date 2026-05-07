@@ -21,8 +21,8 @@
             </el-form-item>
 
             <div class="form-grid">
-              <el-form-item label="目标分镜">
-                <el-input-number v-model="form.targetShotCount" :min="0" :max="20" controls-position="right" />
+              <el-form-item label="分镜个数">
+                <el-input-number v-model="form.targetShotCount" :min="1" :max="20" controls-position="right" />
               </el-form-item>
               <el-form-item label="候选数量">
                 <el-input-number v-model="form.topK" :min="1" :max="20" controls-position="right" />
@@ -125,44 +125,73 @@
                 <div class="shot-title">
                   <h3>{{ shot.text || `分镜 ${shot.shotNo}` }}</h3>
                 </div>
+                <div v-if="shot.tags && shot.tags.length > 0" class="shot-tags">
+                  <el-tag v-for="tag in shot.tags" :key="tag" size="small" effect="plain">
+                    {{ tag }}
+                  </el-tag>
+                </div>
                 <p v-if="shot.visualDescription">{{ shot.visualDescription }}</p>
-                <el-input v-model="shot.searchQuery" size="small" placeholder="检索词" />
               </div>
             </div>
 
             <div v-if="shot.candidates && shot.candidates.length > 0" class="candidate-grid">
-              <button
+              <div
                 v-for="candidate in shot.candidates"
                 :key="candidate.id"
                 class="candidate-card"
-                :class="{ selected: candidate.id === shot.selectedMaterialId }"
-                :disabled="composeRunning"
+                :class="{ selected: candidate.id === shot.selectedMaterialId, disabled: composeRunning }"
+                role="button"
+                tabindex="0"
                 @click="selectCandidate(shot, candidate)"
+                @keydown.enter.prevent="selectCandidate(shot, candidate)"
               >
                 <div class="candidate-preview">
                   <img
-                    v-if="candidate.coverPath"
-                    :src="getProxyPath(candidate.coverPath)"
-                    :alt="candidate.fileName"
+                    v-if="candidateCoverUrl(candidate)"
+                    :src="candidateCoverUrl(candidate)"
+                    alt=""
+                    @error="handleCandidatePreviewError(candidate, 'cover')"
                   />
                   <video
-                    v-else-if="candidate.minioPath"
-                    :src="getProxyPath(candidate.minioPath)"
+                    v-else-if="candidateVideoUrl(candidate)"
+                    :src="candidateVideoUrl(candidate)"
                     muted
                     preload="metadata"
+                    playsinline
+                    @loadedmetadata="handleCandidateDurationLoaded(candidate, $event)"
+                    @error="handleCandidatePreviewError(candidate, 'video')"
                   />
                   <div v-else class="empty-thumb">
                     <el-icon><VideoCamera /></el-icon>
                   </div>
+                  <video
+                    v-if="candidateCoverUrl(candidate) && candidateVideoUrl(candidate) && !candidate.durationLoaded"
+                    class="metadata-probe"
+                    :src="candidateVideoUrl(candidate)"
+                    preload="metadata"
+                    aria-hidden="true"
+                    @loadedmetadata="handleCandidateDurationLoaded(candidate, $event)"
+                    @error="handleCandidatePreviewError(candidate, 'video')"
+                  />
                   <span v-if="candidate.id === shot.selectedMaterialId" class="selected-mark">
                     <el-icon><Check /></el-icon>
                   </span>
                 </div>
                 <div class="candidate-info">
                   <strong>{{ candidate.fileName || `素材 ${candidate.id}` }}</strong>
-                  <span>{{ candidate.fileResolution || '未知分辨率' }}</span>
+                  <div class="candidate-meta">
+                    <span>大小 {{ formatCandidateSize(candidate.fileSize) }}</span>
+                    <span>格式 {{ candidate.fileType || candidateFileType(candidate) }}</span>
+                    <span>时长 {{ formatCandidateDuration(candidate.durationSeconds) }}</span>
+                  </div>
+                  <div class="candidate-actions">
+                    <el-button size="small" text type="primary" @click.stop="previewCandidate(candidate)">
+                      <el-icon><View /></el-icon>
+                      预览
+                    </el-button>
+                  </div>
                 </div>
-              </button>
+              </div>
             </div>
 
             <div v-else class="candidate-empty">
@@ -178,8 +207,9 @@
 
 <script setup name="AICreationVideo">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Check, Film, RefreshRight, Search, Tickets, VideoCamera, VideoPlay, Warning } from '@element-plus/icons-vue'
+import { Check, Film, RefreshRight, Search, Tickets, VideoCamera, VideoPlay, View, Warning } from '@element-plus/icons-vue'
 import {
   composeVideo,
   generateStoryboard,
@@ -189,6 +219,7 @@ import {
 
 const LAST_TASK_KEY = 'xcsc_video_creation_last_task_id'
 
+const router = useRouter()
 const storyboardLoading = ref(false)
 const assetLoading = ref(false)
 const composeSubmitting = ref(false)
@@ -199,7 +230,7 @@ const composeTimer = ref(null)
 
 const form = reactive({
   script: '',
-  targetShotCount: 0,
+  targetShotCount: 2,
   topK: 5,
   resolution: 'original'
 })
@@ -268,7 +299,7 @@ const handleGenerateStoryboard = async () => {
   try {
     const res = await generateStoryboard({
       script: form.script.trim(),
-      targetShotCount: form.targetShotCount || null
+      targetShotCount: form.targetShotCount
     })
     const nextShots = Array.isArray(res?.data?.shots) ? res.data.shots : []
     shots.value = normalizeShots(nextShots)
@@ -277,7 +308,7 @@ const handleGenerateStoryboard = async () => {
       ElMessage.warning('未生成有效分镜')
       return
     }
-    ElMessage.success('分镜生成完成')
+    ElMessage.success('分镜与标签生成完成')
   } catch (error) {
     console.error('生成分镜失败:', error)
     ElMessage.error('生成分镜失败')
@@ -301,7 +332,7 @@ const handleSearchAssets = async () => {
         shotNo: shot.shotNo,
         text: shot.text,
         visualDescription: shot.visualDescription,
-        searchQuery: shot.searchQuery
+        tags: shot.tags
       }))
     })
     const nextShots = Array.isArray(res?.data?.shots) ? res.data.shots : []
@@ -407,14 +438,28 @@ const saveLastTask = (taskId) => {
 }
 
 const normalizeShots = (nextShots = []) => {
-  return nextShots.map((shot, index) => ({
-    shotNo: shot.shotNo || index + 1,
-    text: shot.text || '',
-    visualDescription: shot.visualDescription || '',
-    searchQuery: shot.searchQuery || shot.visualDescription || shot.text || '',
-    selectedMaterialId: shot.selectedMaterialId || null,
-    candidates: Array.isArray(shot.candidates) ? shot.candidates : []
-  }))
+  return nextShots.map((shot, index) => {
+    const tags = Array.isArray(shot.tags) ? shot.tags : []
+    const candidates = Array.isArray(shot.candidates)
+      ? shot.candidates.map(candidate => ({
+        ...candidate,
+        durationSeconds: Number.isFinite(Number(candidate.durationSeconds ?? candidate.duration))
+          ? Number(candidate.durationSeconds ?? candidate.duration)
+          : null,
+        durationLoaded: false,
+        coverLoadFailed: false,
+        videoLoadFailed: false
+      }))
+      : []
+    return {
+      shotNo: shot.shotNo || index + 1,
+      text: shot.text || '',
+      visualDescription: shot.visualDescription || '',
+      tags,
+      selectedMaterialId: shot.selectedMaterialId || null,
+      candidates
+    }
+  })
 }
 
 const selectCandidate = (shot, candidate) => {
@@ -459,7 +504,7 @@ const handleDownloadResult = async () => {
 const resetWorkspace = () => {
   clearComposeState()
   form.script = ''
-  form.targetShotCount = 0
+  form.targetShotCount = 2
   form.topK = 5
   form.resolution = 'original'
   shots.value = []
@@ -486,6 +531,72 @@ const getProxyPath = (url = '') => {
   } catch (error) {
     return url
   }
+}
+
+const candidateCoverUrl = (candidate = {}) => {
+  if (!candidate.coverPath || candidate.coverLoadFailed) return ''
+  return getProxyPath(candidate.coverPath)
+}
+
+const candidateVideoUrl = (candidate = {}) => {
+  if (!candidate.minioPath || candidate.videoLoadFailed) return ''
+  return getProxyPath(candidate.minioPath)
+}
+
+const handleCandidatePreviewError = (candidate = {}, type = 'cover') => {
+  if (type === 'video') {
+    candidate.videoLoadFailed = true
+    return
+  }
+  candidate.coverLoadFailed = true
+}
+
+const handleCandidateDurationLoaded = (candidate = {}, event) => {
+  const duration = Number(event?.target?.duration)
+  if (!Number.isFinite(duration) || duration <= 0) return
+  candidate.durationSeconds = duration
+  candidate.durationLoaded = true
+}
+
+const candidateFileType = (candidate = {}) => {
+  const sourcePath = candidate.minioPath || candidate.coverPath || candidate.fileName || ''
+  const cleanPath = String(sourcePath).split('?')[0].split('#')[0]
+  const dotIndex = cleanPath.lastIndexOf('.')
+  return dotIndex > -1 ? cleanPath.slice(dotIndex + 1).toUpperCase() : '视频'
+}
+
+const formatCandidateSize = (value) => {
+  if (value === null || value === undefined || value === '') return '未知大小'
+  const text = String(value).trim()
+  if (/([kmgt]?b|bytes?|字节|mb|m)$/i.test(text)) return text
+  const size = Number(text)
+  if (!Number.isFinite(size)) return text
+  return `${Number.isInteger(size) ? size : size.toFixed(2)} MB`
+}
+
+const formatCandidateDuration = (value) => {
+  const seconds = Number(value)
+  if (!Number.isFinite(seconds) || seconds <= 0) return '读取中'
+  const totalSeconds = Math.round(seconds)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const restSeconds = totalSeconds % 60
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(restSeconds).padStart(2, '0')}`
+  }
+  return `${minutes}:${String(restSeconds).padStart(2, '0')}`
+}
+
+const previewCandidate = (candidate = {}) => {
+  if (!candidate.id) {
+    ElMessage.warning('当前素材缺少预览 ID')
+    return
+  }
+  const route = router.resolve({
+    name: 'MaterialPreview',
+    params: { id: candidate.id }
+  })
+  window.open(route.href, '_blank', 'noopener,noreferrer')
 }
 
 onMounted(() => {
@@ -771,6 +882,14 @@ onUnmounted(() => {
   }
 }
 
+.shot-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  margin-bottom: 10px;
+}
+
 .candidate-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
@@ -778,6 +897,7 @@ onUnmounted(() => {
 }
 
 .candidate-card {
+  display: block;
   padding: 0;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -793,7 +913,7 @@ onUnmounted(() => {
     box-shadow: 0 8px 20px rgba(64, 158, 255, 0.12);
   }
 
-  &:disabled {
+  &.disabled {
     cursor: not-allowed;
     opacity: 0.72;
   }
@@ -812,6 +932,10 @@ onUnmounted(() => {
     display: block;
     object-fit: cover;
   }
+}
+
+.metadata-probe {
+  display: none;
 }
 
 .empty-thumb {
@@ -838,10 +962,11 @@ onUnmounted(() => {
 }
 
 .candidate-info {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 10px;
 
   strong,
   span {
@@ -852,14 +977,33 @@ onUnmounted(() => {
   }
 
   strong {
+    order: 0;
     font-size: 13px;
     color: #1f2937;
   }
+
+  > span {
+    display: none;
+  }
+}
+
+.candidate-meta {
+  order: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px 8px;
 
   span {
     font-size: 12px;
     color: #64748b;
   }
+}
+
+.candidate-actions {
+  order: 2;
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 2px;
 }
 
 .candidate-empty {

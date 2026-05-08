@@ -126,7 +126,7 @@
                     v-for="tag in shot.tags"
                     :key="tag"
                     :checked="isShotTagSelected(shot, tag)"
-                    :disabled="composeRunning || isShotMatching(shot)"
+                    :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot)"
                     @change="checked => toggleShotTag(shot, tag, checked)"
                   >
                     <span>{{ tag }}</span>
@@ -146,14 +146,14 @@
                     maxlength="20"
                     clearable
                     placeholder="新增检索标签"
-                    :disabled="composeRunning || isShotMatching(shot)"
+                    :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot)"
                     @keyup.enter="addShotTag(shot)"
                   />
                   <el-button
                     size="small"
                     type="primary"
                     plain
-                    :disabled="composeRunning || isShotMatching(shot) || !normalizeTag(shot.tagDraft)"
+                    :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot) || !normalizeTag(shot.tagDraft)"
                     @click="addShotTag(shot)"
                   >
                     添加
@@ -163,9 +163,20 @@
                 <div class="shot-actions">
                   <el-button
                     type="primary"
+                    plain
+                    size="small"
+                    :loading="isShotTagExtracting(shot)"
+                    :disabled="composeRunning || isShotMatching(shot) || !shot.text"
+                    @click="handleExtractShotTags(shot)"
+                  >
+                    <el-icon><Tickets /></el-icon>
+                    提取 tag
+                  </el-button>
+                  <el-button
+                    type="primary"
                     size="small"
                     :loading="isShotMatching(shot)"
-                    :disabled="composeRunning || !hasSelectedTags(shot)"
+                    :disabled="composeRunning || isShotTagExtracting(shot) || !hasSelectedTags(shot)"
                     @click="handleSearchShotAssets(shot)"
                   >
                     <el-icon><Search /></el-icon>
@@ -253,6 +264,7 @@ import { ElMessage } from 'element-plus'
 import { Check, Close, Film, RefreshRight, Search, Tickets, VideoCamera, VideoPlay, View, Warning } from '@element-plus/icons-vue'
 import {
   composeVideo,
+  extractShotTags,
   generateStoryboard,
   getVideoComposeTask,
   searchShotAssets
@@ -264,9 +276,12 @@ const router = useRouter()
 const storyboardLoading = ref(false)
 const composeSubmitting = ref(false)
 const shotMatchLoading = reactive({})
+const shotTagLoading = reactive({})
 const shots = ref([])
 const composeTask = ref(null)
 const composeTimer = ref(null)
+
+const VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm', 'm4v']
 
 const form = reactive({
   script: '',
@@ -280,11 +295,15 @@ const composeRunning = computed(() => {
 })
 
 const busy = computed(() => {
-  return storyboardLoading.value || anyShotMatching.value || composeSubmitting.value || composeRunning.value
+  return storyboardLoading.value || anyShotMatching.value || anyShotTagExtracting.value || composeSubmitting.value || composeRunning.value
 })
 
 const anyShotMatching = computed(() => {
   return Object.values(shotMatchLoading).some(Boolean)
+})
+
+const anyShotTagExtracting = computed(() => {
+  return Object.values(shotTagLoading).some(Boolean)
 })
 
 const selectedShots = computed(() => {
@@ -339,6 +358,7 @@ const handleGenerateStoryboard = async () => {
 
   clearComposeState()
   clearShotMatchLoading()
+  clearShotTagLoading()
   storyboardLoading.value = true
   try {
     const res = await generateStoryboard({
@@ -346,13 +366,13 @@ const handleGenerateStoryboard = async () => {
       targetShotCount: form.targetShotCount
     })
     const nextShots = Array.isArray(res?.data?.shots) ? res.data.shots : []
-    shots.value = normalizeShots(nextShots)
+    shots.value = normalizeStoryboardShots(nextShots)
 
     if (shots.value.length === 0) {
       ElMessage.warning('未生成有效分镜')
       return
     }
-    ElMessage.success('分镜与标签生成完成')
+    ElMessage.success('分镜生成完成')
   } catch (error) {
     console.error('生成分镜失败:', error)
     ElMessage.error(error?.message || error?.msg || '生成分镜失败')
@@ -394,9 +414,49 @@ const handleSearchShotAssets = async (shot) => {
   }
 }
 
+const handleExtractShotTags = async (shot) => {
+  if (!shot?.text) {
+    ElMessage.warning('当前分镜文案为空，无法提取 tag')
+    return
+  }
+
+  clearComposeState()
+  shotTagLoading[shot.shotNo] = true
+  try {
+    const res = await extractShotTags({
+      shotNo: shot.shotNo,
+      text: shot.text
+    })
+    const tags = uniqueTags(res?.data?.tags || [])
+    shot.generatedTags = tags
+    shot.customTags = uniqueTags(shot.customTags).filter(tag => !tags.includes(tag))
+    shot.tags = mergeShotTags(shot.generatedTags, shot.customTags)
+    shot.selectedTags = uniqueTags(shot.selectedTags).filter(tag => shot.tags.includes(tag))
+    resetShotAssets(shot)
+    if (tags.length === 0) {
+      ElMessage.warning(`分镜 ${shot.shotNo} 未提取到有效 tag`)
+      return
+    }
+    ElMessage.success(`分镜 ${shot.shotNo} tag 提取完成`)
+  } catch (error) {
+    console.error('提取 tag 失败:', error)
+    ElMessage.error(error?.message || error?.msg || '提取 tag 失败')
+  } finally {
+    shotTagLoading[shot.shotNo] = false
+  }
+}
+
 const handleComposeVideo = async () => {
   if (!allShotsSelected.value) {
     ElMessage.warning('请为每个分镜选择视频素材')
+    return
+  }
+  const unsupportedShot = shots.value.find(shot => {
+    const material = (shot.candidates || []).find(item => item.id === shot.selectedMaterialId)
+    return material && !isVideoCandidate(material)
+  })
+  if (unsupportedShot) {
+    ElMessage.warning(`分镜 ${unsupportedShot.shotNo} 当前选择的素材不是视频，暂不能合成`)
     return
   }
 
@@ -522,24 +582,17 @@ const resetShotAssets = (shot) => {
   clearComposeState()
 }
 
-const normalizeShots = (nextShots = []) => {
+const normalizeStoryboardShots = (nextShots = []) => {
   return nextShots.map((shot, index) => {
-    const generatedTags = uniqueTags(Array.isArray(shot.generatedTags) ? shot.generatedTags : shot.tags)
-    const customTags = uniqueTags(shot.customTags).filter(tag => !generatedTags.includes(tag))
-    const tags = mergeShotTags(generatedTags, customTags)
     const candidates = normalizeCandidates(shot.candidates)
-    const hasSelectedTags = Object.prototype.hasOwnProperty.call(shot, 'selectedTags')
-    const selectedTags = hasSelectedTags && Array.isArray(shot.selectedTags)
-      ? uniqueTags(shot.selectedTags).filter(tag => tags.includes(tag))
-      : []
     return {
       shotNo: shot.shotNo || index + 1,
       text: shot.text || '',
       visualDescription: shot.visualDescription || '',
-      generatedTags,
-      customTags,
-      tags,
-      selectedTags,
+      generatedTags: [],
+      customTags: [],
+      tags: [],
+      selectedTags: [],
       tagDraft: shot.tagDraft || '',
       assetSearched: Boolean(shot.assetSearched || candidates.length > 0),
       selectedMaterialId: shot.selectedMaterialId || null,
@@ -550,6 +603,10 @@ const normalizeShots = (nextShots = []) => {
 
 const isShotMatching = (shot) => {
   return Boolean(shot && shotMatchLoading[shot.shotNo])
+}
+
+const isShotTagExtracting = (shot) => {
+  return Boolean(shot && shotTagLoading[shot.shotNo])
 }
 
 const hasSelectedTags = (shot) => {
@@ -565,7 +622,7 @@ const isCustomShotTag = (shot, tag) => {
 }
 
 const toggleShotTag = (shot, tag, checked) => {
-  if (!shot || composeRunning.value || isShotMatching(shot)) return
+  if (!shot || composeRunning.value || isShotMatching(shot) || isShotTagExtracting(shot)) return
   const selected = new Set(Array.isArray(shot.selectedTags) ? shot.selectedTags : [])
   if (checked) {
     selected.add(tag)
@@ -577,7 +634,7 @@ const toggleShotTag = (shot, tag, checked) => {
 }
 
 const addShotTag = (shot) => {
-  if (!shot || composeRunning.value || isShotMatching(shot)) return
+  if (!shot || composeRunning.value || isShotMatching(shot) || isShotTagExtracting(shot)) return
   const tag = normalizeTag(shot.tagDraft)
   if (!tag) return
 
@@ -599,7 +656,7 @@ const addShotTag = (shot) => {
 }
 
 const removeShotTag = (shot, tag) => {
-  if (!shot || composeRunning.value || isShotMatching(shot) || !isCustomShotTag(shot, tag)) return
+  if (!shot || composeRunning.value || isShotMatching(shot) || isShotTagExtracting(shot) || !isCustomShotTag(shot, tag)) return
   shot.customTags = (shot.customTags || []).filter(item => item !== tag)
   shot.tags = mergeShotTags(shot.generatedTags || [], shot.customTags)
   shot.selectedTags = (shot.selectedTags || []).filter(item => item !== tag && shot.tags.includes(item))
@@ -609,6 +666,12 @@ const removeShotTag = (shot, tag) => {
 const clearShotMatchLoading = () => {
   Object.keys(shotMatchLoading).forEach(key => {
     delete shotMatchLoading[key]
+  })
+}
+
+const clearShotTagLoading = () => {
+  Object.keys(shotTagLoading).forEach(key => {
+    delete shotTagLoading[key]
   })
 }
 
@@ -654,6 +717,7 @@ const handleDownloadResult = async () => {
 const resetWorkspace = () => {
   clearComposeState()
   clearShotMatchLoading()
+  clearShotTagLoading()
   form.script = ''
   form.targetShotCount = 2
   form.topK = 5
@@ -747,6 +811,18 @@ const previewCandidate = (candidate = {}) => {
     params: { id: candidate.id }
   })
   window.open(route.href, '_blank', 'noopener,noreferrer')
+}
+
+const candidateExtension = (candidate = {}) => {
+  const sourcePath = candidate.minioPath || candidate.localPath || candidate.fileName || candidate.coverPath || ''
+  const cleanPath = String(sourcePath).split('?')[0].split('#')[0]
+  const dotIndex = cleanPath.lastIndexOf('.')
+  return dotIndex > -1 ? cleanPath.slice(dotIndex + 1).toLowerCase() : ''
+}
+
+const isVideoCandidate = (candidate = {}) => {
+  const type = String(candidate.fileType || '').trim().toLowerCase()
+  return type.includes('video') || type === '视频' || VIDEO_EXTENSIONS.includes(type) || VIDEO_EXTENSIONS.includes(candidateExtension(candidate))
 }
 
 onMounted(() => {

@@ -6,6 +6,19 @@ export function generateStoryboard(data) {
     method: 'post',
     data,
     headers: {
+      isToken: false,
+      skipRepeatSubmit: true
+    }
+  })
+}
+
+export function extractShotTags(data) {
+  return request({
+    url: '/ai/video/extract-tags',
+    method: 'post',
+    data,
+    headers: {
+      isToken: false,
       skipRepeatSubmit: true
     }
   })

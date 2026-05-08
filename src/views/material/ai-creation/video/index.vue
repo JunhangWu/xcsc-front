@@ -355,7 +355,7 @@ const handleGenerateStoryboard = async () => {
     ElMessage.success('分镜与标签生成完成')
   } catch (error) {
     console.error('生成分镜失败:', error)
-    ElMessage.error('生成分镜失败')
+    ElMessage.error(error?.message || error?.msg || '生成分镜失败')
   } finally {
     storyboardLoading.value = false
   }
@@ -388,7 +388,7 @@ const handleSearchShotAssets = async (shot) => {
     ElMessage.success(`分镜 ${shot.shotNo} 素材匹配完成`)
   } catch (error) {
     console.error('匹配素材失败:', error)
-    ElMessage.error('匹配素材失败')
+    ElMessage.error(error?.message || error?.msg || '匹配素材失败')
   } finally {
     shotMatchLoading[shot.shotNo] = false
   }
@@ -423,7 +423,7 @@ const handleComposeVideo = async () => {
     ElMessage.success('视频合成任务已提交')
   } catch (error) {
     console.error('提交合成任务失败:', error)
-    ElMessage.error(error?.msg || '提交合成任务失败')
+    ElMessage.error(error?.message || error?.msg || '提交合成任务失败')
   } finally {
     composeSubmitting.value = false
   }

@@ -36,10 +36,6 @@
               <el-icon><Tickets /></el-icon>
               生成分镜
             </el-button>
-            <el-button :loading="assetLoading" :disabled="shots.length === 0 || composeRunning" @click="handleSearchAssets">
-              <el-icon><Search /></el-icon>
-              匹配素材
-            </el-button>
             <el-button plain :disabled="busy" @click="resetWorkspace">
               <el-icon><RefreshRight /></el-icon>
               清空
@@ -126,11 +122,56 @@
                   <h3>{{ shot.text || `分镜 ${shot.shotNo}` }}</h3>
                 </div>
                 <div v-if="shot.tags && shot.tags.length > 0" class="shot-tags">
-                  <el-tag v-for="tag in shot.tags" :key="tag" size="small" effect="plain">
-                    {{ tag }}
-                  </el-tag>
+                  <el-check-tag
+                    v-for="tag in shot.tags"
+                    :key="tag"
+                    :checked="isShotTagSelected(shot, tag)"
+                    :disabled="composeRunning || isShotMatching(shot)"
+                    @change="checked => toggleShotTag(shot, tag, checked)"
+                  >
+                    <span>{{ tag }}</span>
+                    <el-icon
+                      v-if="isCustomShotTag(shot, tag)"
+                      class="shot-tag-remove"
+                      @click.stop="removeShotTag(shot, tag)"
+                    >
+                      <Close />
+                    </el-icon>
+                  </el-check-tag>
+                </div>
+                <div class="shot-tag-add">
+                  <el-input
+                    v-model="shot.tagDraft"
+                    size="small"
+                    maxlength="20"
+                    clearable
+                    placeholder="新增检索标签"
+                    :disabled="composeRunning || isShotMatching(shot)"
+                    @keyup.enter="addShotTag(shot)"
+                  />
+                  <el-button
+                    size="small"
+                    type="primary"
+                    plain
+                    :disabled="composeRunning || isShotMatching(shot) || !normalizeTag(shot.tagDraft)"
+                    @click="addShotTag(shot)"
+                  >
+                    添加
+                  </el-button>
                 </div>
                 <p v-if="shot.visualDescription">{{ shot.visualDescription }}</p>
+                <div class="shot-actions">
+                  <el-button
+                    type="primary"
+                    size="small"
+                    :loading="isShotMatching(shot)"
+                    :disabled="composeRunning || !hasSelectedTags(shot)"
+                    @click="handleSearchShotAssets(shot)"
+                  >
+                    <el-icon><Search /></el-icon>
+                    匹配素材
+                  </el-button>
+                </div>
               </div>
             </div>
 
@@ -196,7 +237,7 @@
 
             <div v-else class="candidate-empty">
               <el-icon><Warning /></el-icon>
-              <span>{{ assetSearched ? '当前分镜暂无视频候选' : '尚未匹配素材' }}</span>
+              <span>{{ shot.assetSearched ? '当前分镜暂无视频候选' : '尚未匹配素材' }}</span>
             </div>
           </article>
         </div>
@@ -209,7 +250,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Check, Film, RefreshRight, Search, Tickets, VideoCamera, VideoPlay, View, Warning } from '@element-plus/icons-vue'
+import { Check, Close, Film, RefreshRight, Search, Tickets, VideoCamera, VideoPlay, View, Warning } from '@element-plus/icons-vue'
 import {
   composeVideo,
   generateStoryboard,
@@ -221,9 +262,8 @@ const LAST_TASK_KEY = 'xcsc_video_creation_last_task_id'
 
 const router = useRouter()
 const storyboardLoading = ref(false)
-const assetLoading = ref(false)
 const composeSubmitting = ref(false)
-const assetSearched = ref(false)
+const shotMatchLoading = reactive({})
 const shots = ref([])
 const composeTask = ref(null)
 const composeTimer = ref(null)
@@ -240,7 +280,11 @@ const composeRunning = computed(() => {
 })
 
 const busy = computed(() => {
-  return storyboardLoading.value || assetLoading.value || composeSubmitting.value || composeRunning.value
+  return storyboardLoading.value || anyShotMatching.value || composeSubmitting.value || composeRunning.value
+})
+
+const anyShotMatching = computed(() => {
+  return Object.values(shotMatchLoading).some(Boolean)
 })
 
 const selectedShots = computed(() => {
@@ -294,8 +338,8 @@ const handleGenerateStoryboard = async () => {
   }
 
   clearComposeState()
+  clearShotMatchLoading()
   storyboardLoading.value = true
-  assetSearched.value = false
   try {
     const res = await generateStoryboard({
       script: form.script.trim(),
@@ -317,33 +361,36 @@ const handleGenerateStoryboard = async () => {
   }
 }
 
-const handleSearchAssets = async () => {
-  if (shots.value.length === 0) {
-    ElMessage.warning('请先生成分镜')
+const handleSearchShotAssets = async (shot) => {
+  if (!shot) return
+  if (!hasSelectedTags(shot)) {
+    ElMessage.warning('请先选择用于检索的标签')
     return
   }
 
   clearComposeState()
-  assetLoading.value = true
+  shotMatchLoading[shot.shotNo] = true
   try {
     const res = await searchShotAssets({
       topK: form.topK,
-      shots: shots.value.map(shot => ({
+      shots: [{
         shotNo: shot.shotNo,
         text: shot.text,
         visualDescription: shot.visualDescription,
-        tags: shot.tags
-      }))
+        tags: shot.selectedTags
+      }]
     })
-    const nextShots = Array.isArray(res?.data?.shots) ? res.data.shots : []
-    shots.value = normalizeShots(nextShots)
-    assetSearched.value = true
-    ElMessage.success('素材匹配完成')
+    const matchedShot = Array.isArray(res?.data?.shots) ? res.data.shots[0] : null
+    const candidates = normalizeCandidates(matchedShot?.candidates || [])
+    shot.candidates = candidates
+    shot.selectedMaterialId = matchedShot?.selectedMaterialId || candidates[0]?.id || null
+    shot.assetSearched = true
+    ElMessage.success(`分镜 ${shot.shotNo} 素材匹配完成`)
   } catch (error) {
     console.error('匹配素材失败:', error)
     ElMessage.error('匹配素材失败')
   } finally {
-    assetLoading.value = false
+    shotMatchLoading[shot.shotNo] = false
   }
 }
 
@@ -437,28 +484,131 @@ const saveLastTask = (taskId) => {
   }
 }
 
+const normalizeCandidates = (candidates = []) => {
+  return Array.isArray(candidates)
+    ? candidates.map(candidate => ({
+      ...candidate,
+      durationSeconds: Number.isFinite(Number(candidate.durationSeconds ?? candidate.duration))
+        ? Number(candidate.durationSeconds ?? candidate.duration)
+        : null,
+      durationLoaded: false,
+      coverLoadFailed: false,
+      videoLoadFailed: false
+    }))
+    : []
+}
+
+const normalizeTag = (tag = '') => String(tag ?? '').trim()
+
+const uniqueTags = (tags = []) => {
+  const seen = new Set()
+  return (Array.isArray(tags) ? tags : [])
+    .map(normalizeTag)
+    .filter(tag => {
+      if (!tag || seen.has(tag)) return false
+      seen.add(tag)
+      return true
+    })
+}
+
+const mergeShotTags = (generatedTags = [], customTags = []) => {
+  return uniqueTags([...generatedTags, ...customTags])
+}
+
+const resetShotAssets = (shot) => {
+  shot.candidates = []
+  shot.selectedMaterialId = null
+  shot.assetSearched = false
+  clearComposeState()
+}
+
 const normalizeShots = (nextShots = []) => {
   return nextShots.map((shot, index) => {
-    const tags = Array.isArray(shot.tags) ? shot.tags : []
-    const candidates = Array.isArray(shot.candidates)
-      ? shot.candidates.map(candidate => ({
-        ...candidate,
-        durationSeconds: Number.isFinite(Number(candidate.durationSeconds ?? candidate.duration))
-          ? Number(candidate.durationSeconds ?? candidate.duration)
-          : null,
-        durationLoaded: false,
-        coverLoadFailed: false,
-        videoLoadFailed: false
-      }))
+    const generatedTags = uniqueTags(Array.isArray(shot.generatedTags) ? shot.generatedTags : shot.tags)
+    const customTags = uniqueTags(shot.customTags).filter(tag => !generatedTags.includes(tag))
+    const tags = mergeShotTags(generatedTags, customTags)
+    const candidates = normalizeCandidates(shot.candidates)
+    const hasSelectedTags = Object.prototype.hasOwnProperty.call(shot, 'selectedTags')
+    const selectedTags = hasSelectedTags && Array.isArray(shot.selectedTags)
+      ? uniqueTags(shot.selectedTags).filter(tag => tags.includes(tag))
       : []
     return {
       shotNo: shot.shotNo || index + 1,
       text: shot.text || '',
       visualDescription: shot.visualDescription || '',
+      generatedTags,
+      customTags,
       tags,
+      selectedTags,
+      tagDraft: shot.tagDraft || '',
+      assetSearched: Boolean(shot.assetSearched || candidates.length > 0),
       selectedMaterialId: shot.selectedMaterialId || null,
       candidates
     }
+  })
+}
+
+const isShotMatching = (shot) => {
+  return Boolean(shot && shotMatchLoading[shot.shotNo])
+}
+
+const hasSelectedTags = (shot) => {
+  return Array.isArray(shot?.selectedTags) && shot.selectedTags.length > 0
+}
+
+const isShotTagSelected = (shot, tag) => {
+  return Array.isArray(shot?.selectedTags) && shot.selectedTags.includes(tag)
+}
+
+const isCustomShotTag = (shot, tag) => {
+  return Array.isArray(shot?.customTags) && shot.customTags.includes(tag)
+}
+
+const toggleShotTag = (shot, tag, checked) => {
+  if (!shot || composeRunning.value || isShotMatching(shot)) return
+  const selected = new Set(Array.isArray(shot.selectedTags) ? shot.selectedTags : [])
+  if (checked) {
+    selected.add(tag)
+  } else {
+    selected.delete(tag)
+  }
+  shot.selectedTags = (shot.tags || []).filter(item => selected.has(item))
+  resetShotAssets(shot)
+}
+
+const addShotTag = (shot) => {
+  if (!shot || composeRunning.value || isShotMatching(shot)) return
+  const tag = normalizeTag(shot.tagDraft)
+  if (!tag) return
+
+  const tags = Array.isArray(shot.tags) ? shot.tags : []
+  if (tags.includes(tag)) {
+    const wasSelected = isShotTagSelected(shot, tag)
+    shot.selectedTags = uniqueTags([...(shot.selectedTags || []), tag]).filter(item => tags.includes(item))
+    shot.tagDraft = ''
+    if (!wasSelected) resetShotAssets(shot)
+    ElMessage.warning('标签已存在，已为你选中')
+    return
+  }
+
+  shot.customTags = uniqueTags([...(shot.customTags || []), tag])
+  shot.tags = mergeShotTags(shot.generatedTags || [], shot.customTags)
+  shot.selectedTags = uniqueTags([...(shot.selectedTags || []), tag]).filter(item => shot.tags.includes(item))
+  shot.tagDraft = ''
+  resetShotAssets(shot)
+}
+
+const removeShotTag = (shot, tag) => {
+  if (!shot || composeRunning.value || isShotMatching(shot) || !isCustomShotTag(shot, tag)) return
+  shot.customTags = (shot.customTags || []).filter(item => item !== tag)
+  shot.tags = mergeShotTags(shot.generatedTags || [], shot.customTags)
+  shot.selectedTags = (shot.selectedTags || []).filter(item => item !== tag && shot.tags.includes(item))
+  resetShotAssets(shot)
+}
+
+const clearShotMatchLoading = () => {
+  Object.keys(shotMatchLoading).forEach(key => {
+    delete shotMatchLoading[key]
   })
 }
 
@@ -503,12 +653,12 @@ const handleDownloadResult = async () => {
 
 const resetWorkspace = () => {
   clearComposeState()
+  clearShotMatchLoading()
   form.script = ''
   form.targetShotCount = 2
   form.topK = 5
   form.resolution = 'original'
   shots.value = []
-  assetSearched.value = false
 }
 
 const getProxyPath = (url = '') => {
@@ -887,7 +1037,47 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+
+  :deep(.el-check-tag) {
+    max-width: 100%;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid #dbe4f0;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+}
+
+.shot-tag-remove {
+  margin-right: -2px;
+  color: #64748b;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    color: #ef4444;
+  }
+}
+
+.shot-tag-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 340px;
+  margin-bottom: 8px;
+
+  :deep(.el-input) {
+    max-width: 220px;
+  }
+}
+
+.shot-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .candidate-grid {

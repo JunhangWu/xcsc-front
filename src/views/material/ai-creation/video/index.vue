@@ -159,6 +159,40 @@
                     添加
                   </el-button>
                 </div>
+                <div class="shot-scope">
+                  <el-select
+                    v-model="shot.folderId"
+                    class="shot-folder-select"
+                    size="small"
+                    filterable
+                    clearable
+                    placeholder="选择一级文件夹"
+                    :loading="folderOptionsLoading"
+                    :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot)"
+                    @change="handleShotSearchScopeChange(shot)"
+                  >
+                    <el-option
+                      v-for="folder in rootFolderOptions"
+                      :key="folder.value"
+                      :label="folder.label"
+                      :value="folder.value"
+                    />
+                  </el-select>
+                  <el-date-picker
+                    v-model="shot.dateRange"
+                    class="shot-date-range"
+                    size="small"
+                    type="daterange"
+                    format="YYYY-MM-DD"
+                    value-format="YYYY-MM-DD"
+                    range-separator="至"
+                    start-placeholder="开始日期"
+                    end-placeholder="结束日期"
+                    clearable
+                    :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot)"
+                    @change="handleShotSearchScopeChange(shot)"
+                  />
+                </div>
                 <p v-if="shot.visualDescription">{{ shot.visualDescription }}</p>
                 <div class="shot-actions">
                   <el-button
@@ -262,6 +296,7 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Check, Close, Film, RefreshRight, Search, Tickets, VideoCamera, VideoPlay, View, Warning } from '@element-plus/icons-vue'
+import { getDeptCategoryList } from '@/api/xcsc/uploadFile'
 import {
   composeVideo,
   extractShotTags,
@@ -269,10 +304,12 @@ import {
   getVideoComposeTask,
   searchShotAssets
 } from '@/api/xcsc/videoCreation'
+import useUserStore from '@/store/modules/user'
 
 const LAST_TASK_KEY = 'xcsc_video_creation_last_task_id'
 
 const router = useRouter()
+const userStore = useUserStore()
 const storyboardLoading = ref(false)
 const composeSubmitting = ref(false)
 const shotMatchLoading = reactive({})
@@ -280,6 +317,8 @@ const shotTagLoading = reactive({})
 const shots = ref([])
 const composeTask = ref(null)
 const composeTimer = ref(null)
+const rootFolderOptions = ref([])
+const folderOptionsLoading = ref(false)
 
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm', 'm4v']
 
@@ -304,6 +343,13 @@ const anyShotMatching = computed(() => {
 
 const anyShotTagExtracting = computed(() => {
   return Object.values(shotTagLoading).some(Boolean)
+})
+
+const isAdmin = computed(() => {
+  const user = userStore.user
+  const objectRoles = user?.roles?.some(role => role.roleKey === 'admin' || role.roleKey === 'studio')
+  const stringRoles = userStore.roles?.some(role => role === 'admin' || role === 'studio')
+  return objectRoles || stringRoles
 })
 
 const selectedShots = computed(() => {
@@ -387,17 +433,25 @@ const handleSearchShotAssets = async (shot) => {
     ElMessage.warning('请先选择用于检索的标签')
     return
   }
+  if (!shot.folderId) {
+    ElMessage.warning('请先选择素材文件夹')
+    return
+  }
 
   clearComposeState()
   shotMatchLoading[shot.shotNo] = true
   try {
+    const [createStartTime, createEndTime] = shotDateRangeParams(shot)
     const res = await searchShotAssets({
       topK: form.topK,
       shots: [{
         shotNo: shot.shotNo,
         text: shot.text,
         visualDescription: shot.visualDescription,
-        tags: shot.selectedTags
+        tags: shot.selectedTags,
+        folderId: shot.folderId,
+        createStartTime,
+        createEndTime
       }]
     })
     const matchedShot = Array.isArray(res?.data?.shots) ? res.data.shots[0] : null
@@ -594,6 +648,8 @@ const normalizeStoryboardShots = (nextShots = []) => {
       tags: [],
       selectedTags: [],
       tagDraft: shot.tagDraft || '',
+      folderId: shot.folderId || '',
+      dateRange: Array.isArray(shot.dateRange) ? shot.dateRange : [],
       assetSearched: Boolean(shot.assetSearched || candidates.length > 0),
       selectedMaterialId: shot.selectedMaterialId || null,
       candidates
@@ -661,6 +717,43 @@ const removeShotTag = (shot, tag) => {
   shot.tags = mergeShotTags(shot.generatedTags || [], shot.customTags)
   shot.selectedTags = (shot.selectedTags || []).filter(item => item !== tag && shot.tags.includes(item))
   resetShotAssets(shot)
+}
+
+const handleShotSearchScopeChange = (shot) => {
+  if (!shot || isShotMatching(shot)) return
+  resetShotAssets(shot)
+}
+
+const shotDateRangeParams = (shot = {}) => {
+  const range = Array.isArray(shot.dateRange) ? shot.dateRange : []
+  const start = range[0] ? `${range[0]} 00:00:00` : null
+  const end = range[1] ? `${range[1]} 23:59:59` : null
+  return [start, end]
+}
+
+const canUseFolderOption = (dept = {}) => {
+  if (!dept.rootFolderId) return false
+  if (isAdmin.value) return true
+  return Number(dept.deptId) === Number(userStore.deptId) || dept.leader === 'all'
+}
+
+const loadRootFolderOptions = async () => {
+  folderOptionsLoading.value = true
+  try {
+    const res = await getDeptCategoryList()
+    const list = Array.isArray(res?.data) ? res.data : []
+    rootFolderOptions.value = list
+      .filter(canUseFolderOption)
+      .map(dept => ({
+        label: dept.deptName || dept.folderName || dept.rootFolderId,
+        value: dept.rootFolderId
+      }))
+  } catch (error) {
+    console.error('加载素材文件夹失败:', error)
+    ElMessage.error('加载素材文件夹失败')
+  } finally {
+    folderOptionsLoading.value = false
+  }
 }
 
 const clearShotMatchLoading = () => {
@@ -827,6 +920,7 @@ const isVideoCandidate = (candidate = {}) => {
 
 onMounted(() => {
   restoreLastTask()
+  loadRootFolderOptions()
 })
 
 onUnmounted(() => {
@@ -1149,6 +1243,19 @@ onUnmounted(() => {
   }
 }
 
+.shot-scope {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) minmax(260px, 340px);
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+
+  :deep(.el-select),
+  :deep(.el-date-editor) {
+    width: 100%;
+  }
+}
+
 .shot-actions {
   display: flex;
   align-items: center;
@@ -1300,7 +1407,8 @@ onUnmounted(() => {
 
 @media (max-width: 640px) {
   .form-grid,
-  .candidate-grid {
+  .candidate-grid,
+  .shot-scope {
     grid-template-columns: 1fr;
   }
 

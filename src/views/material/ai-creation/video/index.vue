@@ -61,7 +61,7 @@
           </div>
 
           <el-button
-            type="success"
+            type="primary"
             class="compose-btn"
             :loading="composeSubmitting"
             :disabled="!allShotsSelected || composeRunning"
@@ -121,80 +121,62 @@
                 <div class="shot-title">
                   <h3>{{ shot.text || `分镜 ${shot.shotNo}` }}</h3>
                 </div>
-                <div v-if="shot.tags && shot.tags.length > 0" class="shot-tags">
-                  <el-check-tag
-                    v-for="tag in shot.tags"
-                    :key="tag"
-                    :checked="isShotTagSelected(shot, tag)"
-                    :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot)"
-                    @change="checked => toggleShotTag(shot, tag, checked)"
-                  >
-                    <span>{{ tag }}</span>
-                    <el-icon
-                      v-if="isCustomShotTag(shot, tag)"
-                      class="shot-tag-remove"
-                      @click.stop="removeShotTag(shot, tag)"
+                <p v-if="shot.visualDescription" class="shot-visual">{{ shot.visualDescription }}</p>
+                <div class="shot-tag-panel">
+                  <div class="shot-tags-header">
+                    <span>检索标签</span>
+                    <em>已选 {{ selectedTagCount(shot) }} / {{ tagCount(shot) }}</em>
+                  </div>
+                  <div v-if="shot.tags && shot.tags.length > 0" class="shot-tags">
+                    <el-check-tag
+                      v-for="tag in shot.tags"
+                      :key="tag"
+                      :class="[
+                        isCustomShotTag(shot, tag) ? 'custom-tag' : 'generated-tag',
+                        isShotTagSelected(shot, tag) ? 'is-selected-tag' : 'is-unselected-tag'
+                      ]"
+                      :checked="isShotTagSelected(shot, tag)"
+                      :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot)"
+                      @change="checked => toggleShotTag(shot, tag, checked)"
                     >
-                      <Close />
-                    </el-icon>
-                  </el-check-tag>
+                      <span>{{ tag }}</span>
+                      <el-icon
+                        v-if="isShotTagSelected(shot, tag)"
+                        class="shot-tag-check"
+                      >
+                        <Check />
+                      </el-icon>
+                      <el-icon
+                        v-if="isCustomShotTag(shot, tag)"
+                        class="shot-tag-remove"
+                        @click.stop="removeShotTag(shot, tag)"
+                      >
+                        <Close />
+                      </el-icon>
+                    </el-check-tag>
+                  </div>
                 </div>
                 <div class="shot-tag-add">
-                  <el-input
-                    v-model="shot.tagDraft"
-                    size="small"
-                    maxlength="20"
-                    clearable
-                    placeholder="新增检索标签"
-                    :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot)"
-                    @keyup.enter="addShotTag(shot)"
-                  />
-                  <el-button
-                    size="small"
-                    type="primary"
-                    plain
-                    :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot) || !normalizeTag(shot.tagDraft)"
-                    @click="addShotTag(shot)"
-                  >
-                    添加
-                  </el-button>
-                </div>
-                <div class="shot-scope">
-                  <el-select
-                    v-model="shot.folderId"
-                    class="shot-folder-select"
-                    size="small"
-                    filterable
-                    clearable
-                    placeholder="选择一级文件夹"
-                    :loading="folderOptionsLoading"
-                    :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot)"
-                    @change="handleShotSearchScopeChange(shot)"
-                  >
-                    <el-option
-                      v-for="folder in rootFolderOptions"
-                      :key="folder.value"
-                      :label="folder.label"
-                      :value="folder.value"
+                  <div class="shot-tag-inputs">
+                    <el-input
+                      v-model="shot.tagDraft"
+                      size="small"
+                      maxlength="20"
+                      clearable
+                      placeholder="新增检索标签"
+                      :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot)"
+                      @keyup.enter="addShotTag(shot)"
                     />
-                  </el-select>
-                  <el-date-picker
-                    v-model="shot.dateRange"
-                    class="shot-date-range"
-                    size="small"
-                    type="daterange"
-                    format="YYYY-MM-DD"
-                    value-format="YYYY-MM-DD"
-                    range-separator="至"
-                    start-placeholder="开始日期"
-                    end-placeholder="结束日期"
-                    clearable
-                    :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot)"
-                    @change="handleShotSearchScopeChange(shot)"
-                  />
-                </div>
-                <p v-if="shot.visualDescription">{{ shot.visualDescription }}</p>
-                <div class="shot-actions">
+                    <el-button
+                      size="small"
+                      type="primary"
+                      plain
+                      :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot) || !normalizeTag(shot.tagDraft)"
+                      @click="addShotTag(shot)"
+                    >
+                      添加
+                    </el-button>
+                  </div>
                   <el-button
                     type="primary"
                     plain
@@ -206,16 +188,80 @@
                     <el-icon><Tickets /></el-icon>
                     提取 tag
                   </el-button>
-                  <el-button
-                    type="primary"
-                    size="small"
-                    :loading="isShotMatching(shot)"
-                    :disabled="composeRunning || isShotTagExtracting(shot) || !hasSelectedTags(shot)"
-                    @click="handleSearchShotAssets(shot)"
-                  >
-                    <el-icon><Search /></el-icon>
-                    匹配素材
-                  </el-button>
+                </div>
+                <div class="shot-scope">
+                  <label class="scope-field scope-folder">
+                    <span>文件夹</span>
+                    <el-select
+                      v-model="shot.folderId"
+                      class="shot-folder-select"
+                      size="small"
+                      filterable
+                      clearable
+                      placeholder="选择一级文件夹"
+                      :loading="folderOptionsLoading"
+                      :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot)"
+                      @change="handleShotSearchScopeChange(shot)"
+                    >
+                      <el-option
+                        v-for="folder in rootFolderOptions"
+                        :key="folder.value"
+                        :label="folder.label"
+                        :value="folder.value"
+                      />
+                    </el-select>
+                  </label>
+                  <label class="scope-field scope-date">
+                    <span>开始日期</span>
+                    <el-date-picker
+                      v-model="shot.dateRange[0]"
+                      class="shot-date-input"
+                      size="small"
+                      type="date"
+                      format="YYYY-MM-DD"
+                      value-format="YYYY-MM-DD"
+                      placeholder="开始日期"
+                      clearable
+                      :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot)"
+                      @change="handleShotSearchScopeChange(shot)"
+                    />
+                  </label>
+                  <label class="scope-field scope-date">
+                    <span>结束日期</span>
+                    <el-date-picker
+                      v-model="shot.dateRange[1]"
+                      class="shot-date-input"
+                      size="small"
+                      type="date"
+                      format="YYYY-MM-DD"
+                      value-format="YYYY-MM-DD"
+                      placeholder="结束日期"
+                      clearable
+                      :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot)"
+                      @change="handleShotSearchScopeChange(shot)"
+                    />
+                  </label>
+                  <div class="scope-action">
+                    <el-tooltip
+                      content="请至少选择一个检索标签"
+                      placement="top"
+                      :disabled="hasSelectedTags(shot)"
+                    >
+                      <span class="match-tooltip-wrap">
+                        <el-button
+                          type="primary"
+                          size="small"
+                          class="match-btn"
+                          :loading="isShotMatching(shot)"
+                          :disabled="composeRunning || isShotTagExtracting(shot) || !hasSelectedTags(shot)"
+                          @click="handleSearchShotAssets(shot)"
+                        >
+                          <el-icon><Search /></el-icon>
+                          匹配素材
+                        </el-button>
+                      </span>
+                    </el-tooltip>
+                  </div>
                 </div>
               </div>
             </div>
@@ -669,6 +715,14 @@ const hasSelectedTags = (shot) => {
   return Array.isArray(shot?.selectedTags) && shot.selectedTags.length > 0
 }
 
+const selectedTagCount = (shot) => {
+  return Array.isArray(shot?.selectedTags) ? shot.selectedTags.length : 0
+}
+
+const tagCount = (shot) => {
+  return Array.isArray(shot?.tags) ? shot.tags.length : 0
+}
+
 const isShotTagSelected = (shot, tag) => {
   return Array.isArray(shot?.selectedTags) && shot.selectedTags.includes(tag)
 }
@@ -929,10 +983,16 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+.app-container {
+  min-height: calc(100vh - 84px);
+  padding: 16px;
+  background: #f3f6fb;
+}
+
 .video-creation {
   display: grid;
   grid-template-columns: 360px minmax(0, 1fr);
-  gap: 16px;
+  gap: 18px;
   align-items: start;
 }
 
@@ -944,29 +1004,36 @@ onUnmounted(() => {
 .control-pane {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .panel,
 .storyboard-pane,
 .shot-card {
   background: #fff;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #e6eaf0;
   border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
 }
 
 .panel {
-  padding: 14px;
+  padding: 18px;
 }
 
 .panel-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 14px;
-  font-size: 15px;
-  font-weight: 600;
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eef2f7;
+  font-size: 16px;
+  font-weight: 700;
   color: #1f2937;
+
+  .el-icon {
+    color: #2563eb;
+  }
 }
 
 .full-width {
@@ -976,21 +1043,70 @@ onUnmounted(() => {
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 12px;
 
   :deep(.el-input-number) {
     width: 100%;
   }
 }
 
+:deep(.el-form-item) {
+  margin-bottom: 14px;
+}
+
+:deep(.el-form-item__label) {
+  padding-bottom: 6px;
+  color: #334155;
+  font-weight: 600;
+}
+
+:deep(.el-button) {
+  height: 32px;
+  border-radius: 6px;
+}
+
+:deep(.el-button--small) {
+  height: 28px;
+  padding: 0 12px;
+}
+
+:deep(.el-input__wrapper),
+:deep(.el-textarea__inner) {
+  border-radius: 6px;
+}
+
+:deep(.el-textarea__inner) {
+  min-height: 180px !important;
+  padding: 10px 12px;
+  line-height: 1.6;
+}
+
+:deep(.el-input__count) {
+  right: 10px;
+  color: #94a3b8;
+}
+
 .action-stack {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 8px;
+  gap: 10px;
+  margin-top: 4px;
 
   .el-button {
     width: 100%;
     margin-left: 0;
+  }
+
+  .el-button.is-plain {
+    color: #475569;
+    background: #f8fafc;
+    border-color: #d8e0ea;
+
+    &:hover {
+      color: #2563eb;
+      border-color: #9ec5fe;
+      background: #f5f9ff;
+    }
   }
 }
 
@@ -1002,57 +1118,61 @@ onUnmounted(() => {
 .selected-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   max-height: 260px;
   overflow: auto;
 }
 
 .selected-row {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: 8px;
-  padding: 8px;
-  border: 1px solid #eef2f7;
-  border-radius: 6px;
-  background: #f8fafc;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #e8eef7;
+  border-radius: 8px;
+  background: #f8fbff;
 
-  strong,
-  p {
+  strong {
     display: block;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  strong {
     font-size: 13px;
+    font-weight: 700;
     color: #111827;
   }
 
   p {
-    margin: 3px 0 0;
+    display: -webkit-box;
+    margin: 4px 0 0;
+    min-width: 0;
+    overflow: hidden;
     font-size: 12px;
+    line-height: 1.45;
     color: #64748b;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
 }
 
 .selected-index {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #ecfdf5;
-  color: #047857;
+  background: #eaf3ff;
+  color: #1d4ed8;
   font-size: 12px;
   font-weight: 700;
 }
 
 .compose-btn {
   width: 100%;
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
 .task-card,
@@ -1124,24 +1244,28 @@ onUnmounted(() => {
 }
 
 .storyboard-pane {
-  padding: 16px;
+  padding: 18px;
 }
 
 .storyboard-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eef2f7;
 
   h2 {
     margin: 0;
-    font-size: 18px;
+    font-size: 20px;
+    line-height: 1.3;
+    font-weight: 700;
     color: #111827;
   }
 
   p {
-    margin: 4px 0 0;
+    margin: 6px 0 0;
     color: #64748b;
     font-size: 13px;
   }
@@ -1150,41 +1274,45 @@ onUnmounted(() => {
 .shot-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .shot-card {
-  padding: 14px;
+  padding: 16px;
+  transition: box-shadow 0.16s ease, border-color 0.16s ease;
+
+  &:hover {
+    border-color: #d6e3f5;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07);
+  }
 }
 
 .shot-main {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  gap: 10px;
-  margin-bottom: 12px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
 .shot-index {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #eff6ff;
+  background: #eaf3ff;
   color: #1d4ed8;
   font-size: 14px;
   font-weight: 700;
+  box-shadow: inset 0 0 0 1px #bfdbfe;
 }
 
 .shot-copy {
   min-width: 0;
 
   p {
-    margin: 6px 0 10px;
-    color: #475569;
-    font-size: 13px;
-    line-height: 1.6;
+    margin: 0;
   }
 }
 
@@ -1197,27 +1325,97 @@ onUnmounted(() => {
   h3 {
     margin: 0;
     font-size: 15px;
-    line-height: 1.5;
-    color: #1f2937;
+    line-height: 1.7;
+    font-weight: 700;
+    color: #172033;
+  }
+}
+
+.shot-visual {
+  margin-top: 6px !important;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.shot-tag-panel {
+  margin-top: 12px;
+}
+
+.shot-tags-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+
+  span {
+    color: #334155;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  em {
+    color: #64748b;
+    font-size: 12px;
+    font-style: normal;
   }
 }
 
 .shot-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-  margin-bottom: 8px;
+  gap: 8px;
+  margin-bottom: 10px;
 
   :deep(.el-check-tag) {
     max-width: 100%;
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    min-height: 26px;
+    padding: 5px 9px;
     border: 1px solid #dbe4f0;
+    border-radius: 6px;
     font-size: 12px;
     line-height: 1.2;
+    transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
   }
+
+  :deep(.el-check-tag.is-unselected-tag) {
+    color: #606266;
+    background: #f5f7fa;
+    border-color: #dcdfe6;
+
+    &:hover {
+      color: #1677ff;
+      border-color: #91caff;
+      background: #f8fbff;
+    }
+  }
+
+  :deep(.el-check-tag.is-selected-tag),
+  :deep(.el-check-tag.is-selected-tag.is-checked) {
+    color: #1677ff;
+    background: #e6f4ff;
+    border-color: #1677ff;
+    box-shadow: inset 0 0 0 1px rgba(22, 119, 255, 0.12);
+
+    &:hover {
+      color: #1677ff;
+      background: #e6f4ff;
+      border-color: #1677ff;
+    }
+  }
+
+  :deep(.el-check-tag.is-disabled) {
+    opacity: 0.68;
+  }
+}
+
+.shot-tag-check {
+  color: #1677ff;
+  font-size: 13px;
 }
 
 .shot-tag-remove {
@@ -1234,21 +1432,67 @@ onUnmounted(() => {
 .shot-tag-add {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
   gap: 8px;
-  max-width: 340px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+
+  .el-button {
+    margin-left: 0;
+  }
+}
+
+.shot-tag-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 280px;
+  min-width: 240px;
 
   :deep(.el-input) {
-    max-width: 220px;
+    max-width: 240px;
   }
 }
 
 .shot-scope {
-  display: grid;
-  grid-template-columns: minmax(160px, 220px) minmax(260px, 340px);
-  align-items: center;
-  gap: 8px;
-  margin: 8px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 12px 0 4px;
+  padding-top: 2px;
+
+  .scope-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+
+    > span {
+      color: #334155;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1;
+    }
+  }
+
+  .scope-folder {
+    flex: 0 1 220px;
+  }
+
+  .scope-date {
+    flex: 0 0 160px;
+  }
+
+  .shot-folder-select {
+    width: 100%;
+  }
+
+  .shot-date-input {
+    width: 100%;
+  }
 
   :deep(.el-select),
   :deep(.el-date-editor) {
@@ -1256,21 +1500,30 @@ onUnmounted(() => {
   }
 }
 
-.shot-actions {
+.scope-action {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 8px;
+  justify-content: flex-end;
+  flex: 1 1 120px;
+
+  .match-btn {
+    min-width: 104px;
+  }
+}
+
+.match-tooltip-wrap {
+  display: inline-flex;
 }
 
 .candidate-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
 }
 
 .candidate-card {
-  display: block;
+  display: flex;
+  flex-direction: column;
   padding: 0;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -1278,12 +1531,17 @@ onUnmounted(() => {
   background: #fff;
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
 
-  &:hover,
+  &:hover {
+    border-color: #b9d7ff;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.09);
+  }
+
   &.selected {
     border-color: #409eff;
-    box-shadow: 0 8px 20px rgba(64, 158, 255, 0.12);
+    background: #f5f9ff;
+    box-shadow: 0 10px 24px rgba(64, 158, 255, 0.16);
   }
 
   &.disabled {
@@ -1324,14 +1582,15 @@ onUnmounted(() => {
   position: absolute;
   top: 8px;
   right: 8px;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   background: #409eff;
   color: #fff;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.28);
 }
 
 .candidate-info {
@@ -1339,20 +1598,20 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px;
-
-  strong,
-  span {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+  flex: 1;
+  padding: 10px 11px;
 
   strong {
     order: 0;
+    display: -webkit-box;
+    min-height: 38px;
+    overflow: hidden;
     font-size: 13px;
+    line-height: 1.45;
+    font-weight: 700;
     color: #1f2937;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
 
   > span {
@@ -1364,11 +1623,16 @@ onUnmounted(() => {
   order: 1;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 4px 8px;
+  gap: 3px 8px;
 
   span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 12px;
-    color: #64748b;
+    line-height: 1.45;
+    color: #7a8798;
   }
 }
 
@@ -1376,23 +1640,26 @@ onUnmounted(() => {
   order: 2;
   display: flex;
   justify-content: flex-end;
-  padding-top: 2px;
+  margin-top: auto;
+  padding-top: 4px;
+
+  .el-button {
+    padding: 0 4px;
+  }
 }
 
 .candidate-empty {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  min-height: 48px;
-  padding: 0 12px;
-  border: 1px dashed #cbd5e1;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px dashed #c8d5e6;
   border-radius: 8px;
   color: #64748b;
-  background: #f8fafc;
-}
-
-:deep(.el-form-item) {
-  margin-bottom: 12px;
+  background: #f7faff;
+  font-size: 13px;
 }
 
 @media (max-width: 1180px) {
@@ -1407,14 +1674,43 @@ onUnmounted(() => {
 
 @media (max-width: 640px) {
   .form-grid,
-  .candidate-grid,
-  .shot-scope {
+  .candidate-grid {
     grid-template-columns: 1fr;
   }
 
   .storyboard-header,
   .shot-title {
     flex-direction: column;
+  }
+
+  .shot-main {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .shot-tag-add {
+    align-items: stretch;
+  }
+
+  .shot-tag-inputs {
+    min-width: 0;
+    width: 100%;
+
+    :deep(.el-input) {
+      max-width: none;
+    }
+  }
+
+  .shot-scope {
+    gap: 8px;
+
+    .scope-field {
+      flex: 1 1 100%;
+    }
+
+    .scope-action {
+      flex: 1 1 100%;
+      justify-content: flex-end;
+    }
   }
 }
 </style>

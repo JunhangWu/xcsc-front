@@ -241,6 +241,23 @@
                       @change="handleShotSearchScopeChange(shot)"
                     />
                   </label>
+                  <label class="scope-field scope-mode">
+                    <span>匹配方式</span>
+                    <el-select
+                      v-model="shot.searchMode"
+                      class="shot-match-mode-select"
+                      size="small"
+                      :disabled="composeRunning || isShotMatching(shot) || isShotTagExtracting(shot)"
+                      @change="handleShotSearchModeChange(shot)"
+                    >
+                      <el-option
+                        v-for="mode in MATCH_MODE_OPTIONS"
+                        :key="mode.value"
+                        :label="mode.label"
+                        :value="mode.value"
+                      />
+                    </el-select>
+                  </label>
                   <div class="scope-action">
                     <el-tooltip
                       content="请至少选择一个检索标签"
@@ -367,6 +384,11 @@ const rootFolderOptions = ref([])
 const folderOptionsLoading = ref(false)
 
 const VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm', 'm4v']
+const DEFAULT_SEARCH_MODE = 'keyword'
+const MATCH_MODE_OPTIONS = [
+  { label: '标签匹配', value: DEFAULT_SEARCH_MODE },
+  { label: 'Milvus检索', value: 'milvus' }
+]
 
 const form = reactive({
   script: '',
@@ -490,6 +512,7 @@ const handleSearchShotAssets = async (shot) => {
     const [createStartTime, createEndTime] = shotDateRangeParams(shot)
     const res = await searchShotAssets({
       topK: form.topK,
+      searchMode: shot.searchMode || DEFAULT_SEARCH_MODE,
       shots: [{
         shotNo: shot.shotNo,
         text: shot.text,
@@ -696,6 +719,7 @@ const normalizeStoryboardShots = (nextShots = []) => {
       tagDraft: shot.tagDraft || '',
       folderId: shot.folderId || '',
       dateRange: Array.isArray(shot.dateRange) ? shot.dateRange : [],
+      searchMode: shot.searchMode || DEFAULT_SEARCH_MODE,
       assetSearched: Boolean(shot.assetSearched || candidates.length > 0),
       selectedMaterialId: shot.selectedMaterialId || null,
       candidates
@@ -774,6 +798,11 @@ const removeShotTag = (shot, tag) => {
 }
 
 const handleShotSearchScopeChange = (shot) => {
+  if (!shot || isShotMatching(shot)) return
+  resetShotAssets(shot)
+}
+
+const handleShotSearchModeChange = (shot) => {
   if (!shot || isShotMatching(shot)) return
   resetShotAssets(shot)
 }
@@ -1486,11 +1515,19 @@ onUnmounted(() => {
     flex: 0 0 160px;
   }
 
+  .scope-mode {
+    flex: 0 0 140px;
+  }
+
   .shot-folder-select {
     width: 100%;
   }
 
   .shot-date-input {
+    width: 100%;
+  }
+
+  .shot-match-mode-select {
     width: 100%;
   }
 
@@ -1554,14 +1591,20 @@ onUnmounted(() => {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
+  flex: 0 0 auto;
+  overflow: hidden;
   background: #0f172a;
 
   img,
   video {
     width: 100%;
     height: 100%;
+    min-width: 100%;
+    min-height: 100%;
+    max-width: none;
     display: block;
     object-fit: cover;
+    object-position: center;
   }
 }
 
